@@ -2,6 +2,7 @@
 Pacchetto per i modelli SQLAlchemy.
 
 Qui vengono esportate le classi modello principali:
+- LegalEntity
 - Supplier
 - Invoice
 - InvoiceLine
@@ -13,6 +14,7 @@ Qui vengono esportate le classi modello principali:
 - User
 """
 
+from .legal_entity import LegalEntity
 from .supplier import Supplier
 from .invoice import Invoice
 from .invoice_line import InvoiceLine
@@ -24,6 +26,7 @@ from .import_log import ImportLog
 from .user import User
 
 __all__ = [
+    "LegalEntity",
     "Supplier",
     "Invoice",
     "InvoiceLine",
