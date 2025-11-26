@@ -10,10 +10,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+from datetime import datetime
+
+from lxml import etree
+
 from flask import current_app
 
 from app.extensions import db
-from app.models import Invoice
+from app.models import Invoice, LegalEntity
 from app.parsers.fatturapa_parser import InvoiceDTO, parse_invoice_xml
 from app.repositories.import_log_repo import create_import_log
 from app.repositories.invoice_repository import (
@@ -30,11 +34,6 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
     Gestisce transazioni per singolo file per evitare che un errore su un file
     blocchi l'intero batch.
     """
-    if legal_entity_id is None:
-        raise ValueError(
-            "legal_entity_id è obbligatorio per importare le fatture e assegnare l'intestatario"
-        )
-
     app = current_app._get_current_object()
     logger = app.logger
 
@@ -74,6 +73,18 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
             continue
 
         try:
+            header_data = _extract_header_data(xml_path)
+            legal_entity = _get_or_create_legal_entity(header_data)
+            invoice_legal_entity_id = legal_entity_id or legal_entity.id
+            if invoice_legal_entity_id is None:
+                raise ValueError(
+                    "Impossibile determinare il legal_entity_id dal file XML e nessun valore fornito"
+                )
+
+            if not hasattr(invoice_dto, "header") or invoice_dto.header is None:
+                invoice_dto.header = {}
+            invoice_dto.header["legal_entity_id"] = invoice_legal_entity_id
+
             supplier = get_or_create_supplier_from_dto(invoice_dto.supplier)
             if supplier.id is None:
                 raise ValueError(f"ID fornitore nullo per {supplier.name}")
@@ -81,7 +92,7 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
             invoice, created = _create_invoice_tree(
                 invoice_dto,
                 supplier.id,
-                legal_entity_id,
+                invoice_legal_entity_id,
                 str(import_folder),
             )
 
@@ -126,6 +137,94 @@ def _create_invoice_tree(
         legal_entity_id=legal_entity_id,
         import_source=import_source,
     )
+
+
+def _extract_header_data(xml_path: Path) -> Dict:
+    """Estrae i dati del cessionario/committente dall'XML."""
+
+    def _first(node, xpath: str):
+        result = node.xpath(xpath)
+        return result[0] if result else None
+
+    def _get_text(node, xpath: str) -> Optional[str]:
+        target = _first(node, xpath)
+        if target is not None and target.text:
+            value = target.text.strip()
+            return value or None
+        return None
+
+    header_data: Dict[str, Dict[str, Optional[str]]] = {}
+
+    try:
+        tree = etree.parse(str(xml_path))
+        root = tree.getroot()
+    except Exception:
+        return header_data
+
+    cc_node = _first(root, ".//*[local-name()='CessionarioCommittente']")
+    if cc_node is None:
+        return header_data
+
+    name = _get_text(cc_node, ".//*[local-name()='Denominazione']") or _get_text(
+        cc_node, ".//*[local-name()='Nome']"
+    )
+    surname = _get_text(cc_node, ".//*[local-name()='Cognome']")
+    if not name and surname:
+        name = surname
+
+    vat_number = _get_text(
+        cc_node, ".//*[local-name()='IdFiscaleIVA']/*[local-name()='IdCodice']"
+    )
+    fiscal_code = _get_text(cc_node, ".//*[local-name()='CodiceFiscale']")
+    address = _get_text(cc_node, ".//*[local-name()='Sede']/*[local-name()='Indirizzo']")
+    city = _get_text(cc_node, ".//*[local-name()='Sede']/*[local-name()='Comune']")
+    country = _get_text(cc_node, ".//*[local-name()='Sede']/*[local-name()='Nazione']")
+
+    header_data["cessionario_committente"] = {
+        "name": name,
+        "vat_number": vat_number,
+        "fiscal_code": fiscal_code,
+        "address": address,
+        "city": city,
+        "country": country,
+    }
+
+    return header_data
+
+
+def _get_or_create_legal_entity(header_data: Dict) -> LegalEntity:
+    """Recupera o crea la LegalEntity in base ai dati di cessionario/committente."""
+
+    cessionario = (header_data or {}).get("cessionario_committente") or {}
+    vat_number = cessionario.get("vat_number") or cessionario.get("fiscal_code")
+
+    if not vat_number:
+        raise ValueError("legal_entity_id è obbligatorio e non è stato trovato nell'XML")
+
+    existing = None
+    if cessionario.get("vat_number"):
+        existing = LegalEntity.query.filter_by(vat_number=cessionario["vat_number"]).first()
+    elif cessionario.get("fiscal_code"):
+        existing = LegalEntity.query.filter_by(
+            fiscal_code=cessionario["fiscal_code"]
+        ).first()
+
+    if existing:
+        return existing
+
+    legal_entity = LegalEntity(
+        name=cessionario.get("name") or "Soggetto sconosciuto",
+        vat_number=vat_number,
+        fiscal_code=cessionario.get("fiscal_code"),
+        address=cessionario.get("address"),
+        city=cessionario.get("city"),
+        country=cessionario.get("country") or "IT",
+        created_at=datetime.utcnow(),
+    )
+    db.session.add(legal_entity)
+    db.session.flush()
+
+    return legal_entity
 
 
 # =========================
