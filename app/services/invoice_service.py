@@ -20,6 +20,7 @@ from app.repositories import (
     filter_invoices_by_date_range,
     filter_invoices_by_supplier,
     filter_invoices_by_payment_status,
+    search_invoices_by_filters,
     get_invoice_by_id,
 )
 
@@ -29,6 +30,8 @@ def search_invoices(
     date_to: Optional[date] = None,
     supplier_id: Optional[int] = None,
     payment_status: Optional[str] = None,
+    legal_entity_id: Optional[int] = None,
+    year: Optional[int] = None,
     min_total: Optional[Decimal] = None,
     max_total: Optional[Decimal] = None,
     limit: int = 200,
@@ -37,12 +40,27 @@ def search_invoices(
     Ricerca fatture per filtro, pensata per la UI di elenco.
 
     Applica i filtri in questo ordine:
-    - data
+    - legal entity e anno contabile
     - fornitore
     - stato pagamento
+    - data
     - range importo totale lordo
     """
-    # Base: filtro per data
+    # Se sono presenti filtri nuovi usiamo la query combinata completa
+    if legal_entity_id is not None or year is not None or min_total is not None or max_total is not None:
+        return search_invoices_by_filters(
+            date_from=date_from,
+            date_to=date_to,
+            supplier_id=supplier_id,
+            payment_status=payment_status,
+            legal_entity_id=legal_entity_id,
+            accounting_year=year,
+            min_total=min_total,
+            max_total=max_total,
+            limit=limit,
+        )
+
+    # Base: filtro per data/supplier/payment come prima logica
     if supplier_id is not None:
         invoices = filter_invoices_by_supplier(
             supplier_id=supplier_id,

@@ -14,11 +14,27 @@ in modo transazionale (commit demandato al service chiamante).
 """
 
 from datetime import date
+from decimal import Decimal
 from typing import List, Optional, Tuple
 
 from app.extensions import db
 from app.models import Invoice, InvoiceLine, Payment, VatSummary
 from app.parsers.fatturapa_parser import InvoiceDTO, InvoiceLineDTO, PaymentDTO, VatSummaryDTO
+
+
+# --- Utilità interne ---------------------------------------------------------------
+
+def _compute_accounting_year(
+    registration_date: Optional[date], invoice_date: Optional[date]
+) -> int:
+    """Calcola l'anno contabile con priorità: registrazione, fattura, anno corrente."""
+    if registration_date:
+        return registration_date.year
+    if invoice_date:
+        return invoice_date.year
+    from datetime import date as _date
+
+    return _date.today().year
 
 
 # --- Lettura base -----------------------------------------------------------------
@@ -50,12 +66,72 @@ def find_existing_invoice(*, file_name: Optional[str] = None, file_hash: Optiona
     return get_invoice_by_file_hash(file_hash)
 
 
-def list_invoices(limit: int = 200) -> List[Invoice]:
+def list_invoices(
+    *,
+    legal_entity_id: Optional[int] = None,
+    accounting_year: Optional[int] = None,
+    limit: int = 200,
+) -> List[Invoice]:
     """Restituisce una lista di fatture ordinate per data e ID decrescente."""
-    query = Invoice.query.order_by(Invoice.invoice_date.desc(), Invoice.id.desc())
+    query = Invoice.query
+    if legal_entity_id is not None:
+        query = query.filter(Invoice.legal_entity_id == legal_entity_id)
+    if accounting_year is not None:
+        query = query.filter(Invoice.accounting_year == accounting_year)
+    query = query.order_by(Invoice.invoice_date.desc(), Invoice.id.desc())
     if limit is not None:
         query = query.limit(limit)
     return query.all()
+
+
+def search_invoices_by_filters(
+    *,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    supplier_id: Optional[int] = None,
+    payment_status: Optional[str] = None,
+    legal_entity_id: Optional[int] = None,
+    accounting_year: Optional[int] = None,
+    min_total: Optional[Decimal] = None,
+    max_total: Optional[Decimal] = None,
+    limit: int = 200,
+) -> List[Invoice]:
+    """Applica filtri combinati per la ricerca fatture."""
+    query = Invoice.query
+
+    if legal_entity_id is not None:
+        query = query.filter(Invoice.legal_entity_id == legal_entity_id)
+    if accounting_year is not None:
+        query = query.filter(Invoice.accounting_year == accounting_year)
+    if supplier_id is not None:
+        query = query.filter(Invoice.supplier_id == supplier_id)
+    if payment_status is not None:
+        query = query.filter(Invoice.payment_status == payment_status)
+    if date_from is not None:
+        query = query.filter(Invoice.invoice_date >= date_from)
+    if date_to is not None:
+        query = query.filter(Invoice.invoice_date <= date_to)
+    if min_total is not None:
+        query = query.filter(Invoice.total_gross_amount >= min_total)
+    if max_total is not None:
+        query = query.filter(Invoice.total_gross_amount <= max_total)
+
+    query = query.order_by(Invoice.invoice_date.desc(), Invoice.id.desc())
+    if limit is not None:
+        query = query.limit(limit)
+    return query.all()
+
+
+def list_accounting_years() -> List[int]:
+    """Restituisce gli anni contabili disponibili (distinct) in ordine decrescente."""
+    years = (
+        Invoice.query.with_entities(Invoice.accounting_year)
+        .filter(Invoice.accounting_year.isnot(None))
+        .distinct()
+        .order_by(Invoice.accounting_year.desc())
+        .all()
+    )
+    return [year[0] for year in years if year[0] is not None]
 
 
 def filter_invoices_by_date_range(
@@ -114,6 +190,15 @@ def create_invoice(**kwargs) -> Invoice:
     """
     Crea una nuova fattura e la aggiunge alla sessione (senza commit).
     """
+    registration_date = kwargs.get("registration_date")
+    invoice_date = kwargs.get("invoice_date")
+    if "accounting_year" not in kwargs:
+        kwargs["accounting_year"] = _compute_accounting_year(
+            registration_date, invoice_date
+        )
+    if kwargs.get("legal_entity_id") is None:
+        raise ValueError("legal_entity_id è obbligatorio per creare una fattura")
+
     invoice = Invoice(**kwargs)
     db.session.add(invoice)
     return invoice
@@ -121,6 +206,15 @@ def create_invoice(**kwargs) -> Invoice:
 
 def update_invoice(invoice: Invoice, **kwargs) -> Invoice:
     """Aggiorna i campi di una fattura esistente."""
+    registration_date = kwargs.get("registration_date", invoice.registration_date)
+    invoice_date = kwargs.get("invoice_date", invoice.invoice_date)
+    if "accounting_year" not in kwargs:
+        kwargs["accounting_year"] = _compute_accounting_year(
+            registration_date, invoice_date
+        )
+    if "legal_entity_id" in kwargs and kwargs.get("legal_entity_id") is None:
+        raise ValueError("legal_entity_id non può essere nullo")
+
     for key, value in kwargs.items():
         if hasattr(invoice, key):
             setattr(invoice, key, value)
@@ -226,6 +320,7 @@ def list_overdue_payments(reference_date: Optional[date] = None) -> List[Payment
 def create_invoice_with_details(
     invoice_dto: InvoiceDTO,
     supplier_id: int,
+    legal_entity_id: int,
     import_source: Optional[str] = None,
 ) -> Tuple[Invoice, bool]:
     """
@@ -234,6 +329,9 @@ def create_invoice_with_details(
     Restituisce (invoice, created_flag). Se esiste già (file_name/file_hash) restituisce
     l'esistente con created_flag=False senza creare nulla.
     """
+    if legal_entity_id is None:
+        raise ValueError("legal_entity_id è obbligatorio per creare una fattura")
+
     existing = find_existing_invoice(
         file_name=invoice_dto.file_name,
         file_hash=invoice_dto.file_hash,
@@ -241,8 +339,13 @@ def create_invoice_with_details(
     if existing is not None:
         return existing, False
 
+    accounting_year = _compute_accounting_year(
+        invoice_dto.registration_date, invoice_dto.invoice_date
+    )
+
     invoice = Invoice(
         supplier_id=supplier_id,
+        legal_entity_id=legal_entity_id,
         invoice_number=invoice_dto.invoice_number,
         invoice_series=invoice_dto.invoice_series,
         invoice_date=invoice_dto.invoice_date,
@@ -251,6 +354,7 @@ def create_invoice_with_details(
         total_taxable_amount=invoice_dto.total_taxable_amount,
         total_vat_amount=invoice_dto.total_vat_amount,
         total_gross_amount=invoice_dto.total_gross_amount,
+        accounting_year=accounting_year,
         doc_status=invoice_dto.doc_status,
         payment_status=invoice_dto.payment_status,
         due_date=invoice_dto.due_date,

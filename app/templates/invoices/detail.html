@@ -14,6 +14,14 @@
                 {{ invoice.invoice_date.strftime('%d/%m/%Y') if invoice.invoice_date }}</p>
             <p><strong>Data registrazione:</strong>
                 {{ invoice.registration_date.strftime('%d/%m/%Y') if invoice.registration_date }}</p>
+            <p><strong>Intestatario:</strong>
+                {% if invoice.legal_entity %}
+                  {{ invoice.legal_entity.name }} - {{ invoice.legal_entity.vat_number }}
+                {% else %}
+                  -
+                {% endif %}
+            </p>
+            <p><strong>Anno contabile:</strong> {{ invoice.accounting_year or '-' }}</p>
             <p><strong>File XML:</strong> {{ invoice.file_name }}</p>
         </div>
         <div>
