@@ -11,12 +11,12 @@
         <div class="form-row">
             <label for="date_from">Data da</label>
             <input type="date" id="date_from" name="date_from"
-                   value="{{ filters.date_from|default(None)|date('Y-m-d') if filters.date_from }}">
+                  value="{{ filters.date_from.strftime('%Y-%m-%d') if filters.date_from }}">
         </div>
         <div class="form-row">
             <label for="date_to">Data a</label>
             <input type="date" id="date_to" name="date_to"
-                   value="{{ filters.date_to|default(None)|date('Y-m-d') if filters.date_to }}">
+                  value="{{ filters.date_to.strftime('%Y-%m-%d') if filters.date_to }}">
         </div>
         <div class="form-row">
             <label for="supplier_id">Fornitore</label>
@@ -80,7 +80,7 @@
             {% for inv in invoices %}
               <tr>
                   <td>{{ inv.id }}</td>
-                  <td>{{ inv.invoice_date|date('d/m/Y') if inv.invoice_date }}</td>
+                  <td>{{ inv.invoice_date.strftime('%d/%m/%Y') if inv.invoice_date }}</td>
                   <td>{{ inv.invoice_number }}</td>
                   <td>{{ inv.supplier.name if inv.supplier }}</td>
                   <td class="text-right">
@@ -88,7 +88,7 @@
                   </td>
                   <td>{{ inv.payment_status }}</td>
                   <td>
-                      {{ inv.due_date|date('d/m/Y') if inv.due_date }}
+                      {{ inv.due_date.strftime('%d/%m/%Y') if inv.due_date }}
                   </td>
                   <td>
                       <a href="{{ url_for('invoices.detail_view', invoice_id=inv.id) }}"
