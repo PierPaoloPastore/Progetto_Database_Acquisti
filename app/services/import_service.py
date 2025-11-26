@@ -11,9 +11,10 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from flask import current_app
+from sqlalchemy import or_
 
 from app.extensions import db
-from app.models import Invoice
+from app.models import Invoice, LegalEntity
 from app.parsers.fatturapa_parser import InvoiceDTO, parse_invoice_xml
 from app.repositories.import_log_repo import create_import_log
 from app.repositories.invoice_repository import (
@@ -30,11 +31,6 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
     Gestisce transazioni per singolo file per evitare che un errore su un file
     blocchi l'intero batch.
     """
-    if legal_entity_id is None:
-        raise ValueError(
-            "legal_entity_id è obbligatorio per importare le fatture e assegnare l'intestatario"
-        )
-
     app = current_app._get_current_object()
     logger = app.logger
 
@@ -65,7 +61,13 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
 
         invoice_dto: Optional[InvoiceDTO] = None
         try:
-            invoice_dto = parse_invoice_xml(xml_path)
+            parsed_result = parse_invoice_xml(xml_path)
+            if isinstance(parsed_result, tuple):
+                invoice_dto, header_data = parsed_result
+            else:
+                invoice_dto = parsed_result
+                header_data = getattr(invoice_dto, "header", {}) or {}
+
             # Garantiamo che il nome file dell'XML importato sia sempre valorizzato
             if not invoice_dto.file_name:
                 invoice_dto.file_name = file_name
@@ -78,10 +80,13 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
             if supplier.id is None:
                 raise ValueError(f"ID fornitore nullo per {supplier.name}")
 
+            legal_entity = _get_or_create_legal_entity(header_data)
+            invoice_legal_entity_id = legal_entity_id or legal_entity.id
+
             invoice, created = _create_invoice_tree(
                 invoice_dto,
                 supplier.id,
-                legal_entity_id,
+                invoice_legal_entity_id,
                 str(import_folder),
             )
 
@@ -114,6 +119,38 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
             _log_error_db(logger, file_name, exc, summary, str(import_folder), invoice_dto)
 
     return summary
+
+
+def _get_or_create_legal_entity(header_data: Optional[Dict]) -> LegalEntity:
+    """Recupera o crea l'intestatario della fattura partendo dai dati di header."""
+
+    cessionario_committente = (header_data or {}).get("cessionario_committente") or {}
+    vat_number = cessionario_committente.get("vat_number") or cessionario_committente.get(
+        "fiscal_code"
+    )
+    fiscal_code = cessionario_committente.get("fiscal_code")
+
+    if not vat_number:
+        raise ValueError("legal_entity_id è obbligatorio e non è stato possibile ricavarlo")
+
+    existing = LegalEntity.query.filter(
+        or_(LegalEntity.vat_number == vat_number, LegalEntity.fiscal_code == fiscal_code)
+    ).first()
+    if existing:
+        return existing
+
+    legal_entity = LegalEntity(
+        name=cessionario_committente.get("name") or vat_number,
+        vat_number=vat_number,
+        fiscal_code=fiscal_code,
+        address=cessionario_committente.get("address"),
+        city=cessionario_committente.get("city"),
+        country=cessionario_committente.get("country") or "IT",
+    )
+
+    db.session.add(legal_entity)
+    db.session.flush()
+    return legal_entity
 
 
 def _create_invoice_tree(
