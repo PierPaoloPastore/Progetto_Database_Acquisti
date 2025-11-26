@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}Fattura #{{ invoice.id }} - Gestionale Acquisti{% endblock %}
+
+{% block content %}
+<h1>Dettaglio fattura #{{ invoice.id }}</h1>
+
+<section class="panel">
+    <h2>Dati fattura</h2>
+    <div class="two-columns">
+        <div>
+            <p><strong>Numero:</strong> {{ invoice.invoice_number }}</p>
+            <p><strong>Data fattura:</strong>
+                {{ invoice.invoice_date|date('d/m/Y') if invoice.invoice_date }}</p>
+            <p><strong>Data registrazione:</strong>
+                {{ invoice.registration_date|date('d/m/Y') if invoice.registration_date }}</p>
+            <p><strong>File XML:</strong> {{ invoice.file_name }}</p>
+        </div>
+        <div>
+            <p><strong>Totale imponibile:</strong>
+                {{ "%.2f"|format(invoice.total_taxable_amount or 0) }} {{ invoice.currency }}</p>
+            <p><strong>Totale IVA:</strong>
+                {{ "%.2f"|format(invoice.total_vat_amount or 0) }} {{ invoice.currency }}</p>
+            <p><strong>Totale lordo:</strong>
+                {{ "%.2f"|format(invoice.total_gross_amount or 0) }} {{ invoice.currency }}</p>
+            <p><strong>Scadenza principale:</strong>
+                {{ invoice.due_date|date('d/m/Y') if invoice.due_date }}</p>
+        </div>
+    </div>
+</section>
+
+<section class="panel">
+    <h2>Fornitore</h2>
+    {% if supplier %}
+      <p><strong>Nome:</strong> {{ supplier.name }}</p>
+      <p><strong>P.IVA:</strong> {{ supplier.vat_number }}</p>
+      <p><strong>CF:</strong> {{ supplier.tax_code }}</p>
+      <p><strong>Indirizzo:</strong>
+          {{ supplier.address }},
+          {{ supplier.postal_code }} {{ supplier.city }} ({{ supplier.province }})</p>
+      <p><strong>PEC:</strong> {{ supplier.pec_email }}</p>
+      <p><a href="{{ url_for('suppliers.detail_view', supplier_id=supplier.id) }}"
+            class="btn-link">Vai al fornitore</a></p>
+    {% else %}
+      <p>Nessun fornitore collegato.</p>
+    {% endif %}
+</section>
+
+<section class="panel">
+    <h2>Stato documento</h2>
+    <form method="post" action="{{ url_for('invoices.update_status_view', invoice_id=invoice.id) }}"
+          class="form-inline" id="invoice-status-form">
+        <div class="form-row">
+            <label for="doc_status">Stato documento</label>
+            <select id="doc_status" name="doc_status">
+                {% for status in ["imported", "verified", "archived"] %}
+                  <option value="{{ status }}"
+                    {% if invoice.doc_status == status %}selected{% endif %}>
+                    {{ status }}
+                  </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-row">
+            <label for="payment_status">Stato pagamento</label>
+            <select id="payment_status" name="payment_status">
+                {% for status in ["unpaid", "partial", "paid"] %}
+                  <option value="{{ status }}"
+                    {% if invoice.payment_status == status %}selected{% endif %}>
+                    {{ status }}
+                  </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-row">
+            <label for="due_date">Scadenza principale</label>
+            <input type="date" id="due_date" name="due_date"
+                   value="{{ invoice.due_date|date('Y-m-d') if invoice.due_date }}">
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn-primary">Aggiorna stato</button>
+        </div>
+    </form>
+</section>
+
+<section class="panel">
+    <h2>Righe fattura</h2>
+    <p>
+        <a href="{{ url_for('categories.bulk_assign_view', invoice_id=invoice.id) }}"
+           class="btn-secondary">Assegna categorie (bulk)</a>
+    </p>
+    <div class="table-wrapper">
+        <table class="table table-compact table-striped">
+            <thead>
+            <tr>
+                <th>#</th>
+                <th>Descrizione</th>
+                <th>Q.tà</th>
+                <th>Prezzo unit.</th>
+                <th>Aliquota IVA</th>
+                <th>Totale riga</th>
+                <th>Categoria</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for line in lines %}
+              <tr>
+                  <td>{{ line.line_number }}</td>
+                  <td>{{ line.description }}</td>
+                  <td class="text-right">{{ line.quantity }}</td>
+                  <td class="text-right">{{ line.unit_price }}</td>
+                  <td class="text-right">{{ line.vat_rate }}</td>
+                  <td class="text-right">{{ line.total_line_amount }}</td>
+                  <td>{{ line.category.name if line.category }}</td>
+              </tr>
+            {% else %}
+              <tr>
+                  <td colspan="7" class="text-center">Nessuna riga.</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="panel two-columns-stack">
+    <div>
+        <h2>Riepilogo IVA</h2>
+        <div class="table-wrapper">
+            <table class="table table-compact">
+                <thead>
+                <tr>
+                    <th>Aliquota</th>
+                    <th>Imponibile</th>
+                    <th>Imposta</th>
+                    <th>Natura</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for vs in vat_summaries %}
+                  <tr>
+                      <td>{{ vs.vat_rate }}</td>
+                      <td class="text-right">{{ vs.taxable_amount }}</td>
+                      <td class="text-right">{{ vs.vat_amount }}</_

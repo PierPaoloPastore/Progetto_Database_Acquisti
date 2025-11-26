@@ -1,0 +1,55 @@
+"""
+Modulo di configurazione per l'applicazione Flask.
+"""
+
+import os
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent
+
+
+class Config:
+    """Configurazione base, comune a tutti gli ambienti."""
+
+    # Chiave segreta: in produzione deve essere sovrascritta da variabile d'ambiente
+    SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-me")
+
+    # --- CONFIGURAZIONE DATABASE MYSQL --------------------------------------
+    DB_USER = os.environ.get("DB_USER", "ga_user")
+    DB_PASSWORD = os.environ.get("DB_PASSWORD", "password_super_sicura")
+    DB_HOST = os.environ.get("DB_HOST", "localhost")
+    DB_PORT = os.environ.get("DB_PORT", "3306")
+    DB_NAME = os.environ.get("DB_NAME", "gestionale_acquisti")
+
+    # Stringa di connessione composta in modo parametrico
+    DEFAULT_DB_URL = (
+        f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+    )
+
+    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", DEFAULT_DB_URL)
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+    # --- IMPORT FATTURE XML --------------------------------------------------
+    IMPORT_XML_FOLDER = os.environ.get(
+        "IMPORT_XML_FOLDER",
+        str(BASE_DIR / "data" / "fatture_xml"),
+    )
+
+    # --- LOGGING -------------------------------------------------------------
+    LOG_DIR = os.environ.get("LOG_DIR", str(BASE_DIR / "logs"))
+    LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
+    LOG_FILE_NAME = os.environ.get("LOG_FILE_NAME", "app.log")
+
+
+class DevConfig(Config):
+    """Configurazione per ambiente di sviluppo."""
+    DEBUG = True
+    ENV = "development"
+    LOG_LEVEL = os.environ.get("LOG_LEVEL", "DEBUG")
+
+
+class ProdConfig(Config):
+    """Configurazione per ambiente di produzione."""
+    DEBUG = False
+    ENV = "production"
+    LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")

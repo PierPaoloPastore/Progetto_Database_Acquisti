@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Categorie - Gestionale Acquisti{% endblock %}
+
+{% block content %}
+<h1>Categorie gestionali</h1>
+
+<section class="panel">
+    <h2>Nuova / Modifica categoria</h2>
+    <form method="post" action="{{ url_for('categories.save_view') }}" class="form-vertical">
+        <input type="hidden" name="category_id" id="category_id" value="">
+        <div class="form-row">
+            <label for="name">Nome *</label>
+            <input type="text" id="name" name="name" required>
+        </div>
+        <div class="form-row">
+            <label for="description">Descrizione</label>
+            <textarea id="description" name="description" rows="2"></textarea>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn-primary">Salva</button>
+            <button type="reset" class="btn-secondary" id="category-form-reset">Reset</button>
+        </div>
+    </form>
+</section>
+
+<section class="panel">
+    <h2>Elenco categorie ({{ categories|length }})</h2>
+    <div class="table-wrapper">
+        <table class="table table-striped table-hover" id="categories-table">
+            <thead>
+            <tr>
+                <th>Nome</th>
+                <th>Descrizione</th>
+                <th>Attiva</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for c in categories %}
+              <tr data-category-id="{{ c.id }}"
+                  data-category-name="{{ c.name }}"
+                  data-category-description="{{ c.description }}">
+                  <td>{{ c.name }}</td>
+                  <td>{{ c.description }}</td>
+                  <td>{{ "Sì" if c.is_active else "No" }}</td>
+                  <td>
+                      <button type="button" class="btn-link category-edit-btn">
+                          Modifica
+                      </button>
+                  </td>
+              </tr>
+            {% else %}
+              <tr>
+                  <td colspan="4" class="text-center">Nessuna categoria definita.</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/categories_assign.js') }}"></script>
+{% endblock %}

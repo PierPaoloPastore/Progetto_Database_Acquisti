@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Assegna categorie - Fattura #{{ invoice_id }}{% endblock %}
+
+{% block content %}
+<h1>Assegna categorie alle righe - Fattura #{{ invoice_id }}</h1>
+
+<section class="panel">
+    <h2>Impostazioni</h2>
+    <form method="post"
+          action="{{ url_for('categories.bulk_assign_view', invoice_id=invoice_id) }}"
+          id="bulk-assign-form">
+
+        <div class="form-row">
+            <label for="category_id">Categoria da assegnare</label>
+            <select id="category_id" name="category_id">
+                <option value="">-- Nessuna (rimuovi categoria) --</option>
+                {% for c in categories %}
+                  <option value="{{ c.id }}">{{ c.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-row">
+            <label>
+                <input type="checkbox" name="apply_to_all" id="apply_to_all" value="1">
+                Applica a tutte le righe (ignora selezione manuale)
+            </label>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn-primary">Applica</button>
+            <a href="{{ url_for('invoices.detail_view', invoice_id=invoice_id) }}"
+               class="btn-secondary">Annulla</a>
+        </div>
+
+        <hr>
+
+        <h2>Seleziona righe (se non applichi a tutte)</h2>
+
+        <div class="table-wrapper">
+            <table class="table table-compact table-striped" id="bulk-lines-table">
+                <thead>
+                <tr>
+                    <th>
+                        <input type="checkbox" id="select_all_rows">
+                    </th>
+                    <th>#</th>
+                    <th>Descrizione</th>
+                    <th>Categoria attuale</th>
+                    <th>Totale riga</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for line in lines %}
+                  <tr>
+                      <td>
+                          <input type="checkbox" name="line_ids" value="{{ line.id }}" class="line-checkbox">
+                      </td>
+                      <td>{{ line.line_number }}</td>
+                      <td>{{ line.description }}</td>
+                      <td>{{ line.category.name if line.category }}</td>
+                      <td class="text-right">{{ line.total_line_amount }}</td>
+                  </tr>
+                {% else %}
+                  <tr>
+                      <td colspan="5" class="text-center">Nessuna riga.</td>
+                  </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </form>
+</section>
+
+<p>
+    <a href="{{ url_for('invoices.detail_view', invoice_id=invoice_id) }}" class="btn-link">
+        &larr; Torna alla fattura
+    </a>
+</p>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/categories_assign.js') }}"></script>
+{% endblock %}

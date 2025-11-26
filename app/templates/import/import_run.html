@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Import Fatture XML - Gestionale Acquisti{% endblock %}
+
+{% block content %}
+<h1>Import Fatture XML (FatturaPA)</h1>
+
+<section class="panel">
+    <h2>Configurazione</h2>
+    <p>
+        Cartella predefinita di import:
+        <code>{{ default_folder }}</code>
+    </p>
+
+    <form method="post" action="{{ url_for('import.run_view') }}" class="form-inline">
+        <div class="form-row">
+            <label for="folder">Cartella alternativa (opzionale)</label>
+            <input type="text" id="folder" name="folder"
+                   placeholder="Lascia vuoto per usare quella predefinita">
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn-primary">Esegui import</button>
+        </div>
+    </form>
+</section>
+
+<section class="panel">
+    <h2>Ultimo riepilogo import</h2>
+
+    {% if summary %}
+      <p>
+          Cartella: <code>{{ summary.folder }}</code><br>
+          File totali: {{ summary.total_files }},
+          processati: {{ summary.processed }},
+          importati: {{ summary.imported }},
+          saltati: {{ summary.skipped }},
+          errori: {{ summary.errors }}.
+      </p>
+
+      <div class="table-wrapper">
+          <table class="table table-compact table-striped">
+              <thead>
+              <tr>
+                  <th>File</th>
+                  <th>Stato</th>
+                  <th>Messaggio</th>
+                  <th>Fattura</th>
+              </tr>
+              </thead>
+              <tbody>
+              {% for d in summary.details %}
+                <tr>
+                    <td>{{ d.file_name }}</td>
+                    <td>{{ d.status }}</td>
+                    <td>{{ d.message }}</td>
+                    <td>
+                        {% if d.invoice_id %}
+                          <a href="{{ url_for('invoices.detail_view', invoice_id=d.invoice_id) }}"
+                             class="btn-link">Apri</a>
+                        {% else %}
+                          -
+                        {% endif %}
+                    </td>
+                </tr>
+              {% else %}
+                <tr>
+                    <td colspan="4" class="text-center">Nessun dettaglio disponibile.</td>
+                </tr>
+              {% endfor %}
+              </tbody>
+          </table>
+      </div>
+    {% else %}
+      <p>Nessun import eseguito in questa sessione.</p>
+    {% endif %}
+</section>
+{% endblock %}

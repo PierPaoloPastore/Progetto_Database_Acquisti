@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}Export fatture - Gestionale Acquisti{% endblock %}
+
+{% block content %}
+<h1>Export fatture in CSV</h1>
+
+<section class="panel">
+    <h2>Parametri export</h2>
+    <form method="get" action="{{ url_for('export.export_invoices_csv') }}" class="form-inline">
+        <div class="form-row">
+            <label for="date_from">Data da</label>
+            <input type="date" id="date_from" name="date_from">
+        </div>
+        <div class="form-row">
+            <label for="date_to">Data a</label>
+            <input type="date" id="date_to" name="date_to">
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn-primary">Scarica CSV</button>
+        </div>
+    </form>
+</section>
+{% endblock %}

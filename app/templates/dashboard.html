@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Gestionale Acquisti{% endblock %}
+
+{% block content %}
+<h1>Dashboard</h1>
+
+<p>Benvenuto nel gestionale acquisti. Usa i collegamenti rapidi qui sotto:</p>
+
+<div class="cards-grid">
+    <a class="card-link" href="{{ url_for('invoices.list_view') }}">
+        <div class="card">
+            <h2>Fatture</h2>
+            <p>Consulta, filtra ed esporta le fatture di acquisto.</p>
+        </div>
+    </a>
+
+    <a class="card-link" href="{{ url_for('suppliers.list_view') }}">
+        <div class="card">
+            <h2>Fornitori</h2>
+            <p>Elenco fornitori con numero fatture e totale acquisti.</p>
+        </div>
+    </a>
+
+    <a class="card-link" href="{{ url_for('categories.list_view') }}">
+        <div class="card">
+            <h2>Categorie</h2>
+            <p>Gestisci le categorie gestionali delle righe fattura.</p>
+        </div>
+    </a>
+
+    <a class="card-link" href="{{ url_for('import.run_view') }}">
+        <div class="card">
+            <h2>Import XML</h2>
+            <p>Importa le fatture elettroniche da una cartella.</p>
+        </div>
+    </a>
+
+    <a class="card-link" href="{{ url_for('export.options_view') }}">
+        <div class="card">
+            <h2>Export</h2>
+            <p>Esporta le fatture in CSV per analisi esterne.</p>
+        </div>
+    </a>
+</div>
+{% endblock %}

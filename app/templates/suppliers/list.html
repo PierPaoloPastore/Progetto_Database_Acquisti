@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Fornitori - Gestionale Acquisti{% endblock %}
+
+{% block content %}
+<h1>Fornitori</h1>
+
+<section class="panel">
+    <h2>Elenco fornitori ({{ suppliers_stats|length }})</h2>
+    <div class="table-wrapper">
+        <table class="table table-striped table-hover">
+            <thead>
+            <tr>
+                <th>Nome</th>
+                <th>P.IVA</th>
+                <th>Numero fatture</th>
+                <th>Totale fatturato</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for item in suppliers_stats %}
+              {% set s = item.supplier %}
+              <tr>
+                  <td>{{ s.name }}</td>
+                  <td>{{ s.vat_number }}</td>
+                  <td class="text-center">{{ item.invoice_count }}</td>
+                  <td class="text-right">
+                      {{ "%.2f"|format(item.total_gross_amount or 0) }}
+                  </td>
+                  <td>
+                      <a href="{{ url_for('suppliers.detail_view', supplier_id=s.id) }}"
+                         class="btn-link">Dettaglio</a>
+                  </td>
+              </tr>
+            {% else %}
+              <tr>
+                  <td colspan="5" class="text-center">Nessun fornitore trovato.</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}
