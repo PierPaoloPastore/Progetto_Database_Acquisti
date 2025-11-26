@@ -171,9 +171,9 @@
                 <tbody>
                 {% for p in payments %}
                   <tr>
-                      <td>{{ p.due_date|date('d/m/Y') if p.due_date }}</td>
+                  <td>{{ p.due_date.strftime('%d/%m/%Y') if p.due_date }}</td>
                       <td class="text-right">{{ p.expected_amount }}</td>
-                      <td>{{ p.paid_date|date('d/m/Y') if p.paid_date }}</td>
+                  <td>{{ p.paid_date.strftime('%d/%m/%Y') if p.paid_date }}</td>
                       <td class="text-right">{{ p.paid_amount }}</td>
                       <td>{{ p.payment_method }}</td>
                       <td>{{ p.status }}</td>
@@ -195,7 +195,7 @@
       <ul class="list-simple">
       {% for note in notes %}
         <li>
-            <strong>{{ note.created_at|date('d/m/Y H:i') }}</strong> - {{ note.content }}
+            <strong>{{ note.created_at.strftime('%d/%m/%Y %H:%M') if note.created_at }}</strong> - {{ note.content }}
         </li>
       {% endfor %}
       </ul>
