@@ -22,6 +22,14 @@ class Invoice(db.Model):
         index=True,
     )
 
+    # Collegamento all'intestatario (azienda/professionista)
+    legal_entity_id = db.Column(
+        db.Integer,
+        db.ForeignKey("legal_entities.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+
     # Identificazione documento
     invoice_number = db.Column(db.String(64), nullable=False, index=True)
     invoice_series = db.Column(db.String(32), nullable=True)
@@ -33,6 +41,9 @@ class Invoice(db.Model):
     total_vat_amount = db.Column(db.Numeric(15, 2), nullable=True)
     total_gross_amount = db.Column(db.Numeric(15, 2), nullable=True)
     currency = db.Column(db.String(8), nullable=False, default="EUR")
+
+    # Anno contabile (calcolato, può differire dall'anno di fattura)
+    accounting_year = db.Column(db.Integer, nullable=True, index=True)
 
     # Stato documento / pagamento
     # status_documento es: "imported", "verified", "archived"
@@ -94,6 +105,8 @@ class Invoice(db.Model):
         lazy="dynamic",
         cascade="all, delete-orphan",
     )
+
+    legal_entity = db.relationship("LegalEntity", back_populates="invoices")
 
     def __repr__(self) -> str:
         return (
