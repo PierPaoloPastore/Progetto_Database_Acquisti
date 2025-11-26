@@ -1,9 +1,4 @@
-"""
-Modello LegalEntity (tabella: legal_entities).
-
-Rappresenta l'intestatario delle fatture (azienda o professionista) a cui
-sono associate le registrazioni contabili.
-"""
+"""Modello SQLAlchemy per l'intestatario delle fatture."""
 
 from datetime import datetime
 
@@ -14,29 +9,15 @@ class LegalEntity(db.Model):
     __tablename__ = "legal_entities"
 
     id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    vat_number = db.Column(db.String(32), nullable=False, unique=True)
+    fiscal_code = db.Column(db.String(32))
+    address = db.Column(db.String(255))
+    city = db.Column(db.String(128))
+    country = db.Column(db.String(8), default="IT")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    # Dati anagrafici base
-    name = db.Column(db.String(255), nullable=False, index=True)
-    vat_number = db.Column(db.String(32), nullable=True, index=True)
-    tax_code = db.Column(db.String(32), nullable=True)
+    invoices = db.relationship("Invoice", back_populates="legal_entity", lazy="dynamic")
 
-    # Stato
-    is_active = db.Column(db.Boolean, nullable=False, default=True)
-
-    # Timestamps
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
-    updated_at = db.Column(
-        db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
-    )
-
-    # Relazioni
-    invoices = db.relationship(
-        "Invoice",
-        back_populates="legal_entity",
-        lazy="dynamic",
-        cascade="all, delete-orphan",
-    )
-
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover - rappresentazione debug
         return f"<LegalEntity id={self.id} name={self.name!r}>"
-
