@@ -37,6 +37,7 @@ from .invoice_repository import (
     update_payment,
     create_invoice_with_details,
 )
+from .invoice_line_repo import get_invoice_line_by_id
 from .category_repo import (
     get_category_by_id,
     get_category_by_name,
@@ -93,6 +94,8 @@ __all__ = [
     "update_payment",
     # Composto
     "create_invoice_with_details",
+    # Invoice line util
+    "get_invoice_line_by_id",
     # Categories
     "get_category_by_id",
     "get_category_by_name",
