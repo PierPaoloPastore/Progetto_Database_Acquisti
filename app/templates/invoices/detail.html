@@ -142,4 +142,66 @@
                   <tr>
                       <td>{{ vs.vat_rate }}</td>
                       <td class="text-right">{{ vs.taxable_amount }}</td>
-                      <td class="text-right">{{ vs.vat_amount }}</_
+                      <td class="text-right">{{ vs.vat_amount }}</td>
+                      <td>{{ vs.nature }}</td>
+                  </tr>
+                {% else %}
+                  <tr>
+                      <td colspan="4" class="text-center">Nessun riepilogo IVA.</td>
+                  </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div>
+        <h2>Pagamenti</h2>
+        <div class="table-wrapper">
+            <table class="table table-compact">
+                <thead>
+                <tr>
+                    <th>Scadenza</th>
+                    <th>Importo previsto</th>
+                    <th>Data pagamento</th>
+                    <th>Importo pagato</th>
+                    <th>Metodo</th>
+                    <th>Stato</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for p in payments %}
+                  <tr>
+                      <td>{{ p.due_date|date('d/m/Y') if p.due_date }}</td>
+                      <td class="text-right">{{ p.expected_amount }}</td>
+                      <td>{{ p.paid_date|date('d/m/Y') if p.paid_date }}</td>
+                      <td class="text-right">{{ p.paid_amount }}</td>
+                      <td>{{ p.payment_method }}</td>
+                      <td>{{ p.status }}</td>
+                  </tr>
+                {% else %}
+                  <tr>
+                      <td colspan="6" class="text-center">Nessun pagamento registrato.</td>
+                  </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+<section class="panel">
+    <h2>Note</h2>
+    {% if notes %}
+      <ul class="list-simple">
+      {% for note in notes %}
+        <li>
+            <strong>{{ note.created_at|date('d/m/Y H:i') }}</strong> - {{ note.content }}
+        </li>
+      {% endfor %}
+      </ul>
+    {% else %}
+      <p>Nessuna nota presente.</p>
+    {% endif %}
+</section>
+
+{% endblock %}
