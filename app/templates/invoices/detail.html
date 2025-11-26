@@ -11,9 +11,9 @@
         <div>
             <p><strong>Numero:</strong> {{ invoice.invoice_number }}</p>
             <p><strong>Data fattura:</strong>
-                {{ invoice.invoice_date|date('d/m/Y') if invoice.invoice_date }}</p>
+                {{ invoice.invoice_date.strftime('%d/%m/%Y') if invoice.invoice_date }}</p>
             <p><strong>Data registrazione:</strong>
-                {{ invoice.registration_date|date('d/m/Y') if invoice.registration_date }}</p>
+                {{ invoice.registration_date.strftime('%d/%m/%Y') if invoice.registration_date }}</p>
             <p><strong>File XML:</strong> {{ invoice.file_name }}</p>
         </div>
         <div>
@@ -24,7 +24,7 @@
             <p><strong>Totale lordo:</strong>
                 {{ "%.2f"|format(invoice.total_gross_amount or 0) }} {{ invoice.currency }}</p>
             <p><strong>Scadenza principale:</strong>
-                {{ invoice.due_date|date('d/m/Y') if invoice.due_date }}</p>
+                {{ invoice.due_date.strftime('%d/%m/%Y') if invoice.due_date }}</p>
         </div>
     </div>
 </section>
@@ -75,7 +75,7 @@
         <div class="form-row">
             <label for="due_date">Scadenza principale</label>
             <input type="date" id="due_date" name="due_date"
-                   value="{{ invoice.due_date|date('Y-m-d') if invoice.due_date }}">
+                   value="{{ invoice.due_date.strftime('%Y-%m-%d') if invoice.due_date }}">
         </div>
 
         <div class="form-actions">
