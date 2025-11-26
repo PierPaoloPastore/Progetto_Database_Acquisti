@@ -1,9 +1,4 @@
-"""
-Modello LegalEntity (tabella: legal_entities).
-
-Rappresenta l'intestatario delle fatture (azienda o professionista) a cui
-sono associate le registrazioni contabili.
-"""
+"""Modello LegalEntity (tabella: legal_entities)."""
 
 from datetime import datetime
 
@@ -14,22 +9,15 @@ class LegalEntity(db.Model):
     __tablename__ = "legal_entities"
 
     id = db.Column(db.Integer, primary_key=True)
-
-    # Dati anagrafici base
-    name = db.Column(db.String(255), nullable=False, index=True)
-    vat_number = db.Column(db.String(32), nullable=True, index=True)
-    tax_code = db.Column(db.String(32), nullable=True)
-
-    # Stato
+    name = db.Column(db.String, nullable=False)
+    vat_number = db.Column(db.String, unique=True, nullable=False)
+    fiscal_code = db.Column(db.String, nullable=True)
+    address = db.Column(db.String, nullable=True)
+    city = db.Column(db.String, nullable=True)
+    country = db.Column(db.String, nullable=True, default="IT")
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    # Timestamps
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
-    updated_at = db.Column(
-        db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
-    )
-
-    # Relazioni
     invoices = db.relationship(
         "Invoice",
         back_populates="legal_entity",
