@@ -27,7 +27,11 @@ from app.services import (
     get_invoice_detail,
     update_invoice_status,
 )
-from app.repositories import list_suppliers
+from app.repositories import (
+    list_suppliers,
+    list_legal_entities,
+    list_accounting_years,
+)
 
 invoices_bp = Blueprint("invoices", __name__)
 
@@ -59,12 +63,16 @@ def list_view():
 
     - date_from, date_to (YYYY-MM-DD)
     - supplier_id
+    - legal_entity_id
+    - year (accounting_year)
     - payment_status
     - min_total, max_total
     """
     date_from = _parse_date(request.args.get("date_from", ""))
     date_to = _parse_date(request.args.get("date_to", ""))
     supplier_id = request.args.get("supplier_id")
+    legal_entity_id = request.args.get("legal_entity_id")
+    year = request.args.get("year")
     payment_status = request.args.get("payment_status") or None
     min_total = _parse_decimal(request.args.get("min_total", ""))
     max_total = _parse_decimal(request.args.get("max_total", ""))
@@ -76,10 +84,26 @@ def list_view():
         except ValueError:
             supplier_id_int = None
 
+    legal_entity_id_int: Optional[int] = None
+    if legal_entity_id:
+        try:
+            legal_entity_id_int = int(legal_entity_id)
+        except ValueError:
+            legal_entity_id_int = None
+
+    accounting_year_int: Optional[int] = None
+    if year:
+        try:
+            accounting_year_int = int(year)
+        except ValueError:
+            accounting_year_int = None
+
     invoices = search_invoices(
         date_from=date_from,
         date_to=date_to,
         supplier_id=supplier_id_int,
+        legal_entity_id=legal_entity_id_int,
+        year=accounting_year_int,
         payment_status=payment_status,
         min_total=min_total,
         max_total=max_total,
@@ -87,15 +111,21 @@ def list_view():
     )
 
     suppliers = list_suppliers(include_inactive=False)
+    legal_entities = list_legal_entities(include_inactive=False)
+    accounting_years = list_accounting_years()
 
     return render_template(
         "invoices/list.html",
         invoices=invoices,
         suppliers=suppliers,
+        legal_entities=legal_entities,
+        accounting_years=accounting_years,
         filters={
             "date_from": date_from,
             "date_to": date_to,
             "supplier_id": supplier_id_int,
+            "legal_entity_id": legal_entity_id_int,
+            "year": accounting_year_int,
             "payment_status": payment_status,
             "min_total": min_total,
             "max_total": max_total,

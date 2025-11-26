@@ -31,6 +31,27 @@
             </select>
         </div>
         <div class="form-row">
+            <label for="legal_entity_id">Intestatario</label>
+            <select id="legal_entity_id" name="legal_entity_id">
+                <option value="">Tutti</option>
+                {% for le in legal_entities %}
+                  <option value="{{ le.id }}"
+                    {% if filters.legal_entity_id and filters.legal_entity_id == le.id %}selected{% endif %}>
+                    {{ le.name }} ({{ le.vat_number }})
+                  </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-row">
+            <label for="year">Anno contabile</label>
+            <select id="year" name="year">
+                <option value="">Tutti</option>
+                {% for y in accounting_years %}
+                  <option value="{{ y }}" {% if filters.year and filters.year == y %}selected{% endif %}>{{ y }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-row">
             <label for="payment_status">Stato pagamento</label>
             <select id="payment_status" name="payment_status">
                 <option value="">Tutti</option>
@@ -70,6 +91,7 @@
                 <th>Data</th>
                 <th>Numero</th>
                 <th>Fornitore</th>
+                <th>Intestatario</th>
                 <th>Totale lordo</th>
                 <th>Stato pagamento</th>
                 <th>Scadenza</th>
@@ -83,6 +105,12 @@
                   <td>{{ inv.invoice_date.strftime('%d/%m/%Y') if inv.invoice_date }}</td>
                   <td>{{ inv.invoice_number }}</td>
                   <td>{{ inv.supplier.name if inv.supplier }}</td>
+                  <td>
+                      {{ inv.legal_entity.name if inv.legal_entity }}
+                      {% if inv.legal_entity %}
+                        <div class="text-muted small">{{ inv.legal_entity.vat_number }}</div>
+                      {% endif %}
+                  </td>
                   <td class="text-right">
                       {{ "%.2f"|format(inv.total_gross_amount or 0) }}
                   </td>
@@ -97,7 +125,7 @@
               </tr>
             {% else %}
               <tr>
-                  <td colspan="8" class="text-center">
+                  <td colspan="9" class="text-center">
                       Nessuna fattura trovata con i filtri correnti.
                   </td>
               </tr>

@@ -13,12 +13,15 @@ from .supplier_repo import (
     update_supplier,
     get_or_create_supplier_from_dto,
 )
+from .legal_entity_repo import list_legal_entities, get_legal_entity_by_id
 from .invoice_repository import (
     get_invoice_by_id,
     get_invoice_by_file_name,
     get_invoice_by_file_hash,
     find_existing_invoice,
     list_invoices,
+    search_invoices_by_filters,
+    list_accounting_years,
     filter_invoices_by_date_range,
     filter_invoices_by_supplier,
     filter_invoices_by_payment_status,
@@ -67,12 +70,17 @@ __all__ = [
     "create_supplier",
     "update_supplier",
     "get_or_create_supplier_from_dto",
+    # Legal entities
+    "list_legal_entities",
+    "get_legal_entity_by_id",
     # Invoices
     "get_invoice_by_id",
     "get_invoice_by_file_name",
     "get_invoice_by_file_hash",
     "find_existing_invoice",
     "list_invoices",
+    "search_invoices_by_filters",
+    "list_accounting_years",
     "filter_invoices_by_date_range",
     "filter_invoices_by_supplier",
     "filter_invoices_by_payment_status",

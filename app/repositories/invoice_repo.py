@@ -11,6 +11,19 @@ from app.extensions import db
 from app.models import Invoice
 
 
+def _compute_accounting_year(
+    registration_date: Optional[date], invoice_date: Optional[date]
+) -> int:
+    """Calcola l'anno contabile con priorità: registrazione, fattura, anno corrente."""
+    if registration_date:
+        return registration_date.year
+    if invoice_date:
+        return invoice_date.year
+    from datetime import date as _date
+
+    return _date.today().year
+
+
 def get_invoice_by_id(invoice_id: int) -> Optional[Invoice]:
     """Restituisce una fattura dato il suo ID, oppure None se non trovata."""
     return Invoice.query.get(invoice_id)
@@ -112,6 +125,15 @@ def create_invoice(**kwargs) -> Invoice:
     Non esegue il commit: questo viene demandato al servizio chiamante
     (ad esempio import_service o invoice_service).
     """
+    registration_date = kwargs.get("registration_date")
+    invoice_date = kwargs.get("invoice_date")
+    if "accounting_year" not in kwargs:
+        kwargs["accounting_year"] = _compute_accounting_year(
+            registration_date, invoice_date
+        )
+    if kwargs.get("legal_entity_id") is None:
+        raise ValueError("legal_entity_id è obbligatorio per creare una fattura")
+
     invoice = Invoice(**kwargs)
     db.session.add(invoice)
     return invoice
@@ -123,6 +145,15 @@ def update_invoice(invoice: Invoice, **kwargs) -> Invoice:
 
     I campi da aggiornare vengono passati come kwargs.
     """
+    registration_date = kwargs.get("registration_date", invoice.registration_date)
+    invoice_date = kwargs.get("invoice_date", invoice.invoice_date)
+    if "accounting_year" not in kwargs:
+        kwargs["accounting_year"] = _compute_accounting_year(
+            registration_date, invoice_date
+        )
+    if "legal_entity_id" in kwargs and kwargs.get("legal_entity_id") is None:
+        raise ValueError("legal_entity_id non può essere nullo")
+
     for key, value in kwargs.items():
         if hasattr(invoice, key):
             setattr(invoice, key, value)
