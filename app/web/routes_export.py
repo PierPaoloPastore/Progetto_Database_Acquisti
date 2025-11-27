@@ -22,6 +22,7 @@ from flask import (
 )
 
 from app.services import search_invoices
+from app.services.dto import InvoiceSearchFilters
 
 
 export_bp = Blueprint("export", __name__)
@@ -66,12 +67,10 @@ def export_invoices_csv():
     date_to = _parse_date(request.args.get("date_to", ""))
 
     invoices = search_invoices(
-        date_from=date_from,
-        date_to=date_to,
-        supplier_id=None,
-        payment_status=None,
-        min_total=None,
-        max_total=None,
+        filters=InvoiceSearchFilters(
+            date_from=date_from,
+            date_to=date_to,
+        ),
         limit=None,  # nessun limite, li prendiamo tutti nel range
     )
 
