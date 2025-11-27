@@ -61,6 +61,9 @@ def detail_view(supplier_id: int):
         flash("Fornitore non trovato.", "warning")
         return redirect(url_for("suppliers.list_view"))
 
+    detail["legal_entities"] = detail.get(
+        "available_legal_entities", detail.get("legal_entities", [])
+    )
     detail["selected_legal_entity_id"] = selected_legal_entity_id
 
     return render_template(
