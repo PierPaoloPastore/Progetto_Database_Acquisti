@@ -13,7 +13,6 @@ from datetime import date
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
-from app.extensions import db
 from app.services.logging import log_structured_event
 from app.models import Invoice
 from app.repositories.invoice_repository import (
@@ -25,6 +24,7 @@ from app.repositories.invoice_repository import (
     get_invoice_by_id,
 )
 from app.services.dto import InvoiceSearchFilters
+from app.services.unit_of_work import UnitOfWork
 
 
 def search_invoices(
@@ -53,7 +53,12 @@ def search_invoices(
     max_total = filters.max_total
 
     # Se sono presenti filtri nuovi usiamo la query combinata completa
-    if legal_entity_id is not None or year is not None or min_total is not None or max_total is not None:
+    if (
+        legal_entity_id is not None
+        or year is not None
+        or min_total is not None
+        or max_total is not None
+    ):
         return search_invoices_by_filters(
             date_from=date_from,
             date_to=date_to,
@@ -153,25 +158,29 @@ def update_invoice_status(
     Aggiorna lo stato documento e/o lo stato pagamento e/o la data di scadenza
     di una fattura.
 
-    Esegue il commit immediatamente.
+    Usa un UnitOfWork per gestire commit/rollback.
     Restituisce la fattura aggiornata oppure None se non esiste.
     """
     invoice = get_invoice_by_id(invoice_id)
     if invoice is None:
         return None
 
-    if doc_status is not None:
-        invoice.doc_status = doc_status
-    if payment_status is not None:
-        invoice.payment_status = payment_status
-    if due_date is not None:
-        invoice.due_date = due_date
+    with UnitOfWork() as session:
+        if doc_status is not None:
+            invoice.doc_status = doc_status
+        if payment_status is not None:
+            invoice.payment_status = payment_status
+        if due_date is not None:
+            invoice.due_date = due_date
 
-    db.session.commit()
+        session.add(invoice)
+
+    # Logging solo se l'operazione è andata a buon fine (commit riuscito)
     log_structured_event(
         "update_invoice_status",
         invoice_id=invoice.id,
         doc_status=invoice.doc_status,
         payment_status=invoice.payment_status,
     )
+
     return invoice
