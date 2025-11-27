@@ -13,8 +13,9 @@ from datetime import date
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
+from app.services.logging import log_structured_event
 from app.models import Invoice
-from app.repositories import (
+from app.repositories.invoice_repository import (
     list_invoices,
     filter_invoices_by_date_range,
     filter_invoices_by_supplier,
@@ -22,22 +23,18 @@ from app.repositories import (
     search_invoices_by_filters,
     get_invoice_by_id,
 )
+from app.services.dto import InvoiceSearchFilters
 from app.services.unit_of_work import UnitOfWork
 
 
 def search_invoices(
-    date_from: Optional[date] = None,
-    date_to: Optional[date] = None,
-    supplier_id: Optional[int] = None,
-    payment_status: Optional[str] = None,
-    legal_entity_id: Optional[int] = None,
-    year: Optional[int] = None,
-    min_total: Optional[Decimal] = None,
-    max_total: Optional[Decimal] = None,
-    limit: int = 200,
+    filters: InvoiceSearchFilters,
+    limit: Optional[int] = 200,
 ) -> List[Invoice]:
     """
     Ricerca fatture per filtro, pensata per la UI di elenco.
+
+    `filters` rappresenta tutti i filtri consentiti nella pagina elenco.
 
     Applica i filtri in questo ordine:
     - legal entity e anno contabile
@@ -46,8 +43,22 @@ def search_invoices(
     - data
     - range importo totale lordo
     """
+    date_from = filters.date_from
+    date_to = filters.date_to
+    supplier_id = filters.supplier_id
+    payment_status = filters.payment_status
+    legal_entity_id = filters.legal_entity_id
+    year = filters.year
+    min_total = filters.min_total
+    max_total = filters.max_total
+
     # Se sono presenti filtri nuovi usiamo la query combinata completa
-    if legal_entity_id is not None or year is not None or min_total is not None or max_total is not None:
+    if (
+        legal_entity_id is not None
+        or year is not None
+        or min_total is not None
+        or max_total is not None
+    ):
         return search_invoices_by_filters(
             date_from=date_from,
             date_to=date_to,
@@ -147,7 +158,7 @@ def update_invoice_status(
     Aggiorna lo stato documento e/o lo stato pagamento e/o la data di scadenza
     di una fattura.
 
-    Esegue il commit immediatamente.
+    Usa un UnitOfWork per gestire commit/rollback.
     Restituisce la fattura aggiornata oppure None se non esiste.
     """
     invoice = get_invoice_by_id(invoice_id)
@@ -163,4 +174,13 @@ def update_invoice_status(
             invoice.due_date = due_date
 
         session.add(invoice)
-        return invoice
+
+    # Logging solo se l'operazione è andata a buon fine (commit riuscito)
+    log_structured_event(
+        "update_invoice_status",
+        invoice_id=invoice.id,
+        doc_status=invoice.doc_status,
+        payment_status=invoice.payment_status,
+    )
+
+    return invoice
