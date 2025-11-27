@@ -30,6 +30,7 @@ from .invoice_repository import (
     update_invoice,
     create_invoice_with_details,
     get_supplier_account_balance,
+    list_supplier_legal_entities,
 )
 from .invoice_line_repo import (
     get_invoice_line_by_id,
@@ -96,6 +97,7 @@ __all__ = [
     "update_invoice",
     "create_invoice_with_details",
     "get_supplier_account_balance",
+    "list_supplier_legal_entities",
     # Invoice lines
     "list_lines_by_invoice",
     "list_lines_by_category",

@@ -8,7 +8,7 @@ from sqlalchemy import func, or_  # questo rimane in alto nel file
 from sqlalchemy.orm import joinedload
 
 from app.extensions import db
-from app.models import Invoice, InvoiceLine, Payment, VatSummary
+from app.models import Invoice, InvoiceLine, LegalEntity, Payment, VatSummary
 from app.parsers.fatturapa_parser import InvoiceDTO, InvoiceLineDTO, PaymentDTO, VatSummaryDTO
 
 
@@ -383,3 +383,30 @@ def get_supplier_account_balance(
         "residual": residual,
         "invoice_count": invoice_count,
     }
+
+
+def list_supplier_legal_entities(
+    supplier_id: int,
+) -> List[Dict[str, int | str]]:
+    """Elenca le società intestatarie collegate al fornitore con conteggio fatture."""
+    rows = (
+        db.session.query(
+            LegalEntity.id.label("id"),
+            LegalEntity.name.label("name"),
+            func.count(Invoice.id).label("invoice_count"),
+        )
+        .join(Invoice, Invoice.legal_entity_id == LegalEntity.id)
+        .filter(Invoice.supplier_id == supplier_id)
+        .group_by(LegalEntity.id, LegalEntity.name)
+        .order_by(LegalEntity.name.asc())
+        .all()
+    )
+
+    return [
+        {
+            "id": row.id,
+            "name": row.name,
+            "invoice_count": row.invoice_count,
+        }
+        for row in rows
+    ]
