@@ -17,6 +17,8 @@ from datetime import date
 from decimal import Decimal
 from typing import List, Optional, Tuple
 
+from sqlalchemy import func
+
 from app.extensions import db
 from app.models import Invoice, InvoiceLine, Payment, VatSummary
 from app.parsers.fatturapa_parser import InvoiceDTO, InvoiceLineDTO, PaymentDTO, VatSummaryDTO
@@ -182,6 +184,37 @@ def filter_invoices_by_payment_status(
 
     query = query.order_by(Invoice.invoice_date.asc(), Invoice.id.asc())
     return query.all()
+
+
+def get_supplier_account_balance(
+    supplier_id: int, legal_entity_id: int | None = None
+) -> dict:
+    """Calcola l'estratto conto di un fornitore (opz. per legal entity)."""
+
+    query = (
+        db.session.query(
+            func.coalesce(func.sum(Invoice.expected_amount), 0),
+            func.coalesce(func.sum(Payment.paid_amount), 0),
+            func.count(func.distinct(Invoice.id)),
+        )
+        .select_from(Invoice)
+        .outerjoin(Payment, Payment.invoice_id == Invoice.id)
+        .filter(Invoice.supplier_id == supplier_id)
+    )
+
+    if legal_entity_id is not None:
+        query = query.filter(Invoice.legal_entity_id == legal_entity_id)
+
+    expected_total, paid_total, invoice_count = query.one()
+
+    residual = expected_total - paid_total
+
+    return {
+        "expected_total": expected_total,
+        "paid_total": paid_total,
+        "residual": residual,
+        "invoice_count": invoice_count,
+    }
 
 
 # --- Creazione / aggiornamento base ----------------------------------------------
