@@ -25,6 +25,7 @@ from app.repositories.invoice_repository import (
     find_existing_invoice,
 )
 from app.repositories.supplier_repo import get_or_create_supplier_from_dto
+from app.services.logging import log_structured_event
 
 
 def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = None) -> Dict:
@@ -118,11 +119,27 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
             )
 
             db.session.commit()
+            log_structured_event(
+                "import_invoice_success",
+                invoice_id=invoice.id,
+                supplier_id=supplier.id,
+                file_name=file_name,
+                import_source=str(import_folder),
+            )
             _log_success(logger, file_name, invoice.id, supplier.id, summary)
 
         except Exception as exc:  # noqa: BLE001
             db.session.rollback()
             _log_error_db(logger, file_name, exc, summary, str(import_folder), invoice_dto)
+
+    log_structured_event(
+        "run_import_completed",
+        folder=str(import_folder),
+        total_files=summary["total_files"],
+        imported=summary["imported"],
+        skipped=summary["skipped"],
+        errors=summary["errors"],
+    )
 
     return summary
 
