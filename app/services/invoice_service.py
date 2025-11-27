@@ -23,21 +23,17 @@ from app.repositories.invoice_repository import (
     search_invoices_by_filters,
     get_invoice_by_id,
 )
+from app.services.dto import InvoiceSearchFilters
 
 
 def search_invoices(
-    date_from: Optional[date] = None,
-    date_to: Optional[date] = None,
-    supplier_id: Optional[int] = None,
-    payment_status: Optional[str] = None,
-    legal_entity_id: Optional[int] = None,
-    year: Optional[int] = None,
-    min_total: Optional[Decimal] = None,
-    max_total: Optional[Decimal] = None,
-    limit: int = 200,
+    filters: InvoiceSearchFilters,
+    limit: Optional[int] = 200,
 ) -> List[Invoice]:
     """
     Ricerca fatture per filtro, pensata per la UI di elenco.
+
+    `filters` rappresenta tutti i filtri consentiti nella pagina elenco.
 
     Applica i filtri in questo ordine:
     - legal entity e anno contabile
@@ -46,6 +42,15 @@ def search_invoices(
     - data
     - range importo totale lordo
     """
+    date_from = filters.date_from
+    date_to = filters.date_to
+    supplier_id = filters.supplier_id
+    payment_status = filters.payment_status
+    legal_entity_id = filters.legal_entity_id
+    year = filters.year
+    min_total = filters.min_total
+    max_total = filters.max_total
+
     # Se sono presenti filtri nuovi usiamo la query combinata completa
     if legal_entity_id is not None or year is not None or min_total is not None or max_total is not None:
         return search_invoices_by_filters(

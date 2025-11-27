@@ -10,7 +10,6 @@ Comprende:
 from __future__ import annotations
 
 from datetime import datetime
-from decimal import Decimal, InvalidOperation
 from typing import Optional
 
 from flask import (
@@ -22,11 +21,8 @@ from flask import (
     flash,
 )
 
-from app.services import (
-    search_invoices,
-    get_invoice_detail,
-    update_invoice_status,
-)
+from app.services import search_invoices, get_invoice_detail, update_invoice_status
+from app.services.dto import InvoiceSearchFilters
 from app.repositories import (
     list_suppliers,
     list_legal_entities,
@@ -44,18 +40,6 @@ def _parse_date(value: str) -> Optional[datetime.date]:
         return datetime.strptime(value, "%Y-%m-%d").date()
     except ValueError:
         return None
-
-
-def _parse_decimal(value: str) -> Optional[Decimal]:
-    """Parsa un decimal, restituendo None se vuota/non valida."""
-    if not value:
-        return None
-    try:
-        return Decimal(value.replace(",", "."))
-    except (InvalidOperation, AttributeError):
-        return None
-
-
 @invoices_bp.route("/", methods=["GET"])
 def list_view():
     """
@@ -68,47 +52,9 @@ def list_view():
     - payment_status
     - min_total, max_total
     """
-    date_from = _parse_date(request.args.get("date_from", ""))
-    date_to = _parse_date(request.args.get("date_to", ""))
-    supplier_id = request.args.get("supplier_id")
-    legal_entity_id = request.args.get("legal_entity_id")
-    year = request.args.get("year")
-    payment_status = request.args.get("payment_status") or None
-    min_total = _parse_decimal(request.args.get("min_total", ""))
-    max_total = _parse_decimal(request.args.get("max_total", ""))
+    filters = InvoiceSearchFilters.from_query_args(request.args)
 
-    supplier_id_int: Optional[int] = None
-    if supplier_id:
-        try:
-            supplier_id_int = int(supplier_id)
-        except ValueError:
-            supplier_id_int = None
-
-    legal_entity_id_int: Optional[int] = None
-    if legal_entity_id:
-        try:
-            legal_entity_id_int = int(legal_entity_id)
-        except ValueError:
-            legal_entity_id_int = None
-
-    accounting_year_int: Optional[int] = None
-    if year:
-        try:
-            accounting_year_int = int(year)
-        except ValueError:
-            accounting_year_int = None
-
-    invoices = search_invoices(
-        date_from=date_from,
-        date_to=date_to,
-        supplier_id=supplier_id_int,
-        legal_entity_id=legal_entity_id_int,
-        year=accounting_year_int,
-        payment_status=payment_status,
-        min_total=min_total,
-        max_total=max_total,
-        limit=300,
-    )
+    invoices = search_invoices(filters=filters, limit=300)
 
     suppliers = list_suppliers(include_inactive=False)
     legal_entities = list_legal_entities(include_inactive=False)
@@ -120,16 +66,7 @@ def list_view():
         suppliers=suppliers,
         legal_entities=legal_entities,
         accounting_years=accounting_years,
-        filters={
-            "date_from": date_from,
-            "date_to": date_to,
-            "supplier_id": supplier_id_int,
-            "legal_entity_id": legal_entity_id_int,
-            "year": accounting_year_int,
-            "payment_status": payment_status,
-            "min_total": min_total,
-            "max_total": max_total,
-        },
+        filters=filters,
     )
 
 
