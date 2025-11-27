@@ -15,7 +15,7 @@ in modo transazionale (commit demandato al service chiamante).
 
 from datetime import date
 from decimal import Decimal
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from app.extensions import db
 from app.models import Invoice, InvoiceLine, Payment, VatSummary
@@ -182,6 +182,50 @@ def filter_invoices_by_payment_status(
 
     query = query.order_by(Invoice.invoice_date.asc(), Invoice.id.asc())
     return query.all()
+
+
+def get_supplier_account_balance(
+    supplier_id: int, legal_entity_id: Optional[int] = None
+) -> Dict[str, Decimal | int]:
+    """
+    Calcola un estratto conto sintetico per un fornitore:
+    - expected_total: somma dei totali lordi fattura
+    - paid_total: somma importi pagati
+    - residual: expected_total - paid_total
+    - invoice_count: numero di fatture considerate
+
+    Il filtro per legal_entity_id � opzionale.
+    """
+    invoice_query = Invoice.query.filter(Invoice.supplier_id == supplier_id)
+    if legal_entity_id is not None:
+        invoice_query = invoice_query.filter(Invoice.legal_entity_id == legal_entity_id)
+
+    invoice_count = invoice_query.count()
+
+    expected_total = (
+        invoice_query.with_entities(
+            db.func.coalesce(db.func.sum(Invoice.total_gross_amount), 0)
+        ).scalar()
+        or Decimal("0")
+    )
+
+    payments_sum_query = (
+        db.session.query(db.func.coalesce(db.func.sum(Payment.paid_amount), 0))
+        .join(Invoice, Payment.invoice_id == Invoice.id)
+        .filter(Invoice.supplier_id == supplier_id)
+    )
+    if legal_entity_id is not None:
+        payments_sum_query = payments_sum_query.filter(Invoice.legal_entity_id == legal_entity_id)
+
+    paid_total = payments_sum_query.scalar() or Decimal("0")
+    residual = expected_total - paid_total
+
+    return {
+        "expected_total": expected_total,
+        "paid_total": paid_total,
+        "residual": residual,
+        "invoice_count": invoice_count,
+    }
 
 
 # --- Creazione / aggiornamento base ----------------------------------------------

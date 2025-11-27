@@ -5,6 +5,18 @@
 {% block content %}
 <h1>Fornitore: {{ supplier.name }}</h1>
 
+<form method="get" class="form-inline">
+    <label for="legal_entity_id">Intestazione:</label>
+    <select name="legal_entity_id" id="legal_entity_id" onchange="this.form.submit()">
+        <option value="">Tutte le intestazioni</option>
+        {% for le in legal_entities %}
+          <option value="{{ le.id }}" {% if selected_legal_entity_id == le.id %}selected{% endif %}>
+            {{ le.name }}
+          </option>
+        {% endfor %}
+    </select>
+</form>
+
 <section class="panel">
     <h2>Dati anagrafici</h2>
     <p><strong>P.IVA:</strong> {{ supplier.vat_number }}</p>
@@ -17,6 +29,30 @@
         {{ supplier.address }},
         {{ supplier.postal_code }} {{ supplier.city }} ({{ supplier.province }})</p>
 </section>
+
+{% if account_snapshot %}
+<section class="panel">
+    <h2>Estratto conto</h2>
+    <div class="row">
+        <div class="col">Totale fatture</div>
+        <div class="col text-right">
+            {{ "%.2f"|format(account_snapshot.expected_total or 0) }}
+        </div>
+    </div>
+    <div class="row">
+        <div class="col">Totale saldato</div>
+        <div class="col text-right">
+            {{ "%.2f"|format(account_snapshot.paid_total or 0) }}
+        </div>
+    </div>
+    <div class="row">
+        <div class="col">Residuo</div>
+        <div class="col text-right">
+            {{ "%.2f"|format(account_snapshot.residual or 0) }}
+        </div>
+    </div>
+</section>
+{% endif %}
 
 <section class="panel">
     <h2>Fatture del fornitore ({{ invoices|length }})</h2>

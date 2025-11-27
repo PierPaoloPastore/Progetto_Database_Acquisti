@@ -8,7 +8,7 @@ Comprende:
 
 from __future__ import annotations
 
-from flask import Blueprint, render_template, redirect, url_for, flash
+from flask import Blueprint, render_template, redirect, request, url_for, flash
 
 from app.services import (
     list_suppliers_with_stats,
@@ -44,10 +44,24 @@ def detail_view(supplier_id: int):
     - anagrafica
     - elenco fatture collegate
     """
-    detail = get_supplier_detail(supplier_id)
+    raw_legal_entity_id = request.args.get("legal_entity_id")
+    if not raw_legal_entity_id:
+        selected_legal_entity_id = None
+    else:
+        try:
+            selected_legal_entity_id = int(raw_legal_entity_id)
+        except ValueError:
+            selected_legal_entity_id = None
+
+    detail = get_supplier_detail(
+        supplier_id=supplier_id,
+        legal_entity_id=selected_legal_entity_id,
+    )
     if detail is None:
         flash("Fornitore non trovato.", "warning")
         return redirect(url_for("suppliers.list_view"))
+
+    detail["selected_legal_entity_id"] = selected_legal_entity_id
 
     return render_template(
         "suppliers/detail.html",
