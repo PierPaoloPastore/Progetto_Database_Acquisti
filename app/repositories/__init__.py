@@ -14,6 +14,7 @@ from .supplier_repo import (
     get_or_create_supplier_from_dto,
 )
 from .legal_entity_repo import list_legal_entities, get_legal_entity_by_id
+# Repository preferito per le fatture: re-export per compatibilità.
 from .invoice_repository import (
     get_invoice_by_id,
     get_invoice_by_file_name,
