@@ -14,6 +14,7 @@ from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
 from app.extensions import db
+from app.services.logging import log_structured_event
 from app.models import Invoice
 from app.repositories import (
     list_invoices,
@@ -162,4 +163,10 @@ def update_invoice_status(
         invoice.due_date = due_date
 
     db.session.commit()
+    log_structured_event(
+        "update_invoice_status",
+        invoice_id=invoice.id,
+        doc_status=invoice.doc_status,
+        payment_status=invoice.payment_status,
+    )
     return invoice
