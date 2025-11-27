@@ -27,6 +27,8 @@ from .category_service import (
 from .payment_service import (
     list_overdue_payments_for_ui,
     generate_payment_schedule,
+    create_payment,
+    update_payment,
 )
 
 __all__ = [
@@ -47,4 +49,6 @@ __all__ = [
     # Payments
     "list_overdue_payments_for_ui",
     "generate_payment_schedule",
+    "create_payment",
+    "update_payment",
 ]
