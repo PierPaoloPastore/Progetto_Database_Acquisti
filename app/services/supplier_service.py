@@ -11,10 +11,9 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 from app.extensions import db
-from app.models import Invoice, Supplier
+from app.models import Invoice, LegalEntity, Supplier
 from app.repositories import (
     get_supplier_by_id,
-    list_legal_entities,
     list_suppliers,
 )
 from app.repositories.invoice_repository import get_supplier_account_balance
@@ -66,7 +65,9 @@ def get_supplier_detail(
     {
       "supplier": Supplier,
       "invoices": [Invoice, ...],
-      "legal_entities": [LegalEntity, ...],
+      "available_legal_entities": [
+          {"id": int, "name": str, "invoice_count": int}, ...
+      ],
       "selected_legal_entity_id": int | None,
       "account_snapshot": {expected_total, paid_total, residual, invoice_count},
     }
@@ -91,12 +92,34 @@ def get_supplier_detail(
         legal_entity_id=legal_entity_id,
     )
 
-    legal_entities = list_legal_entities(include_inactive=False)
+    available_legal_entities = (
+        db.session.query(
+            LegalEntity.id,
+            LegalEntity.name,
+            db.func.count(Invoice.id).label("invoice_count"),
+        )
+        .outerjoin(
+            Invoice,
+            (Invoice.legal_entity_id == LegalEntity.id)
+            & (Invoice.supplier_id == supplier_id),
+        )
+        .filter(LegalEntity.is_active.is_(True))
+        .group_by(LegalEntity.id)
+        .order_by(LegalEntity.name.asc())
+        .all()
+    )
 
     return {
         "supplier": supplier,
         "invoices": invoices,
-        "legal_entities": legal_entities,
+        "available_legal_entities": [
+            {
+                "id": le_id,
+                "name": le_name,
+                "invoice_count": invoice_count,
+            }
+            for le_id, le_name, invoice_count in available_legal_entities
+        ],
         "selected_legal_entity_id": legal_entity_id,
         "account_snapshot": account_snapshot,
     }
