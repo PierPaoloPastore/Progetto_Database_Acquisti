@@ -2,7 +2,18 @@
 Repository per il modello Invoice.
 
 Contiene funzioni di utilità per accedere e manipolare le fatture.
+
+Nota: questo modulo è deprecato e verrà rimosso in futuro. Utilizzare
+``app.repositories.invoice_repository`` per le nuove importazioni.
 """
+
+import warnings
+
+warnings.warn(
+    "app.repositories.invoice_repo è deprecato; usa app.repositories.invoice_repository",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 from datetime import date
 from typing import List, Optional
