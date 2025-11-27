@@ -11,9 +11,9 @@ from __future__ import annotations
 from datetime import date
 from typing import Any, Dict, List, Optional
 
-from app.extensions import db
 from app.models import Payment, Invoice
 from app.repositories import list_overdue_payments
+from app.services.unit_of_work import UnitOfWork
 
 
 def list_overdue_payments_for_ui(
@@ -91,3 +91,57 @@ def generate_payment_schedule(
         )
 
     return results
+
+
+def create_payment(
+    invoice_id: int,
+    due_date: Optional[date] = None,
+    expected_amount: Optional[Any] = None,
+    payment_terms: Optional[str] = None,
+    payment_method: Optional[str] = None,
+    paid_date: Optional[date] = None,
+    paid_amount: Optional[Any] = None,
+    status: Optional[str] = None,
+    notes: Optional[str] = None,
+) -> Optional[Payment]:
+    """Crea un nuovo pagamento associato a una fattura."""
+
+    with UnitOfWork() as session:
+        invoice = session.get(Invoice, invoice_id)
+        if invoice is None:
+            return None
+
+        payment = Payment(
+            invoice_id=invoice.id,
+            due_date=due_date,
+            expected_amount=expected_amount,
+            payment_terms=payment_terms,
+            payment_method=payment_method,
+            paid_date=paid_date,
+            paid_amount=paid_amount,
+            status=status or "unpaid",
+            notes=notes,
+        )
+        session.add(payment)
+        session.flush()
+
+        return payment
+
+
+def update_payment(
+    payment_id: int,
+    **kwargs: Any,
+) -> Optional[Payment]:
+    """Aggiorna i campi di un pagamento esistente."""
+
+    with UnitOfWork() as session:
+        payment = session.get(Payment, payment_id)
+        if payment is None:
+            return None
+
+        for field, value in kwargs.items():
+            if hasattr(payment, field):
+                setattr(payment, field, value)
+
+        session.flush()
+        return payment
