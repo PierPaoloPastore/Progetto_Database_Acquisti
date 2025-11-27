@@ -13,7 +13,6 @@ from datetime import date
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
-from app.extensions import db
 from app.models import Invoice
 from app.repositories import (
     list_invoices,
@@ -23,6 +22,7 @@ from app.repositories import (
     search_invoices_by_filters,
     get_invoice_by_id,
 )
+from app.services.unit_of_work import UnitOfWork
 
 
 def search_invoices(
@@ -154,12 +154,13 @@ def update_invoice_status(
     if invoice is None:
         return None
 
-    if doc_status is not None:
-        invoice.doc_status = doc_status
-    if payment_status is not None:
-        invoice.payment_status = payment_status
-    if due_date is not None:
-        invoice.due_date = due_date
+    with UnitOfWork() as session:
+        if doc_status is not None:
+            invoice.doc_status = doc_status
+        if payment_status is not None:
+            invoice.payment_status = payment_status
+        if due_date is not None:
+            invoice.due_date = due_date
 
-    db.session.commit()
-    return invoice
+        session.add(invoice)
+        return invoice
