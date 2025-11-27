@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional
 
 from app.extensions import db
 from app.models import Invoice
-from app.repositories import (
+from app.repositories.invoice_repository import (
     list_invoices,
     filter_invoices_by_date_range,
     filter_invoices_by_supplier,
