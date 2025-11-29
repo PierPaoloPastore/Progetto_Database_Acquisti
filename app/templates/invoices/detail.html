@@ -61,7 +61,7 @@
         <div class="form-row">
             <label for="doc_status">Stato documento</label>
             <select id="doc_status" name="doc_status">
-                {% for status in ["imported", "verified", "archived"] %}
+                {% for status in ["imported", "verified", "rejected", "archived"] %}
                   <option value="{{ status }}"
                     {% if invoice.doc_status == status %}selected{% endif %}>
                     {{ status }}
@@ -87,9 +87,32 @@
         </div>
 
         <div class="form-actions">
+            <button type="button" class="btn-secondary" data-doc-status="verified">
+                Conferma
+            </button>
+            <button type="button" class="btn-secondary" data-doc-status="rejected">
+                Scarta
+            </button>
             <button type="submit" class="btn-primary">Aggiorna stato</button>
         </div>
     </form>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const form = document.getElementById('invoice-status-form');
+            const docStatusSelect = document.getElementById('doc_status');
+            const quickButtons = document.querySelectorAll('[data-doc-status]');
+
+            quickButtons.forEach(function (button) {
+                button.addEventListener('click', function () {
+                    const targetStatus = this.dataset.docStatus;
+                    if (targetStatus) {
+                        docStatusSelect.value = targetStatus;
+                        form.submit();
+                    }
+                });
+            });
+        });
+    </script>
 </section>
 
 <section class="panel">

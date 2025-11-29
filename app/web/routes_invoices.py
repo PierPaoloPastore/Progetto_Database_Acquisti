@@ -105,7 +105,12 @@ def update_status_view(invoice_id: int):
     - payment_status
     - due_date (opzionale)
     """
+    allowed_doc_statuses = {"imported", "verified", "rejected", "archived"}
+
     doc_status = request.form.get("doc_status") or None
+    if doc_status is not None and doc_status not in allowed_doc_statuses:
+        flash("Valore di stato documento non valido.", "danger")
+        return redirect(url_for("invoices.detail_view", invoice_id=invoice_id))
     payment_status = request.form.get("payment_status") or None
     due_date_str = request.form.get("due_date") or ""
     due_date = _parse_date(due_date_str)
