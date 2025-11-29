@@ -9,7 +9,7 @@ Funzioni principali:
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
@@ -49,6 +49,7 @@ def search_invoices(
     supplier_id = filters.supplier_id
     payment_status = filters.payment_status
     doc_status = filters.doc_status
+    physical_copy_status = filters.physical_copy_status
     legal_entity_id = filters.legal_entity_id
     year = filters.year
     min_total = filters.min_total
@@ -61,6 +62,7 @@ def search_invoices(
         or min_total is not None
         or max_total is not None
         or doc_status is not None
+        or physical_copy_status is not None
     ):
         return search_invoices_by_filters(
             date_from=date_from,
@@ -68,6 +70,7 @@ def search_invoices(
             supplier_id=supplier_id,
             payment_status=payment_status,
             doc_status=doc_status,
+            physical_copy_status=physical_copy_status,
             legal_entity_id=legal_entity_id,
             accounting_year=year,
             min_total=min_total,
@@ -188,6 +191,44 @@ def update_invoice_status(
         invoice_id=invoice.id,
         doc_status=invoice.doc_status,
         payment_status=invoice.payment_status,
+    )
+
+    return invoice
+
+
+def mark_physical_copy_received(invoice_id: int) -> Optional[Invoice]:
+    """Segna la copia cartacea come ricevuta e aggiorna lo stato documento.
+
+    - physical_copy_status viene impostato a ``received``
+    - physical_copy_received_at viene impostato all'orario corrente
+    - se lo stato documento non è già ``verified`` viene aggiornato a ``verified``
+    """
+def _send_physical_copy_request_email(invoice: Invoice) -> None:
+    """Placeholder per invio email/PEC al fornitore per la copia cartacea."""
+    log_structured_event(
+        "send_physical_copy_request_email_placeholder",
+        invoice_id=invoice.id,
+        supplier_id=invoice.supplier_id,
+    )
+
+
+def request_physical_copy(invoice_id: int) -> Optional[Invoice]:
+    """Imposta lo stato della copia cartacea come richiesta e salva il timestamp."""
+    invoice = get_invoice_by_id(invoice_id)
+    if invoice is None:
+        return None
+
+    with UnitOfWork() as session:
+        invoice.physical_copy_status = "requested"
+        invoice.physical_copy_requested_at = datetime.utcnow()
+        session.add(invoice)
+
+    _send_physical_copy_request_email(invoice)
+
+    log_structured_event(
+        "request_invoice_physical_copy",
+        invoice_id=invoice.id,
+        physical_copy_status=invoice.physical_copy_status,
     )
 
     return invoice

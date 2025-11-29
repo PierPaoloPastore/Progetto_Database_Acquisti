@@ -21,7 +21,12 @@ from flask import (
     flash,
 )
 
-from app.services import search_invoices, get_invoice_detail, update_invoice_status
+from app.services import (
+    search_invoices,
+    get_invoice_detail,
+    update_invoice_status,
+    request_physical_copy,
+)
 from app.services.dto import InvoiceSearchFilters
 from app.repositories import (
     list_suppliers,
@@ -156,5 +161,18 @@ def update_status_view(invoice_id: int):
         flash("Fattura non trovata o errore di aggiornamento.", "danger")
     else:
         flash("Stato fattura aggiornato con successo.", "success")
+
+    return redirect(url_for("invoices.detail_view", invoice_id=invoice_id))
+
+
+@invoices_bp.route("/<int:invoice_id>/request-copy", methods=["POST"])
+def request_copy_view(invoice_id: int):
+    """Richiede la copia cartacea della fattura al fornitore."""
+    invoice = request_physical_copy(invoice_id)
+
+    if invoice is None:
+        flash("Fattura non trovata o errore di richiesta.", "danger")
+    else:
+        flash("Richiesta copia cartacea inviata al fornitore.", "success")
 
     return redirect(url_for("invoices.detail_view", invoice_id=invoice_id))
