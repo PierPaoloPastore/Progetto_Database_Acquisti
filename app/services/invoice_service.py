@@ -158,6 +158,8 @@ def update_invoice_status(
     Aggiorna lo stato documento e/o lo stato pagamento e/o la data di scadenza
     di una fattura.
 
+    doc_status accetta i valori: imported, verified, rejected, archived.
+
     Usa un UnitOfWork per gestire commit/rollback.
     Restituisce la fattura aggiornata oppure None se non esiste.
     """

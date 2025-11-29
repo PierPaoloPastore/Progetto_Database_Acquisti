@@ -2,6 +2,12 @@
 Modello Invoice (tabella: invoices).
 
 Rappresenta una fattura di acquisto, una per file XML importato.
+
+Valori ammessi per ``doc_status``:
+- ``imported``: fattura appena importata, in attesa di verifica.
+- ``verified``: controlli completati e fattura pronta per l'uso operativo.
+- ``rejected``: fattura scartata dopo verifica o controlli interni.
+- ``archived``: fattura archiviata perché completata o fuori uso corrente.
 """
 
 from datetime import datetime
@@ -46,7 +52,7 @@ class Invoice(db.Model):
     accounting_year = db.Column(db.Integer, nullable=True, index=True)
 
     # Stato documento / pagamento
-    # status_documento es: "imported", "verified", "archived"
+    # doc_status: imported | verified | rejected | archived (vedi docstring)
     doc_status = db.Column(db.String(32), nullable=False, default="imported", index=True)
     # stato_pagamento es: "unpaid", "partial", "paid"
     payment_status = db.Column(
