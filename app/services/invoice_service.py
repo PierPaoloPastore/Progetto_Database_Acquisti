@@ -193,6 +193,13 @@ def update_invoice_status(
     return invoice
 
 
+def mark_physical_copy_received(invoice_id: int) -> Optional[Invoice]:
+    """Segna la copia cartacea come ricevuta e aggiorna lo stato documento.
+
+    - physical_copy_status viene impostato a ``received``
+    - physical_copy_received_at viene impostato all'orario corrente
+    - se lo stato documento non è già ``verified`` viene aggiornato a ``verified``
+    """
 def _send_physical_copy_request_email(invoice: Invoice) -> None:
     """Placeholder per invio email/PEC al fornitore per la copia cartacea."""
     log_structured_event(
