@@ -69,6 +69,17 @@
             </select>
         </div>
         <div class="form-row">
+            <label for="physical_copy_status">Copia fisica</label>
+            <select id="physical_copy_status" name="physical_copy_status">
+                <option value="">Tutte</option>
+                {% for status in ["missing", "requested", "received"] %}
+                  <option value="{{ status }}"{% if filters.physical_copy_status == status %} selected{% endif %}>
+                      {{ status }}
+                  </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-row">
             <label for="payment_status">Stato pagamento</label>
             <select id="payment_status" name="payment_status">
                 <option value="">Tutti</option>
@@ -111,6 +122,7 @@
                 <th>Intestatario</th>
                 <th>Totale lordo</th>
                 <th>Stato doc.</th>
+                <th>Copia fisica</th>
                 <th>Stato pagamento</th>
                 <th>Scadenza</th>
                 <th></th>
@@ -133,6 +145,26 @@
                       {{ "%.2f"|format(inv.total_gross_amount or 0) }}
                   </td>
                   <td>{{ inv.doc_status }}</td>
+                  {% set physical_status = inv.physical_copy_status or "missing" %}
+                  {% set status_class = {
+                      "missing": "status-badge status-missing",
+                      "requested": "status-badge status-requested",
+                      "received": "status-badge status-received",
+                  }[physical_status] if physical_status in ["missing", "requested", "received"] else "status-badge" %}
+                  <td>
+                      <span class="{{ status_class }}">
+                          <span class="status-dot"></span>
+                          <span class="status-label">
+                              {% if physical_status == "requested" %}
+                                Richiesta
+                              {% elif physical_status == "received" %}
+                                Ricevuta
+                              {% else %}
+                                Mancante
+                              {% endif %}
+                          </span>
+                      </span>
+                  </td>
                   <td>{{ inv.payment_status }}</td>
                   <td>
                       {{ inv.due_date.strftime('%d/%m/%Y') if inv.due_date }}
@@ -144,7 +176,7 @@
               </tr>
             {% else %}
               <tr>
-                  <td colspan="10" class="text-center">
+                  <td colspan="11" class="text-center">
                       Nessuna fattura trovata con i filtri correnti.
                   </td>
               </tr>

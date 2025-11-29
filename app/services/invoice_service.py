@@ -49,6 +49,7 @@ def search_invoices(
     supplier_id = filters.supplier_id
     payment_status = filters.payment_status
     doc_status = filters.doc_status
+    physical_copy_status = filters.physical_copy_status
     legal_entity_id = filters.legal_entity_id
     year = filters.year
     min_total = filters.min_total
@@ -61,6 +62,7 @@ def search_invoices(
         or min_total is not None
         or max_total is not None
         or doc_status is not None
+        or physical_copy_status is not None
     ):
         return search_invoices_by_filters(
             date_from=date_from,
@@ -68,6 +70,7 @@ def search_invoices(
             supplier_id=supplier_id,
             payment_status=payment_status,
             doc_status=doc_status,
+            physical_copy_status=physical_copy_status,
             legal_entity_id=legal_entity_id,
             accounting_year=year,
             min_total=min_total,

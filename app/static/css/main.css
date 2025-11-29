@@ -152,3 +152,37 @@ a:hover {
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 1rem;
 }
+
+/* Badge stato copia fisica */
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+.status-dot {
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: 999px;
+    background-color: currentColor;
+    opacity: 0.85;
+}
+
+.status-missing {
+    background-color: #fee2e2;
+    color: #b91c1c;
+}
+
+.status-requested {
+    background-color: #fff7ed;
+    color: #c2410c;
+}
+
+.status-received {
+    background-color: #dcfce7;
+    color: #166534;
+}
