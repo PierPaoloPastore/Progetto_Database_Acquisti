@@ -13,6 +13,7 @@ from .invoice_service import (
     search_invoices,
     get_invoice_detail,
     update_invoice_status,
+    request_physical_copy,
 )
 from .supplier_service import (
     list_suppliers_with_stats,
@@ -38,6 +39,7 @@ __all__ = [
     "search_invoices",
     "get_invoice_detail",
     "update_invoice_status",
+    "request_physical_copy",
     # Suppliers
     "list_suppliers_with_stats",
     "get_supplier_detail",

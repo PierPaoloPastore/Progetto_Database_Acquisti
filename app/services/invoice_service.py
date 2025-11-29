@@ -9,7 +9,7 @@ Funzioni principali:
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
@@ -188,6 +188,37 @@ def update_invoice_status(
         invoice_id=invoice.id,
         doc_status=invoice.doc_status,
         payment_status=invoice.payment_status,
+    )
+
+    return invoice
+
+
+def _send_physical_copy_request_email(invoice: Invoice) -> None:
+    """Placeholder per invio email/PEC al fornitore per la copia cartacea."""
+    log_structured_event(
+        "send_physical_copy_request_email_placeholder",
+        invoice_id=invoice.id,
+        supplier_id=invoice.supplier_id,
+    )
+
+
+def request_physical_copy(invoice_id: int) -> Optional[Invoice]:
+    """Imposta lo stato della copia cartacea come richiesta e salva il timestamp."""
+    invoice = get_invoice_by_id(invoice_id)
+    if invoice is None:
+        return None
+
+    with UnitOfWork() as session:
+        invoice.physical_copy_status = "requested"
+        invoice.physical_copy_requested_at = datetime.utcnow()
+        session.add(invoice)
+
+    _send_physical_copy_request_email(invoice)
+
+    log_structured_event(
+        "request_invoice_physical_copy",
+        invoice_id=invoice.id,
+        physical_copy_status=invoice.physical_copy_status,
     )
 
     return invoice
