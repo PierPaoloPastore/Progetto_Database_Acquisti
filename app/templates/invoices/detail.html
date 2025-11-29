@@ -121,6 +121,26 @@
     </script>
 </section>
 
+{% if invoice.doc_status in ["imported", "verified", "pending_physical_copy"] %}
+<section class="panel">
+    <h2>Copia fisica</h2>
+    <p>
+        {% set physical_status = invoice.physical_copy_status or 'missing' %}
+        {% set badge_class = {
+            'requested': 'badge-warning',
+            'received': 'badge-success',
+            'missing': 'badge-neutral'
+        }.get(physical_status, 'badge-neutral') %}
+        <strong>Stato copia cartacea:</strong>
+        <span class="badge {{ badge_class }}">{{ physical_status }}</span>
+    </p>
+    <div class="form-actions">
+        <button type="button" class="btn-secondary">Invia richiesta al fornitore</button>
+        <button type="button" class="btn-primary">Segna copia ricevuta</button>
+    </div>
+</section>
+{% endif %}
+
 <section class="panel">
     <h2>Righe fattura</h2>
     <p>
