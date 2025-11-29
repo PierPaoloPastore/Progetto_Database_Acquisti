@@ -61,7 +61,13 @@
         <div class="form-row">
             <label for="doc_status">Stato documento</label>
             <select id="doc_status" name="doc_status">
-                {% for status in ["imported", "verified", "rejected", "archived"] %}
+                {% for status in [
+                    "imported",
+                    "pending_physical_copy",
+                    "verified",
+                    "rejected",
+                    "archived",
+                ] %}
                   <option value="{{ status }}"
                     {% if invoice.doc_status == status %}selected{% endif %}>
                     {{ status }}

@@ -40,8 +40,9 @@ def api_update_invoice_status(invoice_id: int):
 
     Body JSON atteso:
     {
-      "doc_status": "imported|verified|rejected|archived",
+      "doc_status": "imported|pending_physical_copy|verified|rejected|archived",
          # imported: appena importata
+         # pending_physical_copy: in attesa di copia cartacea
          # verified: controllata e pronta all'uso
          # rejected: scartata dopo verifica
          # archived: chiusa/archiviata
