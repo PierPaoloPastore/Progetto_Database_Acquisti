@@ -200,25 +200,32 @@ def mark_physical_copy_received(invoice_id: int) -> Optional[Invoice]:
     - physical_copy_received_at viene impostato all'orario corrente
     - se lo stato documento non è già ``verified`` viene aggiornato a ``verified``
     """
+def _send_physical_copy_request_email(invoice: Invoice) -> None:
+    """Placeholder per invio email/PEC al fornitore per la copia cartacea."""
+    log_structured_event(
+        "send_physical_copy_request_email_placeholder",
+        invoice_id=invoice.id,
+        supplier_id=invoice.supplier_id,
+    )
+
+
+def request_physical_copy(invoice_id: int) -> Optional[Invoice]:
+    """Imposta lo stato della copia cartacea come richiesta e salva il timestamp."""
     invoice = get_invoice_by_id(invoice_id)
     if invoice is None:
         return None
 
-    now = datetime.utcnow()
-
     with UnitOfWork() as session:
-        invoice.physical_copy_status = "received"
-        invoice.physical_copy_received_at = now
-        if invoice.doc_status != "verified":
-            invoice.doc_status = "verified"
-
+        invoice.physical_copy_status = "requested"
+        invoice.physical_copy_requested_at = datetime.utcnow()
         session.add(invoice)
 
+    _send_physical_copy_request_email(invoice)
+
     log_structured_event(
-        "mark_physical_copy_received",
+        "request_invoice_physical_copy",
         invoice_id=invoice.id,
         physical_copy_status=invoice.physical_copy_status,
-        doc_status=invoice.doc_status,
     )
 
     return invoice
