@@ -152,3 +152,35 @@ a:hover {
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 1rem;
 }
+
+/* Badge e chip di stato */
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    border: 1px solid #e5e7eb;
+    background-color: #f3f4f6;
+    color: #111827;
+}
+
+.badge-neutral {
+    background-color: #f3f4f6;
+    border-color: #e5e7eb;
+    color: #1f2937;
+}
+
+.badge-warning {
+    background-color: #fef3c7;
+    border-color: #fcd34d;
+    color: #92400e;
+}
+
+.badge-success {
+    background-color: #d1fae5;
+    border-color: #bbf7d0;
+    color: #065f46;
+}
