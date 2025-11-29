@@ -40,7 +40,11 @@ def api_update_invoice_status(invoice_id: int):
 
     Body JSON atteso:
     {
-      "doc_status": "imported|verified|archived|...",
+      "doc_status": "imported|verified|rejected|archived",
+         # imported: appena importata
+         # verified: controllata e pronta all'uso
+         # rejected: scartata dopo verifica
+         # archived: chiusa/archiviata
       "payment_status": "unpaid|partial|paid|...",
       "due_date": "YYYY-MM-DD"  (opzionale)
     }
