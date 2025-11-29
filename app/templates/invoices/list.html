@@ -55,7 +55,13 @@
             <label for="doc_status">Stato doc.</label>
             <select id="doc_status" name="doc_status">
                 <option value="">Tutti gli stati</option>
-                {% for status in ["imported", "verified", "archived"] %}
+                {% for status in [
+                    "imported",
+                    "pending_physical_copy",
+                    "verified",
+                    "rejected",
+                    "archived",
+                ] %}
                   <option value="{{ status }}"{% if filters.doc_status == status %} selected{% endif %}>
                     {{ status }}
                   </option>
