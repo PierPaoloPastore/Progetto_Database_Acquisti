@@ -85,6 +85,7 @@ def search_invoices_by_filters(
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
     supplier_id: Optional[int] = None,
+    doc_status: Optional[str] = None,
     payment_status: Optional[str] = None,
     legal_entity_id: Optional[int] = None,
     accounting_year: Optional[int] = None,
@@ -101,6 +102,8 @@ def search_invoices_by_filters(
         query = query.filter(Invoice.accounting_year == accounting_year)
     if supplier_id is not None:
         query = query.filter(Invoice.supplier_id == supplier_id)
+    if doc_status is not None:
+        query = query.filter(Invoice.doc_status == doc_status)
     if payment_status is not None:
         query = query.filter(Invoice.payment_status == payment_status)
 
