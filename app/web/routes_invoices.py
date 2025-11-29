@@ -19,6 +19,7 @@ from flask import (
     redirect,
     url_for,
     flash,
+    abort,
 )
 
 from app.services import (
@@ -26,6 +27,7 @@ from app.services import (
     get_invoice_detail,
     update_invoice_status,
     request_physical_copy,
+    mark_physical_copy_received,
 )
 from app.services.dto import InvoiceSearchFilters
 from app.repositories import (
@@ -165,14 +167,35 @@ def update_status_view(invoice_id: int):
     return redirect(url_for("invoices.detail_view", invoice_id=invoice_id))
 
 
-@invoices_bp.route("/<int:invoice_id>/request-copy", methods=["POST"])
-def request_copy_view(invoice_id: int):
+@invoices_bp.route(
+    "/<int:invoice_id>/request-physical-copy",
+    methods=["POST"],
+    endpoint="request_physical_copy",
+)
+def request_physical_copy_view(invoice_id: int):
     """Richiede la copia cartacea della fattura al fornitore."""
     invoice = request_physical_copy(invoice_id)
 
     if invoice is None:
-        flash("Fattura non trovata o errore di richiesta.", "danger")
-    else:
-        flash("Richiesta copia cartacea inviata al fornitore.", "success")
+        abort(404)
 
-    return redirect(url_for("invoices.detail_view", invoice_id=invoice_id))
+    flash("Richiesta copia fisica registrata.", "success")
+
+    return redirect(url_for("invoices.detail_view", invoice_id=invoice.id))
+
+
+@invoices_bp.route(
+    "/<int:invoice_id>/mark-physical-copy-received",
+    methods=["POST"],
+    endpoint="mark_physical_copy_received",
+)
+def mark_physical_copy_received_view(invoice_id: int):
+    """Segna come ricevuta la copia cartacea della fattura."""
+    invoice = mark_physical_copy_received(invoice_id)
+
+    if invoice is None:
+        abort(404)
+
+    flash("Copia fisica segnata come ricevuta.", "success")
+
+    return redirect(url_for("invoices.detail_view", invoice_id=invoice.id))
