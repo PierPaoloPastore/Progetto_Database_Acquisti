@@ -52,6 +52,17 @@
             </select>
         </div>
         <div class="form-row">
+            <label for="doc_status">Stato doc.</label>
+            <select id="doc_status" name="doc_status">
+                <option value="">Tutti gli stati</option>
+                {% for status in ["imported", "verified", "archived"] %}
+                  <option value="{{ status }}"{% if filters.doc_status == status %} selected{% endif %}>
+                    {{ status }}
+                  </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-row">
             <label for="payment_status">Stato pagamento</label>
             <select id="payment_status" name="payment_status">
                 <option value="">Tutti</option>
@@ -93,6 +104,7 @@
                 <th>Fornitore</th>
                 <th>Intestatario</th>
                 <th>Totale lordo</th>
+                <th>Stato doc.</th>
                 <th>Stato pagamento</th>
                 <th>Scadenza</th>
                 <th></th>
@@ -114,6 +126,7 @@
                   <td class="text-right">
                       {{ "%.2f"|format(inv.total_gross_amount or 0) }}
                   </td>
+                  <td>{{ inv.doc_status }}</td>
                   <td>{{ inv.payment_status }}</td>
                   <td>
                       {{ inv.due_date.strftime('%d/%m/%Y') if inv.due_date }}
@@ -125,7 +138,7 @@
               </tr>
             {% else %}
               <tr>
-                  <td colspan="9" class="text-center">
+                  <td colspan="10" class="text-center">
                       Nessuna fattura trovata con i filtri correnti.
                   </td>
               </tr>

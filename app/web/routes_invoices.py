@@ -49,6 +49,7 @@ def list_view():
     - supplier_id
     - legal_entity_id
     - year (accounting_year)
+    - doc_status
     - payment_status
     - min_total, max_total
     """

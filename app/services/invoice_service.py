@@ -39,6 +39,7 @@ def search_invoices(
     Applica i filtri in questo ordine:
     - legal entity e anno contabile
     - fornitore
+    - stato documento
     - stato pagamento
     - data
     - range importo totale lordo
@@ -47,6 +48,7 @@ def search_invoices(
     date_to = filters.date_to
     supplier_id = filters.supplier_id
     payment_status = filters.payment_status
+    doc_status = filters.doc_status
     legal_entity_id = filters.legal_entity_id
     year = filters.year
     min_total = filters.min_total
@@ -58,12 +60,14 @@ def search_invoices(
         or year is not None
         or min_total is not None
         or max_total is not None
+        or doc_status is not None
     ):
         return search_invoices_by_filters(
             date_from=date_from,
             date_to=date_to,
             supplier_id=supplier_id,
             payment_status=payment_status,
+            doc_status=doc_status,
             legal_entity_id=legal_entity_id,
             accounting_year=year,
             min_total=min_total,

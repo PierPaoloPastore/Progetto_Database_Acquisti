@@ -15,6 +15,7 @@ class InvoiceSearchFilters:
     supplier_id: Optional[int] = None
     legal_entity_id: Optional[int] = None
     year: Optional[int] = None
+    doc_status: Optional[str] = None
     payment_status: Optional[str] = None
     min_total: Optional[Decimal] = None
     max_total: Optional[Decimal] = None
@@ -54,6 +55,7 @@ class InvoiceSearchFilters:
             supplier_id=cls._parse_int(args.get("supplier_id")),
             legal_entity_id=cls._parse_int(args.get("legal_entity_id")),
             year=cls._parse_int(args.get("year")),
+            doc_status=(args.get("doc_status") or None),
             payment_status=(args.get("payment_status") or None),
             min_total=cls._parse_decimal(args.get("min_total", "")),
             max_total=cls._parse_decimal(args.get("max_total", "")),
