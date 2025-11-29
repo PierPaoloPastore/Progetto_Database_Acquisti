@@ -71,6 +71,30 @@ def list_view():
     )
 
 
+@invoices_bp.route("/to-review", methods=["GET"])
+def to_review_view():
+    """Elenco fatture importate da rivedere (doc_status=imported di default)."""
+    filters = InvoiceSearchFilters.from_query_args(request.args)
+
+    if filters.doc_status is None:
+        filters.doc_status = "imported"
+
+    invoices = search_invoices(filters=filters, limit=300)
+
+    suppliers = list_suppliers(include_inactive=False)
+    legal_entities = list_legal_entities(include_inactive=False)
+    accounting_years = list_accounting_years()
+
+    return render_template(
+        "invoices/list.html",
+        invoices=invoices,
+        suppliers=suppliers,
+        legal_entities=legal_entities,
+        accounting_years=accounting_years,
+        filters=filters,
+    )
+
+
 @invoices_bp.route("/<int:invoice_id>", methods=["GET"])
 def detail_view(invoice_id: int):
     """
