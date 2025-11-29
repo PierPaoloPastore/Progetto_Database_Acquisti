@@ -135,8 +135,14 @@
         <span class="badge {{ badge_class }}">{{ physical_status }}</span>
     </p>
     <div class="form-actions">
-        <button type="button" class="btn-secondary">Invia richiesta al fornitore</button>
-        <button type="button" class="btn-primary">Segna copia ricevuta</button>
+        <form method="post"
+              action="{{ url_for('invoices.request_physical_copy', invoice_id=invoice.id) }}">
+            <button type="submit" class="btn-secondary">Invia richiesta al fornitore</button>
+        </form>
+        <form method="post"
+              action="{{ url_for('invoices.mark_physical_copy_received', invoice_id=invoice.id) }}">
+            <button type="submit" class="btn-primary">Segna copia ricevuta</button>
+        </form>
     </div>
 </section>
 {% endif %}
