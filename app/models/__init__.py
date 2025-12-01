@@ -24,6 +24,7 @@ from .category import Category
 from .note import Note
 from .import_log import ImportLog
 from .user import User
+from .app_setting import AppSetting
 
 __all__ = [
     "LegalEntity",
@@ -36,4 +37,5 @@ __all__ = [
     "Note",
     "ImportLog",
     "User",
+    "AppSetting",
 ]

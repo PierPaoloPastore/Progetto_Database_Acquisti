@@ -32,6 +32,7 @@ from .payment_service import (
     create_payment,
     update_payment,
 )
+from .settings_service import get_setting, set_setting
 
 __all__ = [
     # Import
@@ -55,4 +56,7 @@ __all__ = [
     "generate_payment_schedule",
     "create_payment",
     "update_payment",
+    # Settings
+    "get_setting",
+    "set_setting",
 ]
