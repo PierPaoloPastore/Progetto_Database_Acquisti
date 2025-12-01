@@ -5,6 +5,8 @@ Al momento i valori vengono letti e scritti dalla configurazione
 Flask in memoria.
 """
 
+import os
+
 from flask import current_app
 
 
@@ -27,3 +29,15 @@ def set_setting(key: str, value: str) -> None:
     :param value: valore da salvare
     """
     current_app.config[key] = value
+
+
+def get_physical_copy_storage_path() -> str:
+    """Restituisce il percorso assoluto per lo storage delle copie fisiche."""
+    configured_path = current_app.config.get("PHYSICAL_COPY_STORAGE_PATH")
+    if configured_path:
+        return os.path.abspath(configured_path)
+
+    inbox_base = current_app.config.get("SCAN_INBOX_PATH", "")
+    default_base = inbox_base if inbox_base else os.getcwd()
+    default_path = os.path.join(default_base, "copies")
+    return os.path.abspath(default_path)

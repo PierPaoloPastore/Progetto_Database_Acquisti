@@ -13,6 +13,8 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
+from werkzeug.datastructures import FileStorage
+
 from app.services.logging import log_structured_event
 from app.models import Invoice
 from app.repositories.invoice_repository import (
@@ -24,6 +26,7 @@ from app.repositories.invoice_repository import (
     search_invoices_by_filters,
     get_invoice_by_id,
     get_next_imported_invoice,
+    list_invoices_without_physical_copy as repo_list_invoices_without_physical_copy,
 )
 from app.services.dto import InvoiceSearchFilters
 from app.services.unit_of_work import UnitOfWork
@@ -243,23 +246,33 @@ def list_invoices_to_review(order: str = "desc") -> List[Invoice]:
     return list_imported_invoices(order=order)
 
 
+def list_invoices_without_physical_copy(order: str = "desc") -> List[Invoice]:
+    """Elenco delle fatture senza copia fisica ricevuta."""
+    return repo_list_invoices_without_physical_copy(order=order)
+
+
 def get_next_invoice_to_review(order: str = "desc") -> Optional[Invoice]:
     """Restituisce la prossima fattura da rivedere oppure None se esaurite."""
     return get_next_imported_invoice(order=order)
 
 
-def mark_physical_copy_received(invoice_id: int) -> Optional[Invoice]:
-    """Segna la copia cartacea come ricevuta e aggiorna lo stato documento.
-
-    - physical_copy_status viene impostato a ``received``
-    - physical_copy_received_at viene impostato all'orario corrente
-    - se lo stato documento non è già ``verified`` viene aggiornato a ``verified``
-    """
+def mark_physical_copy_received(
+    invoice_id: int, *, file: Optional[FileStorage] = None
+) -> Optional[Invoice]:
+    """Segna la copia cartacea come ricevuta e aggiorna eventuale file."""
     invoice = get_invoice_by_id(invoice_id)
     if invoice is None:
         return None
 
+    stored_path: Optional[str] = None
+
     with UnitOfWork() as session:
+        if file is not None:
+            from app.services.scan_service import store_physical_copy
+
+            stored_path = store_physical_copy(invoice, file)
+            invoice.physical_copy_file_path = stored_path
+
         invoice.physical_copy_status = "received"
         invoice.physical_copy_received_at = datetime.utcnow()
         if invoice.doc_status == "imported":
@@ -272,6 +285,7 @@ def mark_physical_copy_received(invoice_id: int) -> Optional[Invoice]:
         invoice_id=invoice.id,
         physical_copy_status=invoice.physical_copy_status,
         doc_status=invoice.doc_status,
+        physical_copy_file_path=stored_path,
     )
 
     return invoice

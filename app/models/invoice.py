@@ -61,6 +61,7 @@ class Invoice(db.Model):
     )
     physical_copy_requested_at = db.Column(db.DateTime, nullable=True)
     physical_copy_received_at = db.Column(db.DateTime, nullable=True)
+    physical_copy_file_path = db.Column(db.String(255), nullable=True)
     # stato_pagamento es: "unpaid", "partial", "paid"
     payment_status = db.Column(
         db.String(32), nullable=False, default="unpaid", index=True

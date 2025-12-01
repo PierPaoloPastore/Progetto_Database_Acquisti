@@ -118,7 +118,7 @@
                 Scarta
             </button>
             <button type="submit" class="btn-primary">Aggiorna stato</button>
-            {% if not invoice.physical_copy_file %}
+            {% if not invoice.physical_copy_file_path %}
                 <a href="{{ url_for('invoices.attach_scan_view', invoice_id=invoice.id) }}"
                    class="btn btn-primary">
                     Collega scansione
@@ -126,27 +126,6 @@
             {% endif %}
         </div>
     </form>
-    {% if invoice.doc_status in ["imported", "verified", "pending_physical_copy"] %}
-        {% set physical_status = invoice.physical_copy_status or 'missing' %}
-        {% set badge_class = {
-            'requested': 'badge-warning',
-            'received': 'badge-success',
-            'missing': 'badge-neutral'
-        }.get(physical_status, 'badge-neutral') %}
-        <div class="form-actions">
-            <div>
-                <strong>Stato copia cartacea:</strong>
-                <span class="badge {{ badge_class }}">{{ physical_status }}</span>
-                {% if invoice.physical_copy_file %}
-                    <span class="ms-2"><strong>Copia fisica:</strong> {{ invoice.physical_copy_file }}</span>
-                {% endif %}
-            </div>
-            <form method="post"
-                  action="{{ url_for('invoices.request_physical_copy', invoice_id=invoice.id) }}">
-                <button type="submit" class="btn-secondary">Invia richiesta al fornitore</button>
-            </form>
-        </div>
-    {% endif %}
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             const form = document.getElementById('invoice-status-form');
@@ -164,6 +143,70 @@
             });
         });
     </script>
+</section>
+
+<section class="panel">
+    <h2>Copia fisica</h2>
+    {% set physical_status = invoice.physical_copy_status or 'missing' %}
+    {% set badge_class = {
+        'missing': 'status-badge status-missing',
+        'requested': 'status-badge status-requested',
+        'received': 'status-badge status-received'
+    }.get(physical_status, 'status-badge') %}
+    <div class="form-row">
+        <strong>Stato copia:</strong>
+        <span class="{{ badge_class }}">
+            <span class="status-dot"></span>
+            <span class="status-label">
+                {% if physical_status == 'requested' %}
+                    Richiesta
+                {% elif physical_status == 'received' %}
+                    Ricevuta
+                {% else %}
+                    Mancante
+                {% endif %}
+            </span>
+        </span>
+    </div>
+    <div class="form-row">
+        {% if invoice.physical_copy_requested_at %}
+            <div>Richiesta il: {{ invoice.physical_copy_requested_at }}</div>
+        {% endif %}
+        {% if invoice.physical_copy_received_at %}
+            <div>Ricevuta il: {{ invoice.physical_copy_received_at }}</div>
+        {% endif %}
+        {% if invoice.physical_copy_file_path %}
+            <div>Percorso file: {{ invoice.physical_copy_file_path }}</div>
+        {% endif %}
+    </div>
+    <div class="form-actions">
+        {% if physical_status in ['missing'] %}
+            <form method="post"
+                  action="{{ url_for('invoices.request_physical_copy', invoice_id=invoice.id) }}">
+                <button type="submit" class="btn-secondary">Richiedi copia fisica</button>
+            </form>
+        {% endif %}
+        {% if physical_status in ['missing', 'requested'] %}
+            <form method="post"
+                  action="{{ url_for('invoices.mark_physical_copy_received', invoice_id=invoice.id) }}"
+                  onsubmit="return confirm('Confermi la ricezione della copia fisica?');">
+                <button type="submit" class="btn-primary">Segna copia ricevuta</button>
+            </form>
+        {% endif %}
+    </div>
+    {% if physical_status != 'received' %}
+        <form method="post" enctype="multipart/form-data"
+              action="{{ url_for('invoices.upload_physical_copy', invoice_id=invoice.id) }}"
+              class="form-inline">
+            <div class="form-row">
+                <label for="physical_copy_file">Carica scansione</label>
+                <input type="file" id="physical_copy_file" name="file" required>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn-primary">Carica scansione</button>
+            </div>
+        </form>
+    {% endif %}
 </section>
 
 <section class="panel">
