@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2>Impostazioni</h2>
+
+<form method="POST">
+    <div class="mb-3">
+        <label class="form-label">Cartella scansioni DDT da assegnare</label>
+        <input type="text" name="scan_inbox" value="{{ scan_inbox }}" class="form-control" style="max-width: 500px;">
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Cartella storage copie fisiche (destinazione)</label>
+        <input type="text" name="copy_storage" value="{{ copy_storage }}" class="form-control" style="max-width: 500px;">
+    </div>
+
+    <button type="submit" class="btn btn-primary">Salva impostazioni</button>
+</form>
+
+{% endblock %}
