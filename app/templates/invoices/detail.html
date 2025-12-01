@@ -102,6 +102,14 @@
             <button type="submit" class="btn-primary">Aggiorna stato</button>
         </div>
     </form>
+    {% if not invoice.physical_copy_file %}
+        <a href="{{ url_for('invoices.attach_scan_view', invoice_id=invoice.id) }}"
+           class="btn btn-secondary">
+            Collega scansione
+        </a>
+    {% else %}
+        <p><strong>Copia fisica:</strong> {{ invoice.physical_copy_file }}</p>
+    {% endif %}
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             const form = document.getElementById('invoice-status-form');
