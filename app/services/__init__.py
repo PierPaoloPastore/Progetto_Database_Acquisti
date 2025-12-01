@@ -17,6 +17,7 @@ from .invoice_service import (
     reject_invoice,
     list_invoices_to_review,
     get_next_invoice_to_review,
+    list_invoices_without_physical_copy,
     mark_physical_copy_received,
     request_physical_copy,
 )
@@ -49,6 +50,7 @@ __all__ = [
     "reject_invoice",
     "list_invoices_to_review",
     "get_next_invoice_to_review",
+    "list_invoices_without_physical_copy",
     "mark_physical_copy_received",
     "request_physical_copy",
     # Suppliers

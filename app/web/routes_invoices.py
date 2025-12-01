@@ -30,6 +30,7 @@ from app.services import (
     confirm_invoice as confirm_invoice_service,
     reject_invoice as reject_invoice_service,
     list_invoices_to_review,
+    list_invoices_without_physical_copy,
     get_next_invoice_to_review,
     request_physical_copy,
     mark_physical_copy_received,
@@ -43,6 +44,13 @@ from app.repositories import (
 )
 
 invoices_bp = Blueprint("invoices", __name__)
+
+
+ALLOWED_PHYSICAL_COPY_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "tif", "tiff"}
+
+
+def _is_allowed_file(filename: str) -> bool:
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_PHYSICAL_COPY_EXTENSIONS
 
 
 def _parse_date(value: str) -> Optional[datetime.date]:
@@ -120,6 +128,16 @@ def review_list_view():
         invoices=invoices,
         next_invoice=next_invoice,
         order=order,
+    )
+
+
+@invoices_bp.route("/physical-copies", methods=["GET"])
+def physical_copy_list_view():
+    """To-do list delle fatture senza copia fisica o con copia richiesta."""
+    invoices = list_invoices_without_physical_copy(order=request.args.get("order", "desc"))
+    return render_template(
+        "invoices/physical_copy_list.html",
+        invoices=invoices,
     )
 
 
@@ -241,7 +259,7 @@ def reject_invoice(invoice_id: int):
 
 
 @invoices_bp.route(
-    "/<int:invoice_id>/request-physical-copy",
+    "/<int:invoice_id>/physical-copy/request",
     methods=["POST"],
     endpoint="request_physical_copy",
 )
@@ -258,13 +276,13 @@ def request_physical_copy_view(invoice_id: int):
 
 
 @invoices_bp.route(
-    "/<int:invoice_id>/mark-physical-copy-received",
+    "/<int:invoice_id>/physical-copy/received",
     methods=["POST"],
     endpoint="mark_physical_copy_received",
 )
 def mark_physical_copy_received_view(invoice_id: int):
     """Segna come ricevuta la copia cartacea della fattura."""
-    invoice = mark_physical_copy_received(invoice_id)
+    invoice = mark_physical_copy_received(invoice_id, file=None)
 
     if invoice is None:
         abort(404)
@@ -272,6 +290,36 @@ def mark_physical_copy_received_view(invoice_id: int):
     flash("Copia fisica segnata come ricevuta.", "success")
 
     return redirect(url_for("invoices.detail_view", invoice_id=invoice.id))
+
+
+@invoices_bp.route(
+    "/<int:invoice_id>/physical-copy/upload",
+    methods=["POST"],
+    endpoint="upload_physical_copy",
+)
+def upload_physical_copy_view(invoice_id: int):
+    """Carica e collega una scansione per la copia fisica."""
+    file = request.files.get("file")
+    if file is None or not file.filename:
+        flash("Seleziona un file da caricare.", "warning")
+        return redirect(url_for("invoices.detail_view", invoice_id=invoice_id))
+
+    if not _is_allowed_file(file.filename):
+        flash("Formato file non supportato. Carica PDF o immagini.", "danger")
+        return redirect(url_for("invoices.detail_view", invoice_id=invoice_id))
+
+    try:
+        invoice = mark_physical_copy_received(invoice_id, file=file)
+    except Exception as exc:  # pragma: no cover - gestione runtime
+        flash(f"Errore nel salvataggio della copia fisica: {exc}", "danger")
+        return redirect(url_for("invoices.detail_view", invoice_id=invoice_id))
+
+    if invoice is None:
+        abort(404)
+
+    flash("Copia fisica caricata e segnata come ricevuta.", "success")
+
+    return redirect(url_for("invoices.detail_view", invoice_id=invoice_id))
 
 
 @invoices_bp.get("/<int:invoice_id>/attach-scan")

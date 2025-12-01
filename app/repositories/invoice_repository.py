@@ -94,6 +94,15 @@ def list_imported_invoices(order: str = "desc") -> List[Invoice]:
     return query.all()
 
 
+def list_invoices_without_physical_copy(order: str = "desc") -> List[Invoice]:
+    """Restituisce le fatture senza copia fisica o con copia richiesta."""
+    query = Invoice.query.filter(
+        Invoice.physical_copy_status.in_(["missing", "requested"])
+    )
+    query = _apply_invoice_ordering(query, order)
+    return query.all()
+
+
 def get_next_imported_invoice(order: str = "desc") -> Optional[Invoice]:
     """Restituisce la prossima fattura da rivedere in base all'ordinamento scelto."""
     query = Invoice.query.filter(Invoice.doc_status == "imported")
