@@ -4,30 +4,31 @@ Route web per la gestione delle impostazioni applicative.
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 
-from app.services import get_setting, set_setting
+from app.services.settings_service import get_setting, set_setting
 
 
 settings_bp = Blueprint("settings", __name__, url_prefix="/settings")
 
 
 @settings_bp.get("/")
-def settings_view():
-    inbox = get_setting("SCAN_INBOX_PATH", "")
-    storage = get_setting("PHYSICAL_COPY_STORAGE_PATH", "")
+def edit_settings():
+    scan_inbox = get_setting("SCAN_INBOX_PATH", "")
+    copy_storage = get_setting("PHYSICAL_COPY_STORAGE_PATH", "")
+
     return render_template(
-        "settings/settings.html",
-        inbox=inbox,
-        storage=storage,
+        "settings/edit.html",
+        scan_inbox=scan_inbox,
+        copy_storage=copy_storage,
     )
 
 
 @settings_bp.post("/")
-def settings_update():
-    inbox = request.form.get("inbox_path", "").strip()
-    storage = request.form.get("storage_path", "").strip()
+def save_settings():
+    scan_inbox = request.form.get("scan_inbox", "").strip()
+    copy_storage = request.form.get("copy_storage", "").strip()
 
-    set_setting("SCAN_INBOX_PATH", inbox)
-    set_setting("PHYSICAL_COPY_STORAGE_PATH", storage)
+    set_setting("SCAN_INBOX_PATH", scan_inbox)
+    set_setting("PHYSICAL_COPY_STORAGE_PATH", copy_storage)
 
-    flash("Impostazioni aggiornate correttamente.", "success")
-    return redirect(url_for("settings.settings_view"))
+    flash("Impostazioni salvate correttamente", "success")
+    return redirect(url_for("settings.edit_settings"))
