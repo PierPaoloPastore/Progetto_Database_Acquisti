@@ -3,7 +3,7 @@ Repository per il modello InvoiceLine.
 
 Contiene funzioni di utilità per accedere alle righe fattura.
 """
-
+from sqlalchemy import case
 from typing import List, Optional
 
 from app.extensions import db
@@ -19,7 +19,10 @@ def list_lines_by_invoice(invoice_id: int) -> List[InvoiceLine]:
     """Restituisce tutte le righe associate a una fattura."""
     return (
         InvoiceLine.query.filter_by(invoice_id=invoice_id)
-        .order_by(InvoiceLine.line_number.asc().nullslast())
+        .order_by(
+            case((InvoiceLine.line_number.is_(None), 1), else_=0),
+            InvoiceLine.line_number.asc(),
+        )
         .all()
     )
 
