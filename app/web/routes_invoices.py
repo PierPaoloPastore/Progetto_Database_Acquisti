@@ -27,6 +27,10 @@ from app.services import (
     search_invoices,
     get_invoice_detail,
     update_invoice_status,
+    confirm_invoice as confirm_invoice_service,
+    reject_invoice as reject_invoice_service,
+    list_invoices_to_review,
+    get_next_invoice_to_review,
     request_physical_copy,
     mark_physical_copy_received,
 )
@@ -35,6 +39,7 @@ from app.repositories import (
     list_suppliers,
     list_legal_entities,
     list_accounting_years,
+    get_invoice_by_id,
 )
 
 invoices_bp = Blueprint("invoices", __name__)
@@ -103,6 +108,21 @@ def to_review_view():
     )
 
 
+@invoices_bp.route("/review", methods=["GET"])
+def review_list_view():
+    """Pagina dedicata alle fatture importate da rivedere."""
+    order = request.args.get("order", "desc")
+    invoices = list_invoices_to_review(order=order)
+    next_invoice = get_next_invoice_to_review(order=order)
+
+    return render_template(
+        "invoices/review_list.html",
+        invoices=invoices,
+        next_invoice=next_invoice,
+        order=order,
+    )
+
+
 @invoices_bp.route("/<int:invoice_id>", methods=["GET"])
 def detail_view(invoice_id: int):
     """
@@ -166,6 +186,58 @@ def update_status_view(invoice_id: int):
         flash("Stato fattura aggiornato con successo.", "success")
 
     return redirect(url_for("invoices.detail_view", invoice_id=invoice_id))
+
+
+@invoices_bp.route("/<int:invoice_id>/confirm", methods=["POST"])
+def confirm_invoice(invoice_id: int):
+    """Conferma una fattura importata e passa alla successiva da rivedere."""
+    order = request.args.get("order", "desc")
+    invoice = get_invoice_by_id(invoice_id)
+
+    if invoice is None:
+        abort(404)
+
+    if invoice.doc_status != "imported":
+        flash("La fattura non è in stato 'imported'.", "warning")
+        return redirect(url_for("invoices.detail_view", invoice_id=invoice.id, order=order))
+
+    confirm_invoice_service(invoice_id)
+    flash("Fattura confermata.", "success")
+
+    next_invoice = get_next_invoice_to_review(order=order)
+    if next_invoice:
+        return redirect(
+            url_for("invoices.detail_view", invoice_id=next_invoice.id, order=order)
+        )
+
+    flash("Nessun'altra fattura da rivedere.", "info")
+    return redirect(url_for("invoices.review_list_view", order=order))
+
+
+@invoices_bp.route("/<int:invoice_id>/reject", methods=["POST"])
+def reject_invoice(invoice_id: int):
+    """Scarta una fattura importata e passa alla successiva da rivedere."""
+    order = request.args.get("order", "desc")
+    invoice = get_invoice_by_id(invoice_id)
+
+    if invoice is None:
+        abort(404)
+
+    if invoice.doc_status != "imported":
+        flash("La fattura non è in stato 'imported'.", "warning")
+        return redirect(url_for("invoices.detail_view", invoice_id=invoice.id, order=order))
+
+    reject_invoice_service(invoice_id)
+    flash("Fattura scartata.", "success")
+
+    next_invoice = get_next_invoice_to_review(order=order)
+    if next_invoice:
+        return redirect(
+            url_for("invoices.detail_view", invoice_id=next_invoice.id, order=order)
+        )
+
+    flash("Nessun'altra fattura da rivedere.", "info")
+    return redirect(url_for("invoices.review_list_view", order=order))
 
 
 @invoices_bp.route(

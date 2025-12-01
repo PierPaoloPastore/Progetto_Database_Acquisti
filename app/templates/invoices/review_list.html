@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Fatture da rivedere - Gestionale Acquisti{% endblock %}
+
+{% block content %}
+<h1>Fatture da rivedere</h1>
+
+<section class="panel">
+    <div class="form-actions">
+        {% if next_invoice %}
+            <a class="btn-primary" href="{{ url_for('invoices.detail_view', invoice_id=next_invoice.id, order=order) }}">
+                Vai alla prossima fattura da rivedere
+            </a>
+        {% else %}
+            <button class="btn-secondary" disabled>Nessuna fattura da rivedere</button>
+        {% endif %}
+    </div>
+</section>
+
+<section class="panel">
+    <h2>Fatture importate ({{ invoices|length }})</h2>
+    <div class="table-wrapper">
+        <table class="table table-striped table-hover">
+            <thead>
+            <tr>
+                <th>Numero</th>
+                <th>Fornitore</th>
+                <th>Intestatario</th>
+                <th>Data fattura</th>
+                <th>Totale lordo</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for inv in invoices %}
+              <tr>
+                  <td>{{ inv.invoice_number }}</td>
+                  <td>{{ inv.supplier.name if inv.supplier }}</td>
+                  <td>
+                      {{ inv.legal_entity.name if inv.legal_entity }}
+                      {% if inv.legal_entity %}
+                        <div class="text-muted small">{{ inv.legal_entity.vat_number }}</div>
+                      {% endif %}
+                  </td>
+                  <td>{{ inv.invoice_date.strftime('%d/%m/%Y') if inv.invoice_date }}</td>
+                  <td class="text-right">{{ "%.2f"|format(inv.total_gross_amount or 0) }}</td>
+                  <td>
+                      <a href="{{ url_for('invoices.detail_view', invoice_id=inv.id, order=order) }}"
+                         class="btn-link">Dettaglio</a>
+                  </td>
+              </tr>
+            {% else %}
+              <tr>
+                  <td colspan="6" class="text-center">Nessuna fattura importata da rivedere.</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

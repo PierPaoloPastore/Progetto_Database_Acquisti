@@ -17,11 +17,13 @@ from app.services.logging import log_structured_event
 from app.models import Invoice
 from app.repositories.invoice_repository import (
     list_invoices,
+    list_imported_invoices,
     filter_invoices_by_date_range,
     filter_invoices_by_supplier,
     filter_invoices_by_payment_status,
     search_invoices_by_filters,
     get_invoice_by_id,
+    get_next_imported_invoice,
 )
 from app.services.dto import InvoiceSearchFilters
 from app.services.unit_of_work import UnitOfWork
@@ -194,6 +196,56 @@ def update_invoice_status(
     )
 
     return invoice
+
+
+def confirm_invoice(invoice_id: int) -> Optional[Invoice]:
+    """Conferma una fattura importata impostando doc_status a "verified"."""
+    invoice = get_invoice_by_id(invoice_id)
+    if invoice is None:
+        return None
+
+    with UnitOfWork() as session:
+        invoice.doc_status = "verified"
+        invoice.updated_at = datetime.utcnow()
+        session.add(invoice)
+
+    log_structured_event(
+        "confirm_invoice",
+        invoice_id=invoice.id,
+        doc_status=invoice.doc_status,
+    )
+
+    return invoice
+
+
+def reject_invoice(invoice_id: int) -> Optional[Invoice]:
+    """Scarta una fattura importata impostando doc_status a "rejected"."""
+    invoice = get_invoice_by_id(invoice_id)
+    if invoice is None:
+        return None
+
+    with UnitOfWork() as session:
+        invoice.doc_status = "rejected"
+        invoice.updated_at = datetime.utcnow()
+        session.add(invoice)
+
+    log_structured_event(
+        "reject_invoice",
+        invoice_id=invoice.id,
+        doc_status=invoice.doc_status,
+    )
+
+    return invoice
+
+
+def list_invoices_to_review(order: str = "desc") -> List[Invoice]:
+    """Restituisce le fatture importate in base all'ordinamento richiesto."""
+    return list_imported_invoices(order=order)
+
+
+def get_next_invoice_to_review(order: str = "desc") -> Optional[Invoice]:
+    """Restituisce la prossima fattura da rivedere oppure None se esaurite."""
+    return get_next_imported_invoice(order=order)
 
 
 def mark_physical_copy_received(invoice_id: int) -> Optional[Invoice]:

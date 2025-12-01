@@ -13,6 +13,10 @@ from .invoice_service import (
     search_invoices,
     get_invoice_detail,
     update_invoice_status,
+    confirm_invoice,
+    reject_invoice,
+    list_invoices_to_review,
+    get_next_invoice_to_review,
     mark_physical_copy_received,
     request_physical_copy,
 )
@@ -41,6 +45,10 @@ __all__ = [
     "search_invoices",
     "get_invoice_detail",
     "update_invoice_status",
+    "confirm_invoice",
+    "reject_invoice",
+    "list_invoices_to_review",
+    "get_next_invoice_to_review",
     "mark_physical_copy_received",
     "request_physical_copy",
     # Suppliers
