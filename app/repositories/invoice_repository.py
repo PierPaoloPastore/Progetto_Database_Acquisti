@@ -80,6 +80,27 @@ def list_invoices(limit: Optional[int] = 200) -> List[Invoice]:
     return query.all()
 
 
+def _apply_invoice_ordering(query, order: str):
+    sort_order = order if order in {"asc", "desc"} else "desc"
+    if sort_order == "asc":
+        return query.order_by(Invoice.invoice_date.asc(), Invoice.id.asc())
+    return query.order_by(Invoice.invoice_date.desc(), Invoice.id.desc())
+
+
+def list_imported_invoices(order: str = "desc") -> List[Invoice]:
+    """Restituisce le fatture con stato documento "imported" ordinate per data."""
+    query = Invoice.query.filter(Invoice.doc_status == "imported")
+    query = _apply_invoice_ordering(query, order)
+    return query.all()
+
+
+def get_next_imported_invoice(order: str = "desc") -> Optional[Invoice]:
+    """Restituisce la prossima fattura da rivedere in base all'ordinamento scelto."""
+    query = Invoice.query.filter(Invoice.doc_status == "imported")
+    query = _apply_invoice_ordering(query, order)
+    return query.first()
+
+
 def search_invoices_by_filters(
     *,
     date_from: Optional[date] = None,

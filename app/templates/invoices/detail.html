@@ -5,6 +5,24 @@
 {% block content %}
 <h1>Dettaglio fattura #{{ invoice.id }}</h1>
 
+{% if invoice.doc_status == 'imported' %}
+<section class="panel">
+    <h2>Revisione fattura importata</h2>
+    <p>Conferma o scarta rapidamente la fattura importata.</p>
+    <div class="form-actions">
+        <form method="post" class="form-inline"
+              action="{{ url_for('invoices.confirm_invoice', invoice_id=invoice.id, order=request.args.get('order', 'desc')) }}">
+            <button type="submit" class="btn-primary">Conferma fattura</button>
+        </form>
+        <form method="post" class="form-inline"
+              action="{{ url_for('invoices.reject_invoice', invoice_id=invoice.id, order=request.args.get('order', 'desc')) }}"
+              onsubmit="return confirm('Sei sicuro di scartare questa fattura?');">
+            <button type="submit" class="btn-secondary">Scarta fattura</button>
+        </form>
+    </div>
+</section>
+{% endif %}
+
 <section class="panel">
     <h2>Dati fattura</h2>
     <div class="two-columns">
