@@ -94,3 +94,16 @@ def store_physical_copy(invoice: Invoice, file: FileStorage) -> str:
     file.save(destination)
 
     return str(destination)
+
+
+def store_payment_document_file(file: FileStorage, base_path: str, filename: str) -> str:
+    """Salva un PDF di pagamento nello storage indicato."""
+
+    storage_path = Path(base_path)
+    storage_path.mkdir(parents=True, exist_ok=True)
+
+    safe_filename = secure_filename(filename)
+    destination = storage_path / safe_filename
+    file.save(destination)
+
+    return str(destination)
