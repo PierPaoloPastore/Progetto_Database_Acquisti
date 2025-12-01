@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2>Collega scansione alla fattura #{{ invoice.id }}</h2>
+
+{% if inbox_files %}
+    <form method="POST">
+
+        <label>Seleziona un file dalla cartella scansioni:</label><br>
+        <select name="selected_file" size="10" style="width: 400px;">
+            {% for file in inbox_files %}
+                <option value="{{ file }}">{{ file }}</option>
+            {% endfor %}
+        </select>
+
+        <br><br>
+        <button type="submit" class="btn btn-primary">Collega alla fattura</button>
+    </form>
+{% else %}
+    <p>Nessun file trovato nella inbox. Configura la cartella dalle impostazioni.</p>
+{% endif %}
+
+<a href="{{ url_for('invoices.detail_view', invoice_id=invoice.id) }}">
+    Torna alla fattura
+</a>
+
+{% endblock %}
