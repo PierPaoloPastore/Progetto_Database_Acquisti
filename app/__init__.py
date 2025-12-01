@@ -80,6 +80,7 @@ def _register_blueprints(app: Flask) -> None:
     from .web.routes_categories import categories_bp
     from .web.routes_import import import_bp
     from .web.routes_export import export_bp
+    # Gestione impostazioni utente
     from .web.routes_settings import settings_bp
 
     app.register_blueprint(main_bp)
