@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2>Impostazioni</h2>
+
+<form method="POST">
+
+    <label>Cartella scansioni DDT da assegnare</label><br>
+    <input type="text" name="inbox_path" value="{{ inbox }}" style="width: 400px;">
+    <br><br>
+
+    <label>Cartella storage copie fisiche (destinazione)</label><br>
+    <input type="text" name="storage_path" value="{{ storage }}" style="width: 400px;">
+    <br><br>
+
+    <button type="submit" class="btn btn-primary">Salva impostazioni</button>
+</form>
+
+{% endblock %}

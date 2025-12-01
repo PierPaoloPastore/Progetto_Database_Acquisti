@@ -67,6 +67,7 @@ def _register_blueprints(app: Flask) -> None:
     - categories_bp: gestione categorie
     - import_bp: esecuzione import XML
     - export_bp: export CSV
+    - settings_bp: gestione impostazioni
 
     API (JSON):
     - api_invoices_bp   -> /api/invoices/...
@@ -79,6 +80,7 @@ def _register_blueprints(app: Flask) -> None:
     from .web.routes_categories import categories_bp
     from .web.routes_import import import_bp
     from .web.routes_export import export_bp
+    from .web.routes_settings import settings_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(invoices_bp, url_prefix="/invoices")
@@ -86,6 +88,7 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(categories_bp, url_prefix="/categories")
     app.register_blueprint(import_bp, url_prefix="/import")
     app.register_blueprint(export_bp, url_prefix="/export")
+    app.register_blueprint(settings_bp)
 
     # API
     from .api import api_invoices_bp, api_categories_bp
