@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Inbox pagamenti - Gestionale Acquisti{% endblock %}
+
+{% block content %}
+<h1>Inbox pagamenti</h1>
+
+<section class="panel">
+    <h2>Carica documenti di pagamento</h2>
+    <form method="post" action="{{ url_for('payments.upload_payments') }}" enctype="multipart/form-data">
+        <div class="form-row">
+            <label for="payment_files">Seleziona PDF</label>
+            <input type="file" id="payment_files" name="files" multiple required>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn-primary">Carica</button>
+        </div>
+    </form>
+</section>
+
+<section class="panel">
+    <h2>Documenti in lavorazione</h2>
+    <div class="table-wrapper">
+        <table class="table table-compact table-striped">
+            <thead>
+            <tr>
+                <th>Nome file</th>
+                <th>Tipo pagamento</th>
+                <th>Data upload</th>
+                <th>Importo rilevato</th>
+                <th>Data pagamento</th>
+                <th>Stato</th>
+                <th>Azioni</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for doc in documents %}
+                <tr>
+                    <td>{{ doc.file_name }}</td>
+                    <td>{{ doc.payment_type }}</td>
+                    <td>{{ doc.uploaded_at.strftime('%d/%m/%Y %H:%M') if doc.uploaded_at }}</td>
+                    <td class="text-right">
+                        {% if doc.parsed_amount %}
+                            {{ "%.2f"|format(doc.parsed_amount) }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>{{ doc.parsed_payment_date.strftime('%d/%m/%Y') if doc.parsed_payment_date }}</td>
+                    <td>{{ doc.status }}</td>
+                    <td>
+                        <a href="{{ url_for('payments.review_payment', document_id=doc.id) }}" class="btn-link">Rivedi</a>
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="7" class="text-center">Nessun documento da lavorare.</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

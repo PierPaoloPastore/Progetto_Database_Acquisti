@@ -51,6 +51,11 @@ from .payment_repo import (
     list_overdue_payments,
     create_payment,
     update_payment,
+    create_payment_document,
+    get_payment_document,
+    list_payment_documents_by_status,
+    list_payments_for_invoice,
+    sum_payments_for_invoice,
 )
 from .category_repo import (
     get_category_by_id,
@@ -116,6 +121,11 @@ __all__ = [
     "list_overdue_payments",
     "create_payment",
     "update_payment",
+    "create_payment_document",
+    "get_payment_document",
+    "list_payment_documents_by_status",
+    "list_payments_for_invoice",
+    "sum_payments_for_invoice",
     # Invoice line util
     "get_invoice_line_by_id",
     # Categories

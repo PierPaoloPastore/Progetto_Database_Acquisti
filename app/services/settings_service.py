@@ -41,3 +41,18 @@ def get_physical_copy_storage_path() -> str:
     default_base = inbox_base if inbox_base else os.getcwd()
     default_path = os.path.join(default_base, "copies")
     return os.path.abspath(default_path)
+
+
+def get_payment_files_storage_path() -> str:
+    """Restituisce il percorso assoluto per lo storage dei PDF di pagamento."""
+
+    configured_path = current_app.config.get("PAYMENT_FILES_STORAGE_PATH")
+    if configured_path:
+        target_path = os.path.abspath(configured_path)
+    else:
+        inbox_base = current_app.config.get("SCAN_INBOX_PATH", "")
+        default_base = inbox_base if inbox_base else os.getcwd()
+        target_path = os.path.abspath(os.path.join(default_base, "payments"))
+
+    os.makedirs(target_path, exist_ok=True)
+    return target_path

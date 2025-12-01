@@ -281,6 +281,10 @@
     </div>
     <div>
         <h2>Pagamenti</h2>
+        <p><strong>Stato pagamento:</strong> {{ invoice.payment_status }}</p>
+        <p>
+            <a href="{{ url_for('payments.inbox_view') }}" class="btn-link">Vai all'inbox pagamenti</a>
+        </p>
         <div class="table-wrapper">
             <table class="table table-compact">
                 <thead>
@@ -291,6 +295,7 @@
                     <th>Importo pagato</th>
                     <th>Metodo</th>
                     <th>Stato</th>
+                    <th>Documento</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -302,10 +307,17 @@
                       <td class="text-right">{{ p.paid_amount }}</td>
                       <td>{{ p.payment_method }}</td>
                       <td>{{ p.status }}</td>
+                      <td>
+                          {% if p.payment_document %}
+                              <a href="{{ url_for('payments.review_payment', document_id=p.payment_document.id) }}" class="btn-link">Documento #{{ p.payment_document.id }}</a>
+                          {% else %}
+                              -
+                          {% endif %}
+                      </td>
                   </tr>
                 {% else %}
                   <tr>
-                      <td colspan="6" class="text-center">Nessun pagamento registrato.</td>
+                      <td colspan="7" class="text-center">Nessun pagamento registrato.</td>
                   </tr>
                 {% endfor %}
                 </tbody>

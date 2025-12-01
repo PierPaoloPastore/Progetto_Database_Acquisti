@@ -5,10 +5,12 @@ Gestisce le operazioni di lettura/creazione/aggiornamento dei pagamenti/scadenze
 """
 
 from datetime import date
+from decimal import Decimal
 from typing import List, Optional
 
 from app.extensions import db
-from app.models import Payment
+from app.models import Invoice, Payment, PaymentDocument
+from sqlalchemy.orm import joinedload
 
 
 def get_payment_by_id(payment_id: int) -> Optional[Payment]:
@@ -43,17 +45,6 @@ def list_overdue_payments(reference_date: Optional[date] = None) -> List[Payment
     return query.all()
 
 
-def create_payment(**kwargs) -> Payment:
-    """
-    Crea un nuovo pagamento/scadenza e lo aggiunge alla sessione.
-
-    Non esegue il commit.
-    """
-    payment = Payment(**kwargs)
-    db.session.add(payment)
-    return payment
-
-
 def update_payment(payment: Payment, **kwargs) -> Payment:
     """
     Aggiorna i campi di un pagamento esistente.
@@ -64,3 +55,74 @@ def update_payment(payment: Payment, **kwargs) -> Payment:
         if hasattr(payment, key):
             setattr(payment, key, value)
     return payment
+
+
+def create_payment_document(**kwargs) -> PaymentDocument:
+    """Crea un nuovo documento di pagamento senza eseguire il commit."""
+
+    document = PaymentDocument(**kwargs)
+    db.session.add(document)
+    return document
+
+
+def get_payment_document(document_id: int) -> Optional[PaymentDocument]:
+    """Recupera un PaymentDocument includendo i pagamenti correlati."""
+
+    return (
+        PaymentDocument.query.options(joinedload(PaymentDocument.payments))
+        .filter_by(id=document_id)
+        .first()
+    )
+
+
+def list_payment_documents_by_status(statuses: List[str]) -> List[PaymentDocument]:
+    """Ritorna i documenti filtrati per stato."""
+
+    if not statuses:
+        return []
+
+    return (
+        PaymentDocument.query.filter(PaymentDocument.status.in_(statuses))
+        .order_by(PaymentDocument.uploaded_at.desc())
+        .all()
+    )
+
+
+def create_payment(
+    invoice: Invoice,
+    amount: Decimal,
+    payment_document: Optional[PaymentDocument] = None,
+    **kwargs,
+) -> Payment:
+    """
+    Crea un pagamento collegato a una fattura e opzionalmente a un documento.
+
+    Nota: per il calcolo dei saldi viene usato ``paid_amount`` come importo
+    effettivamente pagato.
+    """
+
+    payment = Payment(
+        invoice_id=invoice.id,
+        paid_amount=amount,
+        payment_document=payment_document,
+        **kwargs,
+    )
+    db.session.add(payment)
+    return payment
+
+
+def list_payments_for_invoice(invoice_id: int) -> List[Payment]:
+    """Lista dei pagamenti associati a una fattura."""
+
+    return Payment.query.filter_by(invoice_id=invoice_id).all()
+
+
+def sum_payments_for_invoice(invoice_id: int) -> Decimal:
+    """Somma gli importi pagati per una fattura (campo ``paid_amount``)."""
+
+    total = (
+        db.session.query(db.func.coalesce(db.func.sum(Payment.paid_amount), 0))
+        .filter(Payment.invoice_id == invoice_id)
+        .scalar()
+    )
+    return Decimal(total)
