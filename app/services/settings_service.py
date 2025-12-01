@@ -26,4 +26,4 @@ def set_setting(key: str, value: str) -> None:
     :param key: nome della chiave di configurazione
     :param value: valore da salvare
     """
-    current_app.config[key] = value
+    current_app.config[key] = value main
