@@ -1,30 +1,3 @@
-<<<<<<< ours
-from app.extensions import db
-from app.models import AppSetting
-
-DEFAULT_SETTINGS = {
-    "SCAN_INBOX_PATH": "",
-    "PHYSICAL_COPY_STORAGE_PATH": "",
-}
-
-
-def get_setting(key: str, default: str | None = None) -> str | None:
-    setting = AppSetting.query.filter_by(setting_key=key).first()
-    if setting:
-        return setting.value
-    return default
-
-
-def set_setting(key: str, value: str) -> None:
-    setting = AppSetting.query.filter_by(setting_key=key).first()
-    if setting:
-        setting.value = value
-    else:
-        setting = AppSetting(setting_key=key, value=value)
-        db.session.add(setting)
-
-    db.session.commit()
-=======
 """
 Servizi per la gestione delle impostazioni applicative.
 
@@ -53,5 +26,4 @@ def set_setting(key: str, value: str) -> None:
     :param key: nome della chiave di configurazione
     :param value: valore da salvare
     """
-    current_app.config[key] = value
->>>>>>> theirs
+    current_app.config[key] = value main
