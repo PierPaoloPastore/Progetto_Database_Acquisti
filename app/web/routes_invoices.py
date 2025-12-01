@@ -22,6 +22,7 @@ from flask import (
     abort,
 )
 
+from app.models import Invoice
 from app.services import (
     search_invoices,
     get_invoice_detail,
@@ -199,3 +200,38 @@ def mark_physical_copy_received_view(invoice_id: int):
     flash("Copia fisica segnata come ricevuta.", "success")
 
     return redirect(url_for("invoices.detail_view", invoice_id=invoice.id))
+
+
+@invoices_bp.get("/<int:invoice_id>/attach-scan")
+def attach_scan_view(invoice_id: int):
+    invoice = Invoice.query.get_or_404(invoice_id)
+
+    from app.services.scan_service import list_inbox_files
+
+    files = list_inbox_files()
+
+    return render_template(
+        "invoices/attach_scan.html",
+        invoice=invoice,
+        inbox_files=files,
+    )
+
+
+@invoices_bp.post("/<int:invoice_id>/attach-scan")
+def attach_scan_process(invoice_id: int):
+    invoice = Invoice.query.get_or_404(invoice_id)
+    filename = request.form.get("selected_file")
+
+    if not filename:
+        flash("Seleziona un file prima di procedere.", "warning")
+        return redirect(url_for("invoices.attach_scan_view", invoice_id=invoice_id))
+
+    from app.services.scan_service import attach_scan_to_invoice
+
+    try:
+        attach_scan_to_invoice(filename, invoice)
+        flash("Scansione collegata correttamente.", "success")
+    except Exception as e:  # pragma: no cover - gestione errori runtime
+        flash(f"Errore: {e}", "danger")
+
+    return redirect(url_for("invoices.detail_view", invoice_id=invoice_id))
