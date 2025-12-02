@@ -170,7 +170,7 @@ def review_loop_invoice_view(invoice_id: int):
     if invoice is None:
         abort(404)
 
-    return render_template("invoices/review.html", invoice=invoice)
+    return render_template('invoices/review.html', invoice=invoice)
 
 
 @invoices_bp.route(
