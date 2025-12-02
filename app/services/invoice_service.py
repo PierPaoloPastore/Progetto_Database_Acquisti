@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional
 
 from werkzeug.datastructures import FileStorage
 
+from app.extensions import db
 from app.services.logging import log_structured_event
 from app.models import Invoice
 from app.repositories.invoice_repository import (
@@ -320,3 +321,57 @@ def request_physical_copy(invoice_id: int) -> Optional[Invoice]:
     )
 
     return invoice
+
+
+class InvoiceService:
+    """Metodi di supporto per la revisione manuale delle fatture."""
+
+    @staticmethod
+    def get_next_invoice_to_review() -> Optional[Invoice]:
+        """Trova la prima fattura importata ordinata per data crescente."""
+
+        return (
+            db.session.query(Invoice)
+            .filter(Invoice.doc_status == "imported")
+            .order_by(Invoice.invoice_date.asc())
+            .first()
+        )
+
+    @staticmethod
+    def review_and_confirm(invoice_id: int, form_data: Dict[str, Any]) -> tuple[bool, str]:
+        """Aggiorna i dati principali della fattura e la segna come revisionata."""
+
+        invoice: Optional[Invoice] = db.session.get(Invoice, invoice_id)
+        if invoice is None:
+            return False, "Fattura non trovata"
+
+        if "number" in form_data:
+            invoice.invoice_number = str(form_data.get("number") or "")
+
+        raw_date = form_data.get("date")
+        if raw_date:
+            if isinstance(raw_date, date):
+                invoice.invoice_date = raw_date
+            elif isinstance(raw_date, str):
+                try:
+                    invoice.invoice_date = datetime.strptime(raw_date, "%Y-%m-%d").date()
+                except ValueError:
+                    return False, "Data non valida"
+
+        raw_total = form_data.get("total_amount")
+        if raw_total not in (None, ""):
+            try:
+                invoice.total_gross_amount = Decimal(str(raw_total))
+            except (ArithmeticError, ValueError, TypeError):
+                return False, "Importo non valido"
+
+        invoice.doc_status = "reviewed"
+
+        try:
+            db.session.add(invoice)
+            db.session.commit()
+        except Exception as exc:  # pragma: no cover - commit error
+            db.session.rollback()
+            return False, f"Errore nel salvataggio: {exc}"
+
+        return True, "Fattura revisionata e confermata"
