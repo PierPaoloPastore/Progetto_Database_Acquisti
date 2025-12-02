@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block title %}Anteprima Fattura {{ invoice.invoice_number }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h5 class="card-title">Anteprima fattura</h5>
+            <p class="mb-2">Numero: <strong>{{ invoice.invoice_number }}</strong></p>
+            <p class="mb-2">Data: {{ invoice.invoice_date.strftime('%d/%m/%Y') if invoice.invoice_date else 'N/D' }}</p>
+            <p class="mb-2">Fornitore: {{ invoice.supplier.name if invoice.supplier else 'N/D' }}</p>
+            <p class="mb-3">Totale: {{ "%.2f"|format(invoice.total_gross_amount or 0) }}</p>
+            <p class="text-muted mb-0">Nessuna anteprima PDF disponibile: visualizzazione dati principali.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
