@@ -35,6 +35,7 @@ from app.services import (
     request_physical_copy,
     mark_physical_copy_received,
 )
+from app.services.invoice_service import InvoiceService
 from app.services.dto import InvoiceSearchFilters
 from app.repositories import (
     list_suppliers,
@@ -116,7 +117,7 @@ def to_review_view():
     )
 
 
-@invoices_bp.route("/review", methods=["GET"])
+@invoices_bp.route("/review/list", methods=["GET"])
 def review_list_view():
     """Pagina dedicata alle fatture importate da rivedere."""
     order = request.args.get("order", "desc")
@@ -129,6 +130,53 @@ def review_list_view():
         next_invoice=next_invoice,
         order=order,
     )
+
+
+@invoices_bp.route("/review", methods=["GET"])
+def review_loop_redirect_view():
+    """Reindirizza alla prossima fattura da rivedere oppure alla lista."""
+
+    next_invoice = InvoiceService.get_next_invoice_to_review()
+    if next_invoice:
+        return redirect(
+            url_for(
+                "invoices.review_loop_invoice_view",
+                invoice_id=next_invoice.id,
+            )
+        )
+
+    flash("Tutte le fatture importate sono state gestite.", "success")
+    return redirect(url_for("invoices.list_view"))
+
+
+@invoices_bp.route("/review/<int:invoice_id>", methods=["GET", "POST"])
+def review_loop_invoice_view(invoice_id: int):
+    """Pagina di revisione singola fattura con conferma rapida."""
+
+    if request.method == "POST":
+        invoice = InvoiceService.review_and_confirm(invoice_id)
+        if invoice is None:
+            abort(404)
+
+        flash("Fattura confermata e passata alla successiva.", "success")
+        return redirect(url_for("invoices.review_loop_redirect_view"))
+
+    invoice = InvoiceService.get_invoice_by_id(invoice_id)
+    if invoice is None:
+        abort(404)
+
+    return render_template("invoices/review.html", invoice=invoice)
+
+
+@invoices_bp.route("/preview/<int:invoice_id>")
+def preview_invoice_view(invoice_id: int):
+    """Mostra l'anteprima della fattura per l'iframe di revisione."""
+
+    invoice = InvoiceService.get_invoice_by_id(invoice_id)
+    if invoice is None:
+        abort(404)
+
+    return render_template("invoices/preview_template.html", invoice=invoice)
 
 
 @invoices_bp.route("/physical-copies", methods=["GET"])
