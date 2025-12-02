@@ -154,12 +154,17 @@ def review_loop_invoice_view(invoice_id: int):
     """Pagina di revisione singola fattura con conferma rapida."""
 
     if request.method == "POST":
-        invoice = InvoiceService.review_and_confirm(invoice_id)
-        if invoice is None:
-            abort(404)
+        success, message = InvoiceService.review_and_confirm(
+            invoice_id, request.form.to_dict()
+        )
+        if not success:
+            if message == "Fattura non trovata":
+                abort(404)
 
-        flash("Fattura confermata e passata alla successiva.", "success")
-        return redirect(url_for("invoices.review_loop_redirect_view"))
+            flash(message, "danger")
+        else:
+            flash("Fattura confermata e passata alla successiva.", "success")
+            return redirect(url_for("invoices.review_loop_redirect_view"))
 
     invoice = InvoiceService.get_invoice_by_id(invoice_id)
     if invoice is None:
@@ -168,8 +173,10 @@ def review_loop_invoice_view(invoice_id: int):
     return render_template("invoices/review.html", invoice=invoice)
 
 
-@invoices_bp.route("/preview/<int:invoice_id>")
-def preview_invoice_view(invoice_id: int):
+@invoices_bp.route(
+    "/preview/<int:invoice_id>", methods=["GET"], endpoint="preview_invoice_visual"
+)
+def preview_invoice_visual(invoice_id: int):
     """Mostra l'anteprima della fattura per l'iframe di revisione."""
 
     invoice = InvoiceService.get_invoice_by_id(invoice_id)

@@ -322,30 +322,6 @@ def request_physical_copy(invoice_id: int) -> Optional[Invoice]:
 
 
 class InvoiceService:
-    """Facade semplice per le operazioni di revisione fatture."""
-
-    @staticmethod
-    def get_next_invoice_to_review(order: str = "desc") -> Optional[Invoice]:
-        """Restituisce la prossima fattura da rivedere in base all'ordinamento."""
-
-        return get_next_invoice_to_review(order=order)
-
-    @staticmethod
-    def review_and_confirm(invoice_id: int) -> Optional[Invoice]:
-        """Esegue la conferma della fattura durante il flusso di revisione."""
-
-        return confirm_invoice(invoice_id)
-
-    @staticmethod
-    def get_invoice_by_id(invoice_id: int) -> Optional[Invoice]:
-        """Recupera una fattura per ID o None se non esiste."""
-
-        return get_invoice_by_id(invoice_id)
-
-    return invoice
-
-
-class InvoiceService:
     """Metodi di supporto per la revisione manuale delle fatture."""
 
     @staticmethod
@@ -397,3 +373,9 @@ class InvoiceService:
             return False, f"Errore nel salvataggio: {exc}"
 
         return True, "Fattura revisionata e confermata"
+
+    @staticmethod
+    def get_invoice_by_id(invoice_id: int) -> Optional[Invoice]:
+        """Recupera una fattura per ID oppure None se non esiste."""
+
+        return db.session.get(Invoice, invoice_id)
