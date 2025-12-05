@@ -22,13 +22,15 @@
 
 ### Technology Stack
 ```
-Backend:   Python 3.10+ • Flask 3.0+ • SQLAlchemy 3.1+ • MySQL 8.x
+Backend:   Python 3.12 • Flask 3.0+ • SQLAlchemy 3.1+ • MySQL 8.x
 Parsing:   lxml 5.2+ (FatturaPA XML processing)
 Frontend:  Jinja2 templates • HTML/CSS/JavaScript
 Database:  MySQL 8.x with PyMySQL adapter
 Config:    python-dotenv for environment management
 Logging:   JSON-formatted structured logging with rotation
 ```
+
+**Note**: Python 3.12 is specified in `AGENTS.md` as the target version for this project.
 
 ---
 
@@ -147,15 +149,36 @@ def create_app(config_class=None):
     app = Flask(__name__)
     app.config.from_object(config_class or DevConfig)
 
-    # Initialize extensions
-    db.init_app(app)
+    # Initialize extensions (SQLAlchemy, logging)
+    init_extensions(app)
 
-    # Register blueprints
-    app.register_blueprint(invoices_bp)
-    # ...
+    # Initialize auth stub middleware (provides g.current_user)
+    init_auth_stub(app)
+
+    # Register all blueprints
+    _register_blueprints(app)
 
     return app
 ```
+
+**Registered Blueprints** (from `app/__init__.py`):
+
+**Web Blueprints (HTML)**:
+- `main_bp` → `/` (homepage/dashboard)
+- `invoices_bp` → `/invoices` (invoice management)
+- `suppliers_bp` → `/suppliers` (supplier views)
+- `categories_bp` → `/categories` (category management)
+- `import_bp` → `/import` (XML import interface)
+- `export_bp` → `/export` (CSV export)
+- `settings_bp` → `/settings` (application settings)
+- `payments_bp` → `/payments` (payment document management)
+
+**API Blueprints (JSON)**:
+- `api_invoices_bp` → `/api/invoices` (invoice API)
+- `api_categories_bp` → `/api/categories` (category API)
+
+**Special Routes**:
+- `/health` → Health check endpoint (returns `{"status": "ok"}`)
 
 #### 2. Unit of Work Pattern (`services/unit_of_work.py`)
 **CRITICAL**: Always use `UnitOfWork` context manager for transactions. Never call `db.session.commit()` directly.
@@ -203,6 +226,45 @@ class InvoiceDTO:
     payments: List[PaymentDTO]
     file_hash: str
 ```
+
+#### 5. Available Services
+
+The `app/services/__init__.py` exports the following service functions for use throughout the application:
+
+**Import Services**:
+- `run_import()` - Execute FatturaPA XML import from configured folder
+
+**Invoice Services**:
+- `search_invoices()` - Search invoices with filters
+- `get_invoice_detail()` - Get single invoice with relationships
+- `update_invoice_status()` - Update doc/payment status
+- `confirm_invoice()` - Confirm reviewed invoice → verified
+- `reject_invoice()` - Reject reviewed invoice → rejected
+- `list_invoices_to_review()` - Get invoices awaiting review
+- `get_next_invoice_to_review()` - Get next invoice in review queue
+- `list_invoices_without_physical_copy()` - Get invoices needing physical copies
+- `mark_physical_copy_received()` - Mark physical copy as received
+- `request_physical_copy()` - Request physical copy from supplier
+
+**Supplier Services**:
+- `list_suppliers_with_stats()` - List suppliers with invoice statistics
+- `get_supplier_detail()` - Get supplier with related invoices
+
+**Category Services**:
+- `list_categories_for_ui()` - List all active categories
+- `create_or_update_category()` - Create or update category
+- `assign_category_to_line()` - Assign category to single line
+- `bulk_assign_category_to_invoice_lines()` - Bulk category assignment
+
+**Payment Services**:
+- `list_overdue_payments_for_ui()` - List overdue payments
+- `generate_payment_schedule()` - Generate payment schedule for invoice
+- `create_payment()` - Create payment record
+- `update_payment()` - Update payment information
+
+**Settings Services**:
+- `get_setting()` - Get application setting by key
+- `set_setting()` - Set application setting value
 
 ---
 
@@ -449,9 +511,10 @@ class Config:
         os.getenv("DATABASE_URL") or
         f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
     )
+    SQLALCHEMY_TRACK_MODIFICATIONS = False  # Disable Flask-SQLAlchemy event system
 
     # Import settings
-    IMPORT_XML_FOLDER = os.getenv("IMPORT_XML_FOLDER", "app/data/fatture_xml")
+    IMPORT_XML_FOLDER = os.getenv("IMPORT_XML_FOLDER", "data/fatture_xml")
 
     # Logging
     LOG_DIR = os.getenv("LOG_DIR", "logs/")
@@ -500,6 +563,10 @@ LOG_FILE_NAME=app.log
 FLASK_RUN_HOST=0.0.0.0
 FLASK_RUN_PORT=5000
 ```
+
+**⚠️ Security Warning**:
+- Default `DB_PASSWORD` in `config.py` is `"password_super_sicura"` - **MUST** be changed for production!
+- Default `SECRET_KEY` is `"dev-secret-key-change-me"` - **MUST** be overridden via environment variable in production!
 
 ---
 
@@ -564,6 +631,8 @@ FLASK_RUN_HOST=127.0.0.1 FLASK_RUN_PORT=8000 python manage.py runserver
 ## 📝 Coding Standards & Conventions
 
 ### Language & Style
+
+**Python Version**: Python 3.12 (as specified in `AGENTS.md`)
 
 **CRITICAL**: All code comments, docstrings, and commit messages MUST be in **Italian**.
 
@@ -797,6 +866,44 @@ def approve_invoice(invoice_id: int, user_id: int) -> Dict[str, Any]:
 
         return {"success": True, "message": "Fattura approvata"}
 ```
+
+---
+
+## ⚠️ Known Technical Debt
+
+### Functions Still Using Direct `db.session.commit()`
+
+Per `db_commit_audit.md`, the following functions still use `db.session.commit()` directly instead of `UnitOfWork` pattern. These are **candidates for refactoring**:
+
+**In `app/services/category_service.py`**:
+- `create_or_update_category()` - Creates/updates category and commits immediately
+- `assign_category_to_line()` - Updates single invoice line category and commits
+- `bulk_assign_category_to_invoice_lines()` - Updates multiple lines and commits once
+
+**In `app/services/import_service.py`**:
+- `run_import()` - Handles XML import per file, commits after creating invoice data and import logs
+
+**In `app/services/invoice_service.py`**:
+- `update_invoice_status()` - Updates invoice status fields and commits
+
+**Refactoring Pattern**: See `db_commit_audit.md` for detailed examples of how to refactor these functions to use `UnitOfWork`. The general pattern is:
+
+```python
+# Before (direct commit)
+def some_function():
+    entity = get_entity()
+    entity.field = "value"
+    db.session.commit()  # Direct commit
+
+# After (UnitOfWork)
+def some_function():
+    with UnitOfWork() as session:
+        entity = get_entity(session=session)
+        entity.field = "value"
+        # Auto-commit on context exit
+```
+
+**Why This Matters**: Using `UnitOfWork` consistently ensures proper transaction boundaries, automatic rollback on errors, and makes testing easier. However, these legacy functions still work correctly - refactoring is a quality improvement, not a bug fix.
 
 ---
 
@@ -1136,7 +1243,8 @@ git commit -m "wip"
 ```
 
 ### Pull Request Format
-Every PR should include:
+
+**CRITICAL**: Per `AGENTS.md`, every PR **must** include the following sections:
 
 1. **Summary**: What does this PR do?
 2. **Files changed**: List of modified files
@@ -1308,10 +1416,25 @@ FatturaPA is Italy's mandatory electronic invoicing format for B2B and B2G trans
 ## 📞 Support & Questions
 
 ### Documentation Files
-- `CLAUDE.md` (this file) - Comprehensive AI assistant guide
-- `AGENTS.md` - Developer guidelines (Italian)
-- `README.txt` - Setup instructions (Italian)
-- `db_commit_audit.md` - Transaction refactoring notes
+
+This project includes several documentation files that inform this guide:
+
+- **`CLAUDE.md`** (this file) - Comprehensive AI assistant guide synthesized from all project documentation
+- **`AGENTS.md`** - Core developer guidelines and coding standards (Italian)
+  - Specifies Python 3.12 as target version
+  - Defines Italian-only comment policy
+  - Lists prohibited modifications (config.py, DB schema, importers)
+  - Defines Pull Request format requirements
+  - Verification steps: `python manage.py runserver` must start without errors
+- **`README.txt`** - Initial setup and installation instructions (Italian)
+  - Python 3.10+ and MySQL 8.x requirements
+  - Virtual environment setup
+  - Database configuration steps
+  - CLI command reference
+- **`db_commit_audit.md`** - Technical debt documentation for transaction management
+  - Lists functions still using `db.session.commit()` directly
+  - Provides refactoring examples to migrate to `UnitOfWork` pattern
+  - Includes detailed before/after code samples
 
 ### Code Comments
 Most functions have Italian docstrings explaining purpose, parameters, and return values.
@@ -1387,10 +1510,37 @@ Config:         config.py
 
 ---
 
-**Last Updated**: 2025-12-05
+**Last Updated**: 2025-12-05 (Second revision with integrated documentation)
 **Maintainer**: Project team
 **AI Assistant Version**: Optimized for Claude Code assistants
 
 ---
 
-*This document is designed to help AI assistants quickly understand and effectively work on the Gestionale Acquisti codebase. For questions or corrections, please update this file and commit changes.*
+## 📖 About This Document
+
+This `CLAUDE.md` file was created by comprehensively analyzing:
+
+1. **Complete codebase exploration** - All 56 Python modules, 18 templates, and configuration files
+2. **Existing documentation**:
+   - `AGENTS.md` - Coding standards and developer guidelines
+   - `db_commit_audit.md` - Technical debt tracking for transaction management
+   - `README.txt` - Setup and installation instructions
+3. **Source code analysis**:
+   - `config.py` - Configuration structure and defaults
+   - `manage.py` - CLI command implementation
+   - `app/__init__.py` - Blueprint registration and app factory
+   - `app/services/__init__.py` - Service layer API
+   - All models, services, repositories, and routes
+
+The goal is to provide AI assistants with a single, comprehensive reference that enables them to:
+- Understand the project structure immediately
+- Follow established conventions automatically
+- Avoid common mistakes and anti-patterns
+- Make safe, effective contributions
+- Respect the codebase's architectural decisions
+
+**For questions or corrections**, please update this file and commit changes with clear Italian commit messages.
+
+---
+
+*This document is designed to help AI assistants quickly understand and effectively work on the Gestionale Acquisti codebase.*
