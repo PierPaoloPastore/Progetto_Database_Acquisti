@@ -35,7 +35,7 @@ class Note(db.Model):
         db.DateTime, nullable=False, default=datetime.utcnow, index=True
     )
 
-    document = db.relationship("Document", backref="notes")
+    document = db.relationship("Document", back_populates="notes")
     user = db.relationship("User", back_populates="notes", lazy="joined")
 
     def __repr__(self) -> str:

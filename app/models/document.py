@@ -141,7 +141,7 @@ class Document(db.Model):
 
     invoice_lines = db.relationship(
         "InvoiceLine",
-        backref="document",
+        back_populates="document",
         lazy="dynamic",
         cascade="all, delete-orphan",
         foreign_keys="InvoiceLine.document_id",
@@ -149,7 +149,7 @@ class Document(db.Model):
 
     vat_summaries = db.relationship(
         "VatSummary",
-        backref="document",
+        back_populates="document",
         lazy="dynamic",
         cascade="all, delete-orphan",
         foreign_keys="VatSummary.document_id",
@@ -157,7 +157,7 @@ class Document(db.Model):
 
     payments = db.relationship(
         "Payment",
-        backref="document",
+        back_populates="document",
         lazy="dynamic",
         cascade="all, delete-orphan",
         foreign_keys="Payment.document_id",
@@ -165,14 +165,14 @@ class Document(db.Model):
 
     delivery_notes = db.relationship(
         "DeliveryNote",
-        backref="document",
+        back_populates="document",
         lazy="dynamic",
         foreign_keys="DeliveryNote.document_id",
     )
 
     notes = db.relationship(
         "Note",
-        backref="document",
+        back_populates="document",
         lazy="dynamic",
         cascade="all, delete-orphan",
         foreign_keys="Note.document_id",
@@ -180,7 +180,7 @@ class Document(db.Model):
 
     import_logs = db.relationship(
         "ImportLog",
-        backref="document",
+        back_populates="document",
         lazy="dynamic",
         foreign_keys="ImportLog.document_id",
     )
