@@ -43,7 +43,7 @@ class ImportLog(db.Model):
         db.DateTime, nullable=False, default=datetime.utcnow, index=True
     )
 
-    document = db.relationship("Document", backref="import_logs", lazy="joined")
+    document = db.relationship("Document", back_populates="import_logs", lazy="joined")
 
     def __repr__(self) -> str:
         return (

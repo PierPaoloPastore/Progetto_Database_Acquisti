@@ -37,7 +37,7 @@ class VatSummary(db.Model):
         db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
     )
 
-    document = db.relationship("Document", backref="vat_summaries")
+    document = db.relationship("Document", back_populates="vat_summaries")
 
     def __repr__(self) -> str:
         return (

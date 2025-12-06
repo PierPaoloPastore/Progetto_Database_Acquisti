@@ -64,7 +64,7 @@ class DeliveryNote(db.Model):
     )
 
     # Relationships
-    document = db.relationship("Document", backref="delivery_notes")
+    document = db.relationship("Document", back_populates="delivery_notes")
     supplier = db.relationship("Supplier", backref="delivery_notes")
     legal_entity = db.relationship("LegalEntity", backref="delivery_notes")
 

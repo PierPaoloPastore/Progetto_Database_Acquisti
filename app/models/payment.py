@@ -92,7 +92,7 @@ class Payment(db.Model):
         db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
     )
 
-    document = db.relationship("Document", backref="payments")
+    document = db.relationship("Document", back_populates="payments")
     payment_document = db.relationship(
         "PaymentDocument", back_populates="payments", foreign_keys=[payment_document_id]
     )

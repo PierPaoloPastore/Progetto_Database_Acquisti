@@ -57,7 +57,7 @@ class InvoiceLine(db.Model):
     )
 
     # Relazioni
-    document = db.relationship("Document", backref="invoice_lines")
+    document = db.relationship("Document", back_populates="invoice_lines")
     category = db.relationship("Category", back_populates="invoice_lines")
 
     def __repr__(self) -> str:
