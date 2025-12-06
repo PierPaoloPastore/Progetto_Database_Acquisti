@@ -14,9 +14,9 @@ class Note(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
 
-    invoice_id = db.Column(
+    document_id = db.Column(
         db.Integer,
-        db.ForeignKey("invoices.id", ondelete="CASCADE"),
+        db.ForeignKey("documents.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -35,8 +35,8 @@ class Note(db.Model):
         db.DateTime, nullable=False, default=datetime.utcnow, index=True
     )
 
-    invoice = db.relationship("Invoice", back_populates="notes")
+    document = db.relationship("Document", backref="notes")
     user = db.relationship("User", back_populates="notes", lazy="joined")
 
     def __repr__(self) -> str:
-        return f"<Note id={self.id} invoice_id={self.invoice_id}>"
+        return f"<Note id={self.id} document_id={self.document_id}>"

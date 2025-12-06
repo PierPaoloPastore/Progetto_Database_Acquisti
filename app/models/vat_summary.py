@@ -15,9 +15,9 @@ class VatSummary(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
 
-    invoice_id = db.Column(
+    document_id = db.Column(
         db.Integer,
-        db.ForeignKey("invoices.id", ondelete="CASCADE"),
+        db.ForeignKey("documents.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -37,10 +37,10 @@ class VatSummary(db.Model):
         db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
     )
 
-    invoice = db.relationship("Invoice", back_populates="vat_summaries")
+    document = db.relationship("Document", backref="vat_summaries")
 
     def __repr__(self) -> str:
         return (
-            f"<VatSummary id={self.id} invoice_id={self.invoice_id} "
+            f"<VatSummary id={self.id} document_id={self.document_id} "
             f"vat_rate={self.vat_rate}>"
         )

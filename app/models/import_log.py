@@ -4,7 +4,7 @@ Modello ImportLog (tabella: import_logs).
 Traccia i tentativi di import dei file XML:
 - successo o errore
 - messaggio di dettaglio
-- eventuale collegamento alla fattura creata
+- eventuale collegamento al documento creato
 """
 
 from datetime import datetime
@@ -31,10 +31,10 @@ class ImportLog(db.Model):
 
     message = db.Column(db.Text, nullable=True)  # log sintetico/errore umano leggibile
 
-    # Collegamento (opzionale) alla fattura creata
-    invoice_id = db.Column(
+    # Collegamento (opzionale) al documento creato
+    document_id = db.Column(
         db.Integer,
-        db.ForeignKey("invoices.id", ondelete="SET NULL"),
+        db.ForeignKey("documents.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
@@ -43,7 +43,7 @@ class ImportLog(db.Model):
         db.DateTime, nullable=False, default=datetime.utcnow, index=True
     )
 
-    invoice = db.relationship("Invoice", lazy="joined")
+    document = db.relationship("Document", backref="import_logs", lazy="joined")
 
     def __repr__(self) -> str:
         return (

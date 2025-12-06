@@ -16,8 +16,8 @@ class Supplier(db.Model):
 
     # Dati anagrafici base
     name = db.Column(db.String(255), nullable=False, index=True)
-    vat_number = db.Column(db.String(32), nullable=True, index=True)  # Partita IVA
-    tax_code = db.Column(db.String(32), nullable=True)  # Codice fiscale
+    vat_number = db.Column(db.String(32), nullable=True, unique=True, index=True)  # Partita IVA
+    fiscal_code = db.Column(db.String(32), nullable=True)  # Codice fiscale
     sdi_code = db.Column(db.String(16), nullable=True)  # Codice destinatario/SDI
     pec_email = db.Column(db.String(255), nullable=True)
 
