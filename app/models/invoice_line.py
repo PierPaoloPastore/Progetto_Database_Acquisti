@@ -14,9 +14,9 @@ class InvoiceLine(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
 
-    invoice_id = db.Column(
+    document_id = db.Column(
         db.Integer,
-        db.ForeignKey("invoices.id", ondelete="CASCADE"),
+        db.ForeignKey("documents.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -57,8 +57,8 @@ class InvoiceLine(db.Model):
     )
 
     # Relazioni
-    invoice = db.relationship("Invoice", back_populates="lines")
+    document = db.relationship("Document", backref="invoice_lines")
     category = db.relationship("Category", back_populates="invoice_lines")
 
     def __repr__(self) -> str:
-        return f"<InvoiceLine id={self.id} invoice_id={self.invoice_id}>"
+        return f"<InvoiceLine id={self.id} document_id={self.document_id}>"
