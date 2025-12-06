@@ -14,6 +14,14 @@ class PaymentDocument(db.Model):
     __tablename__ = "payment_documents"
 
     id = db.Column(db.Integer, primary_key=True)
+
+    supplier_id = db.Column(
+        db.Integer,
+        db.ForeignKey("suppliers.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     file_name = db.Column(db.String(255), nullable=False)
     file_path = db.Column(db.String(500), nullable=False)
     payment_type = db.Column(db.String(32), nullable=False, default="sconosciuto")
@@ -22,9 +30,18 @@ class PaymentDocument(db.Model):
 
     parsed_amount = db.Column(db.Numeric(15, 2), nullable=True)
     parsed_payment_date = db.Column(db.Date, nullable=True)
-    parsed_invoice_number = db.Column(db.String(100), nullable=True)
+    parsed_document_number = db.Column(db.String(100), nullable=True)
     parse_error_message = db.Column(db.Text, nullable=True)
 
+    # Timestamps
+    created_at = db.Column(
+        db.DateTime, nullable=False, default=datetime.utcnow, index=True
+    )
+    updated_at = db.Column(
+        db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+    supplier = db.relationship("Supplier", backref="payment_documents")
     payments = db.relationship("Payment", back_populates="payment_document")
 
     def __repr__(self) -> str:
