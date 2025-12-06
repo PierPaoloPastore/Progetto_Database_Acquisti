@@ -36,9 +36,9 @@ class Payment(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
 
-    invoice_id = db.Column(
+    document_id = db.Column(
         db.Integer,
-        db.ForeignKey("invoices.id", ondelete="CASCADE"),
+        db.ForeignKey("documents.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -75,13 +75,13 @@ class Payment(db.Model):
         db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
     )
 
-    invoice = db.relationship("Invoice", back_populates="payments")
+    document = db.relationship("Document", backref="payments")
     payment_document = db.relationship(
         "PaymentDocument", back_populates="payments", foreign_keys=[payment_document_id]
     )
 
     def __repr__(self) -> str:
         return (
-            f"<Payment id={self.id} invoice_id={self.invoice_id} "
+            f"<Payment id={self.id} document_id={self.document_id} "
             f"status={self.status!r}>"
         )
