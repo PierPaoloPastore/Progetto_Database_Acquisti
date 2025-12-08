@@ -57,7 +57,7 @@ def export_invoices_csv():
 
     CSV generato con colonne essenziali:
     - invoice_id
-    - invoice_number
+    - document_number
     - document_date
     - supplier_name
     - total_gross_amount
@@ -81,7 +81,7 @@ def export_invoices_csv():
     writer.writerow(
         [
             "invoice_id",
-            "invoice_number",
+            "document_number",
             "document_date",
             "supplier_name",
             "total_gross_amount",
@@ -94,7 +94,7 @@ def export_invoices_csv():
         writer.writerow(
             [
                 inv.id,
-                inv.invoice_number or "",
+                inv.document_number or "",
                 inv.document_date.isoformat() if inv.document_date else "",
                 supplier_name,
                 str(inv.total_gross_amount or ""),
