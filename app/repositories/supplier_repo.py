@@ -43,11 +43,11 @@ def get_supplier_by_vat_number(vat_number: Optional[str]) -> Optional[Supplier]:
     return Supplier.query.filter_by(vat_number=vat_number).first()
 
 
-def get_supplier_by_tax_code(tax_code: Optional[str]) -> Optional[Supplier]:
+def get_supplier_by_fiscal_code(fiscal_code: Optional[str]) -> Optional[Supplier]:
     """Cerca fornitore per Codice Fiscale."""
-    if not tax_code:
+    if not fiscal_code:
         return None
-    return Supplier.query.filter_by(tax_code=tax_code).first()
+    return Supplier.query.filter_by(fiscal_code=fiscal_code).first()
 
 
 def create_supplier(data: object) -> Supplier:
@@ -59,7 +59,7 @@ def create_supplier(data: object) -> Supplier:
     new_supplier = Supplier(
         name=_get_attr(data, "name"),
         vat_number=_get_attr(data, "vat_number"),
-        tax_code=_get_attr(data, "tax_code"),
+        fiscal_code=_get_attr(data, "fiscal_code"),
         sdi_code=_get_attr(data, "sdi_code"),
         pec_email=_get_attr(data, "pec_email"),
         email=_get_attr(data, "email"),
@@ -91,17 +91,15 @@ def get_or_create_supplier_from_dto(supplier_dto: object) -> Supplier:
     Restituisce l'oggetto Supplier già flushato (ID disponibile).
     """
     vat_number = _get_attr(supplier_dto, "vat_number")
-    tax_code = _get_attr(supplier_dto, "tax_code") or _get_attr(
-        supplier_dto, "fiscal_code"
-    )
+    fiscal_code = _get_attr(supplier_dto, "fiscal_code")
 
     supplier: Optional[Supplier] = None
 
     if vat_number:
         supplier = get_supplier_by_vat_number(vat_number)
 
-    if not supplier and tax_code:
-        supplier = get_supplier_by_tax_code(tax_code)
+    if not supplier and fiscal_code:
+        supplier = get_supplier_by_fiscal_code(fiscal_code)
 
     if not supplier:
         logger.info("Fornitore non trovato, creazione: %s", _get_attr(supplier_dto, "name"))
