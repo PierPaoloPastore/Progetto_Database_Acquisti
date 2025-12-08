@@ -101,7 +101,7 @@
 
 `app/repositories/*` contiene funzioni atomiche per accedere al DB in modo strutturato:
 
-- `invoice_repository` (principale)  
+- `invoice_repo` (principale)
   - ricerca fatture con filtri complessi (fornitore, intestatario, anno, stato doc, stato pagamento, importi, ecc.),
   - creazione fatture complete da DTO (inclusi `InvoiceLine`, `VatSummary`, `Payment` iniziali),
   - recupero fatture per revisione, gestione copie fisiche, estratto conto fornitori.

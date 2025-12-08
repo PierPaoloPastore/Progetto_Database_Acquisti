@@ -16,7 +16,7 @@ from app.repositories import (
     get_supplier_by_id,
     list_suppliers,
 )
-from app.repositories.invoice_repository import get_supplier_account_balance
+from app.repositories.invoice_repo import get_supplier_account_balance
 
 
 def list_suppliers_with_stats() -> List[Dict[str, Any]]:
