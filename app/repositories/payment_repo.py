@@ -18,10 +18,10 @@ def get_payment_by_id(payment_id: int) -> Optional[Payment]:
     return Payment.query.get(payment_id)
 
 
-def list_payments_by_invoice(invoice_id: int) -> List[Payment]:
-    """Restituisce tutti i pagamenti associati a una fattura."""
+def list_payments_by_invoice(document_id: int) -> List[Payment]:
+    """Restituisce tutti i pagamenti associati a un documento."""
     return (
-        Payment.query.filter_by(invoice_id=invoice_id)
+        Payment.query.filter_by(document_id=document_id)
         .order_by(Payment.due_date.asc().nullslast())
         .all()
     )
@@ -89,20 +89,20 @@ def list_payment_documents_by_status(statuses: List[str]) -> List[PaymentDocumen
 
 
 def create_payment(
-    invoice: Invoice,
+    document: Invoice,
     amount: Decimal,
     payment_document: Optional[PaymentDocument] = None,
     **kwargs,
 ) -> Payment:
     """
-    Crea un pagamento collegato a una fattura e opzionalmente a un documento.
+    Crea un pagamento collegato a un documento e opzionalmente a un documento di pagamento.
 
     Nota: per il calcolo dei saldi viene usato ``paid_amount`` come importo
     effettivamente pagato.
     """
 
     payment = Payment(
-        invoice_id=invoice.id,
+        document_id=document.id,
         paid_amount=amount,
         payment_document=payment_document,
         **kwargs,
@@ -111,18 +111,18 @@ def create_payment(
     return payment
 
 
-def list_payments_for_invoice(invoice_id: int) -> List[Payment]:
-    """Lista dei pagamenti associati a una fattura."""
+def list_payments_for_invoice(document_id: int) -> List[Payment]:
+    """Lista dei pagamenti associati a un documento."""
 
-    return Payment.query.filter_by(invoice_id=invoice_id).all()
+    return Payment.query.filter_by(document_id=document_id).all()
 
 
-def sum_payments_for_invoice(invoice_id: int) -> Decimal:
-    """Somma gli importi pagati per una fattura (campo ``paid_amount``)."""
+def sum_payments_for_invoice(document_id: int) -> Decimal:
+    """Somma gli importi pagati per un documento (campo ``paid_amount``)."""
 
     total = (
         db.session.query(db.func.coalesce(db.func.sum(Payment.paid_amount), 0))
-        .filter(Payment.invoice_id == invoice_id)
+        .filter(Payment.document_id == document_id)
         .scalar()
     )
     return Decimal(total)

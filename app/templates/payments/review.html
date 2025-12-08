@@ -51,7 +51,7 @@
                                 <td>
                                     <input type="checkbox" name="invoice_id" value="{{ invoice.id }}">
                                 </td>
-                                <td>{{ invoice.invoice_number }}</td>
+                                <td>{{ invoice.document_number }}</td>
                                 <td>{{ invoice.supplier.name if invoice.supplier else '-' }}</td>
                                 <td>{{ invoice.document_date.strftime('%d/%m/%Y') if invoice.document_date }}</td>
                                 <td class="text-right">{{ "%.2f"|format(invoice.total_gross_amount or 0) }}</td>

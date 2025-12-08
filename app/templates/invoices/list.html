@@ -133,7 +133,7 @@
               <tr>
                   <td>{{ inv.id }}</td>
                   <td>{{ inv.document_date.strftime('%d/%m/%Y') if inv.document_date }}</td>
-                  <td>{{ inv.invoice_number }}</td>
+                  <td>{{ inv.document_number }}</td>
                   <td>{{ inv.supplier.name if inv.supplier }}</td>
                   <td>
                       {{ inv.legal_entity.name if inv.legal_entity }}

@@ -344,7 +344,7 @@ class InvoiceService:
             return False, "Fattura non trovata"
 
         if "number" in form_data:
-            invoice.invoice_number = str(form_data.get("number") or "")
+            invoice.document_number = str(form_data.get("number") or "")
 
         raw_date = form_data.get("date")
         if raw_date:
