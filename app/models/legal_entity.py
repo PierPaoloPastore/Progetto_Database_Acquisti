@@ -18,12 +18,16 @@ class LegalEntity(db.Model):
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    invoices = db.relationship(
-        "Invoice",
-        back_populates="legal_entity",
-        lazy="dynamic",
-        cascade="all, delete-orphan",
-    )
+    # Relazioni
+    # Note: La relazione 'documents' è creata automaticamente da Document.legal_entity (backref)
+
+    @property
+    def invoices(self):
+        """
+        Backward compatibility: filtra i documents per tipo 'invoice'.
+        Restituisce solo le fatture associate a questo intestatario.
+        """
+        return [doc for doc in self.documents if doc.document_type == 'invoice']
 
     def __repr__(self) -> str:
         return f"<LegalEntity id={self.id} name={self.name!r}>"

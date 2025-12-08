@@ -42,12 +42,15 @@ class Supplier(db.Model):
     )
 
     # Relazioni
-    invoices = db.relationship(
-        "Invoice",
-        back_populates="supplier",
-        lazy="dynamic",
-        cascade="all, delete-orphan",
-    )
+    # Note: La relazione 'documents' è creata automaticamente da Document.supplier (backref)
+
+    @property
+    def invoices(self):
+        """
+        Backward compatibility: filtra i documents per tipo 'invoice'.
+        Restituisce solo le fatture associate a questo fornitore.
+        """
+        return [doc for doc in self.documents if doc.document_type == 'invoice']
 
     def __repr__(self) -> str:
         return f"<Supplier id={self.id} name={self.name!r}>"
