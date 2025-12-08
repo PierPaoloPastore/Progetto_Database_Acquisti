@@ -74,7 +74,7 @@
             {% for inv in invoices %}
               <tr>
                   <td>{{ inv.id }}</td>
-                  <td>{{ inv.invoice_date.strftime('%d/%m/%Y') if inv.invoice_date }}</td>
+                  <td>{{ inv.document_date.strftime('%d/%m/%Y') if inv.document_date }}</td>
                   <td>{{ inv.invoice_number }}</td>
                   <td class="text-right">
                       {{ "%.2f"|format(inv.total_gross_amount or 0) }}

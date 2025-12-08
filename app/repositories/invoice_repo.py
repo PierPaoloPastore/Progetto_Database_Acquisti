@@ -13,13 +13,13 @@ from app.parsers.fatturapa_parser import InvoiceDTO, InvoiceLineDTO, PaymentDTO,
 
 
 def _compute_accounting_year(
-    registration_date: Optional[date], invoice_date: Optional[date]
+    registration_date: Optional[date], document_date: Optional[date]
 ) -> int:
     """Calcola l'anno contabile con priorità: registrazione, fattura, anno corrente."""
     if registration_date:
         return registration_date.year
-    if invoice_date:
-        return invoice_date.year
+    if document_date:
+        return document_date.year
     return date.today().year
 
 
@@ -72,7 +72,7 @@ def list_invoices(limit: Optional[int] = 200) -> List[Invoice]:
     :param limit: massimo numero di record da restituire.
     """
     query = Invoice.query.order_by(
-        Invoice.invoice_date.desc(),
+        Invoice.document_date.desc(),
         Invoice.id.desc(),
     )
     if limit is not None:
@@ -83,8 +83,8 @@ def list_invoices(limit: Optional[int] = 200) -> List[Invoice]:
 def _apply_invoice_ordering(query, order: str):
     sort_order = order if order in {"asc", "desc"} else "desc"
     if sort_order == "asc":
-        return query.order_by(Invoice.invoice_date.asc(), Invoice.id.asc())
-    return query.order_by(Invoice.invoice_date.desc(), Invoice.id.desc())
+        return query.order_by(Invoice.document_date.asc(), Invoice.id.asc())
+    return query.order_by(Invoice.document_date.desc(), Invoice.id.desc())
 
 
 def list_imported_invoices(order: str = "desc") -> List[Invoice]:
@@ -141,16 +141,16 @@ def search_invoices_by_filters(
         query = query.filter(Invoice.physical_copy_status == physical_copy_status)
 
     if date_from is not None:
-        query = query.filter(Invoice.invoice_date >= date_from)
+        query = query.filter(Invoice.document_date >= date_from)
     if date_to is not None:
-        query = query.filter(Invoice.invoice_date <= date_to)
+        query = query.filter(Invoice.document_date <= date_to)
 
     if min_total is not None:
         query = query.filter(Invoice.total_gross_amount >= min_total)
     if max_total is not None:
         query = query.filter(Invoice.total_gross_amount <= max_total)
 
-    query = query.order_by(Invoice.invoice_date.desc(), Invoice.id.desc())
+    query = query.order_by(Invoice.document_date.desc(), Invoice.id.desc())
     if limit is not None:
         query = query.limit(limit)
 
@@ -174,18 +174,18 @@ def filter_invoices_by_date_range(
     date_to: Optional[date] = None,
 ) -> List[Invoice]:
     """
-    Restituisce le fatture comprese in un intervallo di date (invoice_date).
+    Restituisce le fatture comprese in un intervallo di date (document_date).
 
     Se uno dei limiti è None, viene ignorato.
     """
     query = Invoice.query
 
     if date_from is not None:
-        query = query.filter(Invoice.invoice_date >= date_from)
+        query = query.filter(Invoice.document_date >= date_from)
     if date_to is not None:
-        query = query.filter(Invoice.invoice_date <= date_to)
+        query = query.filter(Invoice.document_date <= date_to)
 
-    query = query.order_by(Invoice.invoice_date.desc(), Invoice.id.desc())
+    query = query.order_by(Invoice.document_date.desc(), Invoice.id.desc())
     return query.all()
 
 
@@ -201,11 +201,11 @@ def filter_invoices_by_supplier(
     query = Invoice.query.filter_by(supplier_id=supplier_id)
 
     if date_from is not None:
-        query = query.filter(Invoice.invoice_date >= date_from)
+        query = query.filter(Invoice.document_date >= date_from)
     if date_to is not None:
-        query = query.filter(Invoice.invoice_date <= date_to)
+        query = query.filter(Invoice.document_date <= date_to)
 
-    query = query.order_by(Invoice.invoice_date.desc(), Invoice.id.desc())
+    query = query.order_by(Invoice.document_date.desc(), Invoice.id.desc())
     return query.all()
 
 
@@ -221,11 +221,11 @@ def filter_invoices_by_payment_status(
     query = Invoice.query.filter_by(payment_status=payment_status)
 
     if date_from is not None:
-        query = query.filter(Invoice.invoice_date >= date_from)
+        query = query.filter(Invoice.document_date >= date_from)
     if date_to is not None:
-        query = query.filter(Invoice.invoice_date <= date_to)
+        query = query.filter(Invoice.document_date <= date_to)
 
-    query = query.order_by(Invoice.invoice_date.asc(), Invoice.id.asc())
+    query = query.order_by(Invoice.document_date.asc(), Invoice.id.asc())
     return query.all()
 
 
@@ -236,10 +236,10 @@ def create_invoice(**kwargs) -> Invoice:
     Non esegue il commit: questo viene demandato al servizio chiamante.
     """
     registration_date = kwargs.get("registration_date")
-    invoice_date = kwargs.get("invoice_date")
+    document_date = kwargs.get("document_date")
     if "accounting_year" not in kwargs:
         kwargs["accounting_year"] = _compute_accounting_year(
-            registration_date, invoice_date
+            registration_date, document_date
         )
     if kwargs.get("legal_entity_id") is None:
         raise ValueError("legal_entity_id è obbligatorio per creare una fattura")
@@ -256,10 +256,10 @@ def update_invoice(invoice: Invoice, **kwargs) -> Invoice:
     I campi da aggiornare vengono passati come kwargs.
     """
     registration_date = kwargs.get("registration_date", invoice.registration_date)
-    invoice_date = kwargs.get("invoice_date", invoice.invoice_date)
+    document_date = kwargs.get("document_date", invoice.document_date)
     if "accounting_year" not in kwargs:
         kwargs["accounting_year"] = _compute_accounting_year(
-            registration_date, invoice_date
+            registration_date, document_date
         )
     if "legal_entity_id" in kwargs and kwargs.get("legal_entity_id") is None:
         raise ValueError("legal_entity_id non può essere nullo")
@@ -294,7 +294,7 @@ def create_invoice_with_details(
         "legal_entity_id": legal_entity_id,
         "invoice_number": invoice_dto.invoice_number,
         "invoice_series": invoice_dto.invoice_series,
-        "invoice_date": invoice_dto.invoice_date,
+        "document_date": invoice_dto.invoice_date,
         "registration_date": invoice_dto.registration_date,
         "currency": invoice_dto.currency or "EUR",
         "total_taxable_amount": invoice_dto.total_taxable_amount,
@@ -310,8 +310,8 @@ def create_invoice_with_details(
 
     if not invoice_kwargs["invoice_number"]:
         raise ValueError("invoice_number è obbligatorio per creare una fattura")
-    if invoice_kwargs["invoice_date"] is None:
-        raise ValueError("invoice_date è obbligatoria per creare una fattura")
+    if invoice_kwargs["document_date"] is None:
+        raise ValueError("document_date è obbligatoria per creare una fattura")
     if not invoice_kwargs["file_name"]:
         raise ValueError("file_name è obbligatorio per tracciare il file XML importato")
 

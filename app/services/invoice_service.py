@@ -331,7 +331,7 @@ class InvoiceService:
         return (
             db.session.query(Invoice)
             .filter(Invoice.doc_status == "imported")
-            .order_by(Invoice.invoice_date.asc())
+            .order_by(Invoice.document_date.asc())
             .first()
         )
 
@@ -349,10 +349,12 @@ class InvoiceService:
         raw_date = form_data.get("date")
         if raw_date:
             if isinstance(raw_date, date):
-                invoice.invoice_date = raw_date
+                invoice.document_date = raw_date
             elif isinstance(raw_date, str):
                 try:
-                    invoice.invoice_date = datetime.strptime(raw_date, "%Y-%m-%d").date()
+                    invoice.document_date = datetime.strptime(
+                        raw_date, "%Y-%m-%d"
+                    ).date()
                 except ValueError:
                     return False, "Data non valida"
 
