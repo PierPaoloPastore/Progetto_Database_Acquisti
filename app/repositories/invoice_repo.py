@@ -279,8 +279,8 @@ def create_invoice_with_details(
     invoice_kwargs = {
         "supplier_id": supplier_id,
         "legal_entity_id": legal_entity_id,
+        "document_type": "invoice",
         "document_number": invoice_dto.invoice_number,
-        "invoice_series": invoice_dto.invoice_series,
         "document_date": invoice_dto.invoice_date,
         "registration_date": invoice_dto.registration_date,
         "currency": invoice_dto.currency or "EUR",
