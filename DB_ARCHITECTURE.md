@@ -65,7 +65,7 @@ Campi principali:
 - `id`
 - `name`
 - `vat_number` (UNIQUE)
-- `fiscal_code` (rinominato da `tax_code` per uniformità)
+- `fiscal_code` (Codice fiscale)
 - dati di contatto (email, PEC, indirizzo, ecc.)
 - `is_active`
 - `created_at`, `updated_at`
@@ -88,8 +88,6 @@ Campi principali:
 - dati fiscali e indirizzo
 - `is_active`
 - `created_at`, `updated_at`
-
-**Nota:** La colonna `tax_code` è stata **rimossa** (era sempre NULL).
 
 Uso:
 

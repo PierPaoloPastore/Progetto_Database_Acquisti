@@ -36,12 +36,12 @@
 `app/models/*` contiene i modelli SQLAlchemy che rappresentano il dominio del ciclo passivo:
 
 - **Anagrafiche**
-  - `Supplier`  
-    Fornitore esterno (ragione sociale, P.IVA/CF, contatti).  
-    **Nota:** `tax_code` rinominato in `fiscal_code`.
-  - `LegalEntity`  
-    Intestatario interno (società/partita IVA dell'azienda).  
-    **Nota:** colonna `tax_code` rimossa (era sempre NULL).
+  - `Supplier`
+    Fornitore esterno (ragione sociale, P.IVA/CF, contatti).
+    Codice fiscale salvato nel campo `fiscal_code`.
+  - `LegalEntity`
+    Intestatario interno (società/partita IVA dell'azienda).
+    Il codice fiscale è gestito tramite la colonna `fiscal_code`.
 
 - **Documenti di acquisto (SUPERTIPO)**
   - `Document`  
