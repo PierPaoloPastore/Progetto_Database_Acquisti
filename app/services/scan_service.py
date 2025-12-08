@@ -79,8 +79,10 @@ def _build_physical_copy_filename(invoice: Invoice, original_filename: str) -> s
     ext = ext or ""
     cleaned_number = re.sub(r"[^A-Za-z0-9]+", "_", invoice.invoice_number or "")
     cleaned_date = ""
-    if invoice.invoice_date:
-        cleaned_date = re.sub(r"[^A-Za-z0-9]+", "_", invoice.invoice_date.isoformat())
+    if invoice.document_date:
+        cleaned_date = re.sub(
+            r"[^A-Za-z0-9]+", "_", invoice.document_date.isoformat()
+        )
     return f"fattura_{invoice.id}_{cleaned_number}_{cleaned_date}{ext}"
 
 

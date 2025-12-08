@@ -42,7 +42,7 @@
                         <div class="text-muted small">{{ inv.legal_entity.vat_number }}</div>
                       {% endif %}
                   </td>
-                  <td>{{ inv.invoice_date.strftime('%d/%m/%Y') if inv.invoice_date }}</td>
+                  <td>{{ inv.document_date.strftime('%d/%m/%Y') if inv.document_date }}</td>
                   <td class="text-right">{{ "%.2f"|format(inv.total_gross_amount or 0) }}</td>
                   <td>
                       <a href="{{ url_for('invoices.detail_view', invoice_id=inv.id, order=order) }}"

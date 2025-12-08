@@ -58,7 +58,7 @@ def export_invoices_csv():
     CSV generato con colonne essenziali:
     - invoice_id
     - invoice_number
-    - invoice_date
+    - document_date
     - supplier_name
     - total_gross_amount
     - payment_status
@@ -82,7 +82,7 @@ def export_invoices_csv():
         [
             "invoice_id",
             "invoice_number",
-            "invoice_date",
+            "document_date",
             "supplier_name",
             "total_gross_amount",
             "payment_status",
@@ -95,7 +95,7 @@ def export_invoices_csv():
             [
                 inv.id,
                 inv.invoice_number or "",
-                inv.invoice_date.isoformat() if inv.invoice_date else "",
+                inv.document_date.isoformat() if inv.document_date else "",
                 supplier_name,
                 str(inv.total_gross_amount or ""),
                 inv.payment_status or "",

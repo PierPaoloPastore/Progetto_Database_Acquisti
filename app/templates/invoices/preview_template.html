@@ -54,7 +54,7 @@
         </div>
         <div class="text-end">
             <div class="fw-semibold text-uppercase">Fattura n. {{ invoice.invoice_number }}</div>
-            <div class="text-muted">Data: {{ invoice.invoice_date.strftime('%d/%m/%Y') if invoice.invoice_date else 'N/D' }}</div>
+            <div class="text-muted">Data: {{ invoice.document_date.strftime('%d/%m/%Y') if invoice.document_date else 'N/D' }}</div>
         </div>
     </div>
 

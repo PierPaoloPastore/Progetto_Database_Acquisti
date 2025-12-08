@@ -29,7 +29,7 @@
         <div>
             <p><strong>Numero:</strong> {{ invoice.invoice_number }}</p>
             <p><strong>Data fattura:</strong>
-                {{ invoice.invoice_date.strftime('%d/%m/%Y') if invoice.invoice_date }}</p>
+                {{ invoice.document_date.strftime('%d/%m/%Y') if invoice.document_date }}</p>
             <p><strong>Data registrazione:</strong>
                 {{ invoice.registration_date.strftime('%d/%m/%Y') if invoice.registration_date }}</p>
             <p><strong>Intestatario:</strong>

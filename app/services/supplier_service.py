@@ -79,7 +79,7 @@ def get_supplier_detail(
         return None
 
     invoices_query = supplier.invoices.order_by(
-        Invoice.invoice_date.desc(), Invoice.id.desc()
+        Invoice.document_date.desc(), Invoice.id.desc()
     )
 
     if legal_entity_id is not None:

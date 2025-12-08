@@ -220,7 +220,7 @@ def review_payment_document(document_id: int) -> Dict[str, Any]:
 
     candidate_invoices = (
         Invoice.query.filter(Invoice.payment_status != "paid")
-        .order_by(Invoice.invoice_date.desc())
+        .order_by(Invoice.document_date.desc())
         .limit(200)
         .all()
     )
