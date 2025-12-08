@@ -20,7 +20,7 @@ from app.extensions import db
 from app.models import Invoice, LegalEntity
 from app.parsers.fatturapa_parser import InvoiceDTO, parse_invoice_xml
 from app.repositories.import_log_repo import create_import_log
-from app.repositories.invoice_repository import (
+from app.repositories.invoice_repo import (
     create_invoice_with_details,
     find_existing_invoice,
 )

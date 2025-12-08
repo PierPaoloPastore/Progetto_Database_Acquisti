@@ -18,7 +18,7 @@ from werkzeug.datastructures import FileStorage
 from app.extensions import db
 from app.services.logging import log_structured_event
 from app.models import Invoice
-from app.repositories.invoice_repository import (
+from app.repositories.invoice_repo import (
     list_invoices,
     list_imported_invoices,
     filter_invoices_by_date_range,
