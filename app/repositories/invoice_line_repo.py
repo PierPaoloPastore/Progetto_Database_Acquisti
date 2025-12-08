@@ -15,10 +15,10 @@ def get_invoice_line_by_id(line_id: int) -> Optional[InvoiceLine]:
     return InvoiceLine.query.get(line_id)
 
 
-def list_lines_by_invoice(invoice_id: int) -> List[InvoiceLine]:
-    """Restituisce tutte le righe associate a una fattura."""
+def list_lines_by_invoice(document_id: int) -> List[InvoiceLine]:
+    """Restituisce tutte le righe associate a un documento."""
     return (
-        InvoiceLine.query.filter_by(invoice_id=invoice_id)
+        InvoiceLine.query.filter_by(document_id=document_id)
         .order_by(
             case((InvoiceLine.line_number.is_(None), 1), else_=0),
             InvoiceLine.line_number.asc(),
@@ -31,7 +31,7 @@ def list_lines_by_category(category_id: int) -> List[InvoiceLine]:
     """Restituisce tutte le righe associate a una determinata categoria gestionale."""
     return (
         InvoiceLine.query.filter_by(category_id=category_id)
-        .order_by(InvoiceLine.invoice_id.asc(), InvoiceLine.line_number.asc())
+        .order_by(InvoiceLine.document_id.asc(), InvoiceLine.line_number.asc())
         .all()
     )
 

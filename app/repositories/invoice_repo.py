@@ -279,7 +279,7 @@ def create_invoice_with_details(
     invoice_kwargs = {
         "supplier_id": supplier_id,
         "legal_entity_id": legal_entity_id,
-        "invoice_number": invoice_dto.invoice_number,
+        "document_number": invoice_dto.invoice_number,
         "invoice_series": invoice_dto.invoice_series,
         "document_date": invoice_dto.invoice_date,
         "registration_date": invoice_dto.registration_date,
@@ -295,8 +295,8 @@ def create_invoice_with_details(
         "import_source": import_source,
     }
 
-    if not invoice_kwargs["invoice_number"]:
-        raise ValueError("invoice_number è obbligatorio per creare una fattura")
+    if not invoice_kwargs["document_number"]:
+        raise ValueError("document_number è obbligatorio per creare una fattura")
     if invoice_kwargs["document_date"] is None:
         raise ValueError("document_date è obbligatoria per creare una fattura")
     if not invoice_kwargs["file_name"]:
@@ -317,11 +317,11 @@ def create_invoice_with_details(
     return invoice, True
 
 
-def create_invoice_line_from_dto(invoice_id: int, line_dto: InvoiceLineDTO) -> InvoiceLine:
+def create_invoice_line_from_dto(document_id: int, line_dto: InvoiceLineDTO) -> InvoiceLine:
     """Crea una InvoiceLine partendo dal DTO e la aggiunge alla sessione."""
     description = line_dto.description or "Descrizione non disponibile"
     line = InvoiceLine(
-        invoice_id=invoice_id,
+        document_id=document_id,
         line_number=line_dto.line_number,
         description=description,
         quantity=line_dto.quantity,
@@ -340,10 +340,10 @@ def create_invoice_line_from_dto(invoice_id: int, line_dto: InvoiceLineDTO) -> I
     return line
 
 
-def create_vat_summary_from_dto(invoice_id: int, vat_dto: VatSummaryDTO) -> VatSummary:
+def create_vat_summary_from_dto(document_id: int, vat_dto: VatSummaryDTO) -> VatSummary:
     """Crea un VatSummary partendo dal DTO e lo aggiunge alla sessione."""
     summary = VatSummary(
-        invoice_id=invoice_id,
+        document_id=document_id,
         vat_rate=vat_dto.vat_rate,
         taxable_amount=vat_dto.taxable_amount,
         vat_amount=vat_dto.vat_amount,
@@ -353,10 +353,10 @@ def create_vat_summary_from_dto(invoice_id: int, vat_dto: VatSummaryDTO) -> VatS
     return summary
 
 
-def create_payment_from_dto(invoice: Invoice, payment_dto: PaymentDTO) -> Payment:
+def create_payment_from_dto(document: Invoice, payment_dto: PaymentDTO) -> Payment:
     """Crea un Payment partendo dal DTO e lo aggiunge alla sessione."""
     payment = Payment(
-        invoice_id=invoice.id,
+        document_id=document.id,
         due_date=payment_dto.due_date,
         expected_amount=payment_dto.expected_amount,
         payment_terms=payment_dto.payment_terms,
@@ -365,8 +365,8 @@ def create_payment_from_dto(invoice: Invoice, payment_dto: PaymentDTO) -> Paymen
     )
     db.session.add(payment)
 
-    if invoice.due_date is None and payment_dto.due_date:
-        invoice.due_date = payment_dto.due_date
+    if document.due_date is None and payment_dto.due_date:
+        document.due_date = payment_dto.due_date
 
     return payment
 
@@ -389,7 +389,7 @@ def get_supplier_account_balance(
             func.count(func.distinct(Invoice.id)),
         )
         .select_from(Invoice)
-        .outerjoin(Payment, Payment.invoice_id == Invoice.id)
+        .outerjoin(Payment, Payment.document_id == Invoice.id)
         .filter(Invoice.supplier_id == supplier_id)
     )
 

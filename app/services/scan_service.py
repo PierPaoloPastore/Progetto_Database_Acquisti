@@ -77,7 +77,7 @@ def attach_scan_to_invoice(filename: str, invoice: Invoice) -> str:
 def _build_physical_copy_filename(invoice: Invoice, original_filename: str) -> str:
     name, ext = os.path.splitext(secure_filename(original_filename))
     ext = ext or ""
-    cleaned_number = re.sub(r"[^A-Za-z0-9]+", "_", invoice.invoice_number or "")
+    cleaned_number = re.sub(r"[^A-Za-z0-9]+", "_", invoice.document_number or "")
     cleaned_date = ""
     if invoice.document_date:
         cleaned_date = re.sub(

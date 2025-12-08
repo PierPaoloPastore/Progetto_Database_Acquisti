@@ -17,6 +17,9 @@ class LegalEntity(db.Model):
     country = db.Column(db.String, nullable=True, default="IT")
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(
+        db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
 
     # Relazioni
     # Note: La relazione 'documents' è creata automaticamente da Document.legal_entity (backref)

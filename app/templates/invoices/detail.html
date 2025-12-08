@@ -27,7 +27,7 @@
     <h2>Dati fattura</h2>
     <div class="two-columns">
         <div>
-            <p><strong>Numero:</strong> {{ invoice.invoice_number }}</p>
+            <p><strong>Numero:</strong> {{ invoice.document_number }}</p>
             <p><strong>Data fattura:</strong>
                 {{ invoice.document_date.strftime('%d/%m/%Y') if invoice.document_date }}</p>
             <p><strong>Data registrazione:</strong>
