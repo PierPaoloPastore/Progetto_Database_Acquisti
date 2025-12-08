@@ -38,7 +38,7 @@ class SupplierDTO:
 
     name: Optional[str] = None
     vat_number: Optional[str] = None
-    tax_code: Optional[str] = None
+    fiscal_code: Optional[str] = None
     sdi_code: Optional[str] = None
     pec_email: Optional[str] = None
 
@@ -305,7 +305,7 @@ def _parse_supplier(root) -> SupplierDTO:
         supplier_node,
         ".//*[local-name()='IdFiscaleIVA']/*[local-name()='IdCodice']",
     )
-    tax_code = _get_text(supplier_node, ".//*[local-name()='CodiceFiscale']")
+    fiscal_code = _get_text(supplier_node, ".//*[local-name()='CodiceFiscale']")
 
     # Codice destinatario / SDI
     sdi_code = _get_text(
@@ -337,7 +337,7 @@ def _parse_supplier(root) -> SupplierDTO:
     return SupplierDTO(
         name=name,
         vat_number=vat_number,
-        tax_code=tax_code,
+        fiscal_code=fiscal_code,
         sdi_code=sdi_code,
         pec_email=pec_email,
         address=address,

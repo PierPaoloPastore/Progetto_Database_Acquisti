@@ -7,7 +7,7 @@ La logica di business rimane nei servizi (app.services.*).
 from .supplier_repo import (
     get_supplier_by_id,
     get_supplier_by_vat_number,
-    get_supplier_by_tax_code,
+    get_supplier_by_fiscal_code,
     list_suppliers,
     create_supplier,
     update_supplier,
@@ -81,7 +81,7 @@ __all__ = [
     # Suppliers
     "get_supplier_by_id",
     "get_supplier_by_vat_number",
-    "get_supplier_by_tax_code",
+    "get_supplier_by_fiscal_code",
     "list_suppliers",
     "create_supplier",
     "update_supplier",
