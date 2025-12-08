@@ -39,7 +39,7 @@
                   -
                 {% endif %}
             </p>
-            <p><strong>Anno contabile:</strong> {{ invoice.accounting_year or '-' }}</p>
+            <p><strong>Anno contabile:</strong> {{ invoice.document_date.year if invoice.document_date else '-' }}</p>
             <p><strong>File XML:</strong> {{ invoice.file_name }}</p>
         </div>
         <div>

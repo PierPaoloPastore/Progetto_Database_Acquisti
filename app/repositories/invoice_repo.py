@@ -12,15 +12,8 @@ from app.models import Invoice, InvoiceLine, LegalEntity, Payment, VatSummary
 from app.parsers.fatturapa_parser import InvoiceDTO, InvoiceLineDTO, PaymentDTO, VatSummaryDTO
 
 
-def _compute_accounting_year(
-    registration_date: Optional[date], document_date: Optional[date]
-) -> int:
-    """Calcola l'anno contabile con priorità: registrazione, fattura, anno corrente."""
-    if registration_date:
-        return registration_date.year
-    if document_date:
-        return document_date.year
-    return date.today().year
+# NOTA: accounting_year non è più una colonna fisica nel DB.
+# L'anno contabile si deduce da YEAR(document_date) dove necessario.
 
 
 def get_invoice_by_id(invoice_id: int) -> Optional[Invoice]:
@@ -130,7 +123,7 @@ def search_invoices_by_filters(
     if legal_entity_id is not None:
         query = query.filter(Invoice.legal_entity_id == legal_entity_id)
     if accounting_year is not None:
-        query = query.filter(Invoice.accounting_year == accounting_year)
+        query = query.filter(func.year(Invoice.document_date) == accounting_year)
     if supplier_id is not None:
         query = query.filter(Invoice.supplier_id == supplier_id)
     if doc_status is not None:
@@ -158,12 +151,12 @@ def search_invoices_by_filters(
 
 
 def list_accounting_years() -> List[int]:
-    """Restituisce tutti gli anni contabili presenti, ordinati in modo decrescente."""
+    """Restituisce tutti gli anni contabili presenti (basati su YEAR(document_date)), ordinati in modo decrescente."""
     rows = (
-        db.session.query(Invoice.accounting_year)
-        .filter(Invoice.accounting_year.isnot(None))
+        db.session.query(func.year(Invoice.document_date))
+        .filter(Invoice.document_date.isnot(None))
         .distinct()
-        .order_by(Invoice.accounting_year.desc())
+        .order_by(func.year(Invoice.document_date).desc())
         .all()
     )
     return [row[0] for row in rows]
@@ -235,14 +228,11 @@ def create_invoice(**kwargs) -> Invoice:
 
     Non esegue il commit: questo viene demandato al servizio chiamante.
     """
-    registration_date = kwargs.get("registration_date")
-    document_date = kwargs.get("document_date")
-    if "accounting_year" not in kwargs:
-        kwargs["accounting_year"] = _compute_accounting_year(
-            registration_date, document_date
-        )
     if kwargs.get("legal_entity_id") is None:
         raise ValueError("legal_entity_id è obbligatorio per creare una fattura")
+
+    # Rimuovi accounting_year se passato (non è più una colonna del DB)
+    kwargs.pop("accounting_year", None)
 
     invoice = Invoice(**kwargs)
     db.session.add(invoice)
@@ -255,14 +245,11 @@ def update_invoice(invoice: Invoice, **kwargs) -> Invoice:
 
     I campi da aggiornare vengono passati come kwargs.
     """
-    registration_date = kwargs.get("registration_date", invoice.registration_date)
-    document_date = kwargs.get("document_date", invoice.document_date)
-    if "accounting_year" not in kwargs:
-        kwargs["accounting_year"] = _compute_accounting_year(
-            registration_date, document_date
-        )
     if "legal_entity_id" in kwargs and kwargs.get("legal_entity_id") is None:
         raise ValueError("legal_entity_id non può essere nullo")
+
+    # Rimuovi accounting_year se passato (non è più una colonna del DB)
+    kwargs.pop("accounting_year", None)
 
     for key, value in kwargs.items():
         if hasattr(invoice, key):
