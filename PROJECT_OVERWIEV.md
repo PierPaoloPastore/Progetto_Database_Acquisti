@@ -71,9 +71,9 @@ mantenendo un unico flusso di lavoro coerente per revisione, scadenziario, pagam
 
 ### Anagrafiche e classificazione
 
-- Gestione **fornitori** (`suppliers`) con P.IVA unique e `fiscal_code` (rinominato da tax_code).
+- Gestione **fornitori** (`suppliers`) con P.IVA unique e `fiscal_code` per il codice fiscale.
 
-Gestione intestatari (legal_entities) con P.IVA unique e pulizia colonna tax_code (rimossa).
+Gestione intestatari (legal_entities) con P.IVA unique e campo `fiscal_code` normalizzato.
 Gestione categorie (categories) e loro assegnazione alle righe fattura (invoice_lines).
 Gestione note interne (notes) collegate ai documenti (qualsiasi tipo).
 
