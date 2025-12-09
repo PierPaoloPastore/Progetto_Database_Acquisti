@@ -191,6 +191,11 @@ class Document(db.Model):
         foreign_keys=[rent_contract_id],
     )
 
+    @property
+    def lines(self):
+        """Alias di compatibilità per accedere alle righe fattura."""
+        return self.invoice_lines
+
     # Helper properties per identificare il tipo di documento
     @property
     def is_invoice(self) -> bool:
