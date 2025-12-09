@@ -1,111 +1,133 @@
+"""
+Servizio per la gestione delle scansioni e dei file fisici.
+
+Gestisce:
+- salvataggio file caricati (upload)
+- organizzazione cartelle per anno/mese
+- collegamento file al DB
+"""
+
+from __future__ import annotations
+
 import os
-import re
 import shutil
 from datetime import datetime
 from pathlib import Path
+from typing import List, Optional
+
 from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
 
-from app.extensions import db
-from app.models import Invoice
-from app.services.settings_service import (
-    get_physical_copy_storage_path,
-    get_setting,
-)
+from flask import current_app
+
+# FIX: Sostituito Invoice con Document
+from app.models import Document, PaymentDocument
+from app.services import settings_service
 
 
-def list_inbox_files() -> list[str]:
-    """
-    Ritorna l'elenco dei file presenti nella cartella inbox
-    configurata nelle impostazioni.
-    """
-    inbox_path = get_setting("SCAN_INBOX_PATH", "")
-    if not inbox_path or not os.path.isdir(inbox_path):
+def list_inbox_files() -> List[str]:
+    """Elenca i file presenti nella cartella INBOX (scansioni da smistare)."""
+    inbox_path = settings_service.get_scan_inbox_path()
+    if not os.path.exists(inbox_path):
         return []
 
     files = []
-    for entry in os.listdir(inbox_path):
-        full_path = os.path.join(inbox_path, entry)
-        if os.path.isfile(full_path):
-            files.append(entry)
-
+    for f in os.listdir(inbox_path):
+        full_path = os.path.join(inbox_path, f)
+        if os.path.isfile(full_path) and not f.startswith("."):
+            files.append(f)
     return sorted(files)
 
 
-def attach_scan_to_invoice(filename: str, invoice: Invoice) -> str:
+def store_physical_copy(document: Document, file: FileStorage) -> str:
     """
-    Sposta un file dalla inbox allo storage definitivo, aggiorna la fattura
-    e ritorna il path relativo del file salvato.
+    Salva il file della copia fisica per un documento specifico.
+    Organizza i file in: /storage/scans/YYYY/MM/doc_ID_filename
+    Restituisce il path relativo salvato nel DB.
     """
-    inbox_path = get_setting("SCAN_INBOX_PATH", "")
-    storage_path = get_setting("PHYSICAL_COPY_STORAGE_PATH", "")
+    base_path = settings_service.get_scan_storage_path()
+    
+    # Usa la data del documento o oggi se mancante
+    ref_date = document.document_date or datetime.today().date()
+    year_str = str(ref_date.year)
+    month_str = f"{ref_date.month:02d}"
 
-    if not inbox_path or not storage_path:
-        raise ValueError("Percorsi inbox/storage non configurati.")
+    dest_dir = os.path.join(base_path, year_str, month_str)
+    os.makedirs(dest_dir, exist_ok=True)
 
-    src = Path(inbox_path) / filename
+    filename = secure_filename(file.filename)
+    # Prefisso con ID documento per univocità
+    final_name = f"doc_{document.id}_{filename}"
+    dest_path = os.path.join(dest_dir, final_name)
 
-    if not src.exists():
+    file.save(dest_path)
+
+    # Restituisce path relativo per portabilità
+    return os.path.join(year_str, month_str, final_name)
+
+
+def attach_scan_to_invoice(filename: str, document: Document) -> str:
+    """
+    Sposta un file dalla INBOX alla cartella di archiviazione del documento.
+    Aggiorna il documento col nuovo path.
+    """
+    inbox_path = settings_service.get_scan_inbox_path()
+    source_path = os.path.join(inbox_path, filename)
+
+    if not os.path.exists(source_path):
         raise FileNotFoundError(f"File {filename} non trovato nella inbox.")
 
-    # Nome file normalizzato
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-    cleaned_number = str(invoice.id)
-    dest_name = f"invoice_{cleaned_number}_{timestamp}{src.suffix}"
+    # Simula un FileStorage aprendo il file locale
+    with open(source_path, "rb") as f:
+        # Creiamo un oggetto compatibile o usiamo logica custom di spostamento
+        # Qui usiamo la logica di 'store_physical_copy' ma adattata per file locale
+        
+        base_path = settings_service.get_scan_storage_path()
+        ref_date = document.document_date or datetime.today().date()
+        year_str = str(ref_date.year)
+        month_str = f"{ref_date.month:02d}"
 
-    dest_dir = Path(storage_path)
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    dest = dest_dir / dest_name
+        dest_dir = os.path.join(base_path, year_str, month_str)
+        os.makedirs(dest_dir, exist_ok=True)
 
-    # Sposta il file (copy+delete o rename se stesso filesystem)
-    shutil.move(str(src), str(dest))
+        final_name = f"doc_{document.id}_{secure_filename(filename)}"
+        dest_path = os.path.join(dest_dir, final_name)
 
-    # Path relativo salvato in DB
-    invoice.physical_copy_file_path = str(dest)
-    invoice.physical_copy_status = "received"
-    invoice.physical_copy_received_at = datetime.utcnow()
+        # Sposta fisicamente il file (move)
+        shutil.move(source_path, dest_path)
 
-    # Se necessario, aggiorna stato documentale
-    if invoice.doc_status == "imported":
-        invoice.doc_status = "verified"
+        # Calcola relative path
+        relative_path = os.path.join(year_str, month_str, final_name)
 
-    db.session.commit()
+        # Aggiorna il DB
+        from app.extensions import db
+        document.physical_copy_file_path = relative_path
+        document.physical_copy_status = "received"
+        document.physical_copy_received_at = datetime.utcnow()
+        if document.doc_status == "imported":
+            document.doc_status = "verified"
+        
+        db.session.add(document)
+        db.session.commit()
 
-    return dest_name
-
-
-def _build_physical_copy_filename(invoice: Invoice, original_filename: str) -> str:
-    name, ext = os.path.splitext(secure_filename(original_filename))
-    ext = ext or ""
-    cleaned_number = re.sub(r"[^A-Za-z0-9]+", "_", invoice.document_number or "")
-    cleaned_date = ""
-    if invoice.document_date:
-        cleaned_date = re.sub(
-            r"[^A-Za-z0-9]+", "_", invoice.document_date.isoformat()
-        )
-    return f"fattura_{invoice.id}_{cleaned_number}_{cleaned_date}{ext}"
+        return relative_path
 
 
-def store_physical_copy(invoice: Invoice, file: FileStorage) -> str:
-    """Salva una copia fisica caricata e ritorna il percorso completo."""
-    storage_path = Path(get_physical_copy_storage_path())
-    storage_path.mkdir(parents=True, exist_ok=True)
+def store_payment_document_file(
+    file: FileStorage, base_path: str, filename: str
+) -> str:
+    """
+    Salva un file di pagamento nella cartella specificata.
+    Organizza per YYYY/MM corrente.
+    """
+    now = datetime.now()
+    year_str = str(now.year)
+    month_str = f"{now.month:02d}"
 
-    filename = _build_physical_copy_filename(invoice, file.filename or "file")
-    destination = storage_path / filename
-    file.save(destination)
+    dest_dir = os.path.join(base_path, year_str, month_str)
+    os.makedirs(dest_dir, exist_ok=True)
 
-    return str(destination)
+    dest_path = os.path.join(dest_dir, filename)
+    file.save(dest_path)
 
-
-def store_payment_document_file(file: FileStorage, base_path: str, filename: str) -> str:
-    """Salva un PDF di pagamento nello storage indicato."""
-
-    storage_path = Path(base_path)
-    storage_path.mkdir(parents=True, exist_ok=True)
-
-    safe_filename = secure_filename(filename)
-    destination = storage_path / safe_filename
-    file.save(destination)
-
-    return str(destination)
+    return os.path.join(year_str, month_str, filename)

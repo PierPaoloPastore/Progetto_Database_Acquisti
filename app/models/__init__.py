@@ -1,26 +1,13 @@
 """
 Pacchetto per i modelli SQLAlchemy.
 
-Qui vengono esportate le classi modello principali:
-- LegalEntity
-- Supplier
-- Document
-- Invoice
-- InvoiceLine
-- VatSummary
-- Payment
-- DeliveryNote
-- RentContract
-- Category
-- Note
-- ImportLog
-- User
+Qui vengono esportate le classi modello principali.
+Nota: Invoice è stato sostituito da Document.
 """
 
 from .legal_entity import LegalEntity
 from .supplier import Supplier
 from .document import Document
-from .invoice import Invoice
 from .invoice_line import InvoiceLine
 from .vat_summary import VatSummary
 from .payment import Payment, PaymentDocument
@@ -36,7 +23,6 @@ __all__ = [
     "LegalEntity",
     "Supplier",
     "Document",
-    "Invoice",
     "InvoiceLine",
     "VatSummary",
     "Payment",

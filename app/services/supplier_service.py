@@ -3,7 +3,7 @@ Servizi per la gestione dei fornitori (Supplier).
 
 Funzioni principali:
 - list_suppliers_with_stats() -> elenco fornitori con contatori
-- get_supplier_detail(id)     -> dati fornitore + fatture collegate
+- get_supplier_detail(id)     -> dati fornitore + documenti collegati
 """
 
 from __future__ import annotations
@@ -11,44 +11,37 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 from app.extensions import db
-from app.models import Invoice, LegalEntity, Supplier
+from app.models import Document, LegalEntity, Supplier
 from app.repositories import (
     get_supplier_by_id,
     list_suppliers,
 )
-from app.repositories.invoice_repo import get_supplier_account_balance
+from app.repositories.document_repo import get_supplier_account_balance
 
 
 def list_suppliers_with_stats() -> List[Dict[str, Any]]:
     """
-    Restituisce l'elenco dei fornitori attivi con qualche statistica,
-    utile per la UI (es. elenco fornitori).
-
-    Output tipo:
-    [
-      {
-        "supplier": Supplier,
-        "invoice_count": int,
-        "total_gross_amount": Decimal,
-      },
-      ...
-    ]
+    Restituisce l'elenco dei fornitori attivi con qualche statistica.
     """
     suppliers = list_suppliers(include_inactive=False)
     results: List[Dict[str, Any]] = []
 
     for s in suppliers:
-        invoice_count = len(s.invoices)
+        # Conta solo i documenti di tipo invoice per coerenza storica, o tutti?
+        # Qui usiamo 'invoices' come property backref se esiste, altrimenti query
+        # s.documents include tutto.
+        doc_count = len(s.documents) 
+        
         total_gross_amount = (
-            db.session.query(db.func.coalesce(db.func.sum(Invoice.total_gross_amount), 0))
-            .filter(Invoice.supplier_id == s.id)
+            db.session.query(db.func.coalesce(db.func.sum(Document.total_gross_amount), 0))
+            .filter(Document.supplier_id == s.id)
             .scalar()
         )
 
         results.append(
             {
                 "supplier": s,
-                "invoice_count": invoice_count,
+                "invoice_count": doc_count, # Manteniamo nome chiave per UI
                 "total_gross_amount": total_gross_amount,
             }
         )
@@ -60,34 +53,22 @@ def get_supplier_detail(
     supplier_id: int, legal_entity_id: int | None = None
 ) -> Optional[Dict[str, Any]]:
     """
-    Restituisce il dettaglio di un fornitore, opzionalmente filtrando per legal entity:
-
-    {
-      "supplier": Supplier,
-      "invoices": [Invoice, ...],
-      "available_legal_entities": [
-          {"id": int, "name": str, "invoice_count": int}, ...
-      ],
-      "selected_legal_entity_id": int | None,
-      "account_snapshot": {expected_total, paid_total, residual, invoice_count},
-    }
-
-    Restituisce None se il fornitore non esiste.
+    Restituisce il dettaglio di un fornitore.
     """
     supplier = get_supplier_by_id(supplier_id)
     if supplier is None:
         return None
 
-    # Create a proper database query for invoices
-    invoices_query = db.session.query(Invoice).filter(
-        Invoice.supplier_id == supplier_id,
-        Invoice.document_type == 'invoice'
+    # Query su Document filtrando per tipo 'invoice' per mostrare le fatture
+    invoices_query = db.session.query(Document).filter(
+        Document.supplier_id == supplier_id,
+        Document.document_type == 'invoice'
     ).order_by(
-        Invoice.document_date.desc(), Invoice.id.desc()
+        Document.document_date.desc(), Document.id.desc()
     )
 
     if legal_entity_id is not None:
-        invoices_query = invoices_query.filter(Invoice.legal_entity_id == legal_entity_id)
+        invoices_query = invoices_query.filter(Document.legal_entity_id == legal_entity_id)
 
     invoices = invoices_query.all()
 
@@ -100,12 +81,12 @@ def get_supplier_detail(
         db.session.query(
             LegalEntity.id,
             LegalEntity.name,
-            db.func.count(Invoice.id).label("invoice_count"),
+            db.func.count(Document.id).label("invoice_count"),
         )
         .outerjoin(
-            Invoice,
-            (Invoice.legal_entity_id == LegalEntity.id)
-            & (Invoice.supplier_id == supplier_id),
+            Document,
+            (Document.legal_entity_id == LegalEntity.id)
+            & (Document.supplier_id == supplier_id),
         )
         .filter(LegalEntity.is_active.is_(True))
         .group_by(LegalEntity.id)
@@ -115,7 +96,7 @@ def get_supplier_detail(
 
     return {
         "supplier": supplier,
-        "invoices": invoices,
+        "invoices": invoices, # Passiamo oggetti Document (type=invoice)
         "available_legal_entities": [
             {
                 "id": le_id,

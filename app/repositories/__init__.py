@@ -14,26 +14,24 @@ from .supplier_repo import (
     get_or_create_supplier_from_dto,
 )
 from .legal_entity_repo import list_legal_entities, get_legal_entity_by_id
-# Repository preferito per le fatture: re-export per compatibilita.
-from .invoice_repo import (
-    get_invoice_by_id,
-    get_invoice_by_file_name,
-    get_invoice_by_file_hash,
-    find_existing_invoice,
-    list_invoices,
-    list_imported_invoices,
-    search_invoices_by_filters,
+
+# NUOVO REPOSITORY DOCUMENTI (Sostituisce invoice_repo)
+from .document_repo import (
+    get_document_by_id,
+    get_document_by_file_name,
+    get_document_by_file_hash,
+    find_existing_document,
+    search_documents,
+    list_imported_documents,
+    get_next_imported_document,
+    create_document,
+    update_document,
+    create_document_from_fatturapa,
     list_accounting_years,
-    filter_invoices_by_date_range,
-    filter_invoices_by_supplier,
-    filter_invoices_by_payment_status,
-    create_invoice,
-    update_invoice,
-    create_invoice_with_details,
     get_supplier_account_balance,
     list_supplier_legal_entities,
-    get_next_imported_invoice,
 )
+
 from .invoice_line_repo import (
     get_invoice_line_by_id,
     list_lines_by_invoice,
@@ -91,24 +89,20 @@ __all__ = [
     # Legal entities
     "list_legal_entities",
     "get_legal_entity_by_id",
-    # Invoices
-    "get_invoice_by_id",
-    "get_invoice_by_file_name",
-    "get_invoice_by_file_hash",
-    "find_existing_invoice",
-    "list_invoices",
-    "list_imported_invoices",
-    "search_invoices_by_filters",
+    # Documents (ex Invoices)
+    "get_document_by_id",
+    "get_document_by_file_name",
+    "get_document_by_file_hash",
+    "find_existing_document",
+    "search_documents",
+    "list_imported_documents",
+    "get_next_imported_document",
+    "create_document",
+    "update_document",
+    "create_document_from_fatturapa",
     "list_accounting_years",
-    "filter_invoices_by_date_range",
-    "filter_invoices_by_supplier",
-    "filter_invoices_by_payment_status",
-    "create_invoice",
-    "update_invoice",
-    "create_invoice_with_details",
     "get_supplier_account_balance",
     "list_supplier_legal_entities",
-    "get_next_imported_invoice",
     # Invoice lines
     "list_lines_by_invoice",
     "list_lines_by_category",

@@ -1,13 +1,5 @@
 """
-API JSON per le fatture (Invoice).
-
-Endpoint principali:
-
-POST /api/invoices/<invoice_id>/status
-    Aggiorna stato documento/pagamento e data scadenza.
-
-POST /api/invoices/lines/<line_id>/category
-    Assegna (o rimuove) una categoria a una singola riga fattura.
+API JSON per le fatture (Invoice -> Document).
 """
 
 from __future__ import annotations
@@ -17,38 +9,24 @@ from typing import Optional
 
 from flask import Blueprint, request, jsonify
 
-from app.services import update_invoice_status
-from app.services import assign_category_to_line  # via category_service
+# FIX: Importa la funzione corretta dal nuovo service
+from app.services import update_document_status
+from app.services import assign_category_to_line
 from app.models import InvoiceLine
 
 api_invoices_bp = Blueprint("api_invoices", __name__)
 
 
 def _parse_date(value: str) -> Optional[datetime.date]:
-    if not value:
-        return None
-    try:
-        return datetime.strptime(value, "%Y-%m-%d").date()
-    except ValueError:
-        return None
+    if not value: return None
+    try: return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError: return None
 
 
 @api_invoices_bp.route("/<int:invoice_id>/status", methods=["POST"])
 def api_update_invoice_status(invoice_id: int):
     """
-    Aggiorna lo stato di una fattura.
-
-    Body JSON atteso:
-    {
-      "doc_status": "imported|pending_physical_copy|verified|rejected|archived",
-         # imported: appena importata
-         # pending_physical_copy: in attesa di copia cartacea
-         # verified: controllata e pronta all'uso
-         # rejected: scartata dopo verifica
-         # archived: chiusa/archiviata
-      "payment_status": "unpaid|partial|paid|...",
-      "due_date": "YYYY-MM-DD"  (opzionale)
-    }
+    Aggiorna lo stato di un documento.
     """
     data = request.get_json(silent=True) or {}
     doc_status = data.get("doc_status")
@@ -56,14 +34,15 @@ def api_update_invoice_status(invoice_id: int):
     due_date_str = data.get("due_date")
     due_date = _parse_date(due_date_str) if due_date_str else None
 
-    invoice = update_invoice_status(
-        invoice_id=invoice_id,
+    # Usa update_document_status
+    document = update_document_status(
+        document_id=invoice_id,
         doc_status=doc_status,
         payment_status=payment_status,
         due_date=due_date,
     )
 
-    if invoice is None:
+    if document is None:
         return jsonify(
             {
                 "success": False,
@@ -77,11 +56,9 @@ def api_update_invoice_status(invoice_id: int):
             "success": True,
             "message": "Stato fattura aggiornato con successo.",
             "payload": {
-                "invoice_id": invoice.id,
-                "doc_status": invoice.doc_status,
-                "due_date": invoice.due_date.isoformat()
-                if invoice.due_date
-                else None,
+                "invoice_id": document.id,
+                "doc_status": document.doc_status,
+                "due_date": document.due_date.isoformat() if document.due_date else None,
             },
         }
     )
@@ -89,29 +66,14 @@ def api_update_invoice_status(invoice_id: int):
 
 @api_invoices_bp.route("/lines/<int:line_id>/category", methods=["POST"])
 def api_assign_category_to_line(line_id: int):
-    """
-    Assegna o rimuove una categoria a una singola riga fattura.
-
-    Body JSON atteso:
-    {
-      "category_id": 123   # oppure null per rimuovere
-    }
-    """
+    """Assegna o rimuove una categoria a una riga."""
     data = request.get_json(silent=True) or {}
     category_id = data.get("category_id", None)
 
     if category_id is not None:
-        # Provo a convertirlo a int; se fallisce consideriamo il campo non valido
-        try:
-            category_id = int(category_id)
+        try: category_id = int(category_id)
         except (TypeError, ValueError):
-            return jsonify(
-                {
-                    "success": False,
-                    "message": "category_id non valido.",
-                    "payload": None,
-                }
-            ), 400
+            return jsonify({"success": False, "message": "category_id non valido.", "payload": None}), 400
 
     line: Optional[InvoiceLine] = assign_category_to_line(
         line_id=line_id,
@@ -119,13 +81,7 @@ def api_assign_category_to_line(line_id: int):
     )
 
     if line is None:
-        return jsonify(
-            {
-                "success": False,
-                "message": "Riga fattura non trovata o categoria inesistente.",
-                "payload": None,
-            }
-        ), 404
+        return jsonify({"success": False, "message": "Riga non trovata.", "payload": None}), 404
 
     return jsonify(
         {

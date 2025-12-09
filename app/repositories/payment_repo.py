@@ -9,7 +9,7 @@ from decimal import Decimal
 from typing import List, Optional
 
 from app.extensions import db
-from app.models import Invoice, Payment, PaymentDocument
+from app.models import Document, Payment, PaymentDocument
 from sqlalchemy.orm import joinedload
 
 
@@ -89,7 +89,7 @@ def list_payment_documents_by_status(statuses: List[str]) -> List[PaymentDocumen
 
 
 def create_payment(
-    document: Invoice,
+    document: Document,
     amount: Decimal,
     payment_document: Optional[PaymentDocument] = None,
     **kwargs,

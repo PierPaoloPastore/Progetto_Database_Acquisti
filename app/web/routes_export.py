@@ -1,10 +1,9 @@
 """
 Route per l'export dei dati (CSV).
 
-In questa prima versione:
-- pagina opzioni export (GET /export/)
-- export elenco fatture in CSV (GET /export/invoices)
-  con filtri base su intervallo di date.
+In questa versione aggiornata:
+- Usa search_documents (invece di search_invoices)
+- Rimuove il campo 'payment_status' che non esiste più in Document
 """
 
 from __future__ import annotations
@@ -21,7 +20,8 @@ from flask import (
     render_template,
 )
 
-from app.services import search_invoices
+# FIX: Importiamo search_documents dal nuovo servizio
+from app.services import search_documents
 from app.services.dto import InvoiceSearchFilters
 
 
@@ -41,7 +41,6 @@ def _parse_date(value: str) -> Optional[datetime.date]:
 def options_view():
     """
     Pagina opzioni export.
-
     Permette di scegliere un intervallo di date e scaricare il CSV.
     """
     return render_template("export/export_options.html")
@@ -51,33 +50,25 @@ def options_view():
 def export_invoices_csv():
     """
     Esporta in CSV un elenco di fatture filtrate per intervallo di date.
-
-    Querystring accettate:
-    - date_from, date_to (YYYY-MM-DD)
-
-    CSV generato con colonne essenziali:
-    - invoice_id
-    - document_number
-    - document_date
-    - supplier_name
-    - total_gross_amount
-    - payment_status
     """
     date_from = _parse_date(request.args.get("date_from", ""))
     date_to = _parse_date(request.args.get("date_to", ""))
 
-    invoices = search_invoices(
+    # FIX: Chiamata a search_documents specificando il tipo 'invoice'
+    invoices = search_documents(
         filters=InvoiceSearchFilters(
             date_from=date_from,
             date_to=date_to,
         ),
-        limit=None,  # nessun limite, li prendiamo tutti nel range
+        limit=None,
+        document_type='invoice'
     )
 
     output = io.StringIO()
     writer = csv.writer(output, delimiter=";")
 
     # Intestazione CSV
+    # Nota: payment_status rimosso perché non esiste più su Document
     writer.writerow(
         [
             "invoice_id",
@@ -85,7 +76,7 @@ def export_invoices_csv():
             "document_date",
             "supplier_name",
             "total_gross_amount",
-            "payment_status",
+            "doc_status", 
         ]
     )
 
@@ -98,7 +89,7 @@ def export_invoices_csv():
                 inv.document_date.isoformat() if inv.document_date else "",
                 supplier_name,
                 str(inv.total_gross_amount or ""),
-                inv.payment_status or "",
+                inv.doc_status or "",
             ]
         )
 

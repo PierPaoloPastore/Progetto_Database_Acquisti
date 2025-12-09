@@ -1,7 +1,7 @@
 """
 Repository per il modello Note.
 
-Gestisce le operazioni di lettura/creazione delle note interne alle fatture.
+Gestisce le operazioni di lettura/creazione delle note interne ai documenti.
 """
 
 from typing import List, Optional
@@ -15,10 +15,10 @@ def get_note_by_id(note_id: int) -> Optional[Note]:
     return Note.query.get(note_id)
 
 
-def list_notes_by_invoice(invoice_id: int) -> List[Note]:
-    """Restituisce tutte le note associate a una fattura, ordinate per data di creazione."""
+def list_notes_by_invoice(document_id: int) -> List[Note]:
+    """Restituisce tutte le note associate a un documento, ordinate per data di creazione."""
     return (
-        Note.query.filter_by(invoice_id=invoice_id)
+        Note.query.filter_by(document_id=document_id)
         .order_by(Note.created_at.asc())
         .all()
     )

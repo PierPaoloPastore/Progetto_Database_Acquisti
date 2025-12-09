@@ -9,17 +9,18 @@ I servizi orchestrano:
 """
 
 from .import_service import run_import
-from .invoice_service import (
-    search_invoices,
-    get_invoice_detail,
-    update_invoice_status,
-    confirm_invoice,
-    reject_invoice,
-    list_invoices_to_review,
-    get_next_invoice_to_review,
-    list_invoices_without_physical_copy,
+from .document_service import (
+    search_documents,
+    get_document_detail,
+    update_document_status,
+    confirm_document,
+    reject_document,
+    list_documents_to_review,
+    get_next_document_to_review,
+    list_documents_without_physical_copy,
     mark_physical_copy_received,
     request_physical_copy,
+    DocumentService,
 )
 from .supplier_service import (
     list_suppliers_with_stats,
@@ -42,17 +43,18 @@ from .settings_service import get_setting, set_setting
 __all__ = [
     # Import
     "run_import",
-    # Invoices
-    "search_invoices",
-    "get_invoice_detail",
-    "update_invoice_status",
-    "confirm_invoice",
-    "reject_invoice",
-    "list_invoices_to_review",
-    "get_next_invoice_to_review",
-    "list_invoices_without_physical_copy",
+    # Documents (ex Invoices)
+    "search_documents",
+    "get_document_detail",
+    "update_document_status",
+    "confirm_document",
+    "reject_document",
+    "list_documents_to_review",
+    "get_next_document_to_review",
+    "list_documents_without_physical_copy",
     "mark_physical_copy_received",
     "request_physical_copy",
+    "DocumentService",
     # Suppliers
     "list_suppliers_with_stats",
     "get_supplier_detail",
