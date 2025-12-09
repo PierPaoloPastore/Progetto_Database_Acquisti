@@ -4,6 +4,7 @@ Parser per file XML FatturaPA.
 Questo modulo fornisce:
 - DTO (Data Transfer Object) per rappresentare in modo neutro i dati estratti
 - una funzione principale `parse_invoice_xml(path)` che restituisce un `InvoiceDTO`
+- supporto per file P7M (firme digitali PKCS#7)
 
 Obiettivo:
 - leggere i nodi essenziali dell'XML FatturaPA (CedentePrestatore, DatiGeneraliDocumento,
@@ -14,10 +15,13 @@ Obiettivo:
 Il parser è pensato per essere:
 - tollerante ai campi mancanti (ritorna None dove appropriato)
 - indipendente dai namespace (uso di local-name() negli XPath)
+- capace di gestire file .xml e .p7m automaticamente
 """
 
 from __future__ import annotations
 
+import base64
+import tempfile
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal, InvalidOperation
@@ -138,6 +142,10 @@ class FatturaPAParseError(Exception):
     """Errore generico durante il parsing di una fattura XML."""
 
 
+class P7MExtractionError(FatturaPAParseError):
+    """Errore durante l'estrazione dell'XML da un file P7M."""
+
+
 # =========================
 #  Funzione principale di parsing
 # =========================
@@ -146,16 +154,47 @@ class FatturaPAParseError(Exception):
 def parse_invoice_xml(path: str | Path) -> InvoiceDTO:
     """
     Parsea un file XML FatturaPA e restituisce un InvoiceDTO.
+    
+    Supporta:
+    - File .xml nativi
+    - File .p7m (firma digitale PKCS#7)
 
-    :param path: percorso del file XML
+    :param path: percorso del file XML o P7M
     :raises FatturaPAParseError: in caso di errore grave di parsing (es. XML non valido,
                                  nodi fondamentali mancanti).
+    :raises P7MExtractionError: in caso di errore nell'estrazione da P7M
     """
-    xml_path = Path(path)
+    file_path = Path(path)
 
-    if not xml_path.is_file():
-        raise FatturaPAParseError(f"File XML non trovato: {xml_path}")
+    if not file_path.is_file():
+        raise FatturaPAParseError(f"File non trovato: {file_path}")
 
+    # Gestione file P7M
+    if _is_p7m_file(file_path):
+        xml_content = _extract_xml_from_p7m(file_path)
+        
+        # Scrivi XML temporaneo per il parsing con lxml
+        with tempfile.NamedTemporaryFile(mode='wb', suffix='.xml', delete=False) as tmp:
+            tmp.write(xml_content)
+            tmp_path = tmp.name
+        
+        try:
+            return _parse_xml_file(Path(tmp_path), original_file_name=file_path.name)
+        finally:
+            # Cleanup file temporaneo
+            Path(tmp_path).unlink(missing_ok=True)
+    
+    # File XML normale
+    return _parse_xml_file(file_path, original_file_name=file_path.name)
+
+
+def _parse_xml_file(xml_path: Path, original_file_name: str) -> InvoiceDTO:
+    """
+    Parsing effettivo del file XML.
+    
+    :param xml_path: percorso del file XML da parsare
+    :param original_file_name: nome originale del file (usato nel DTO)
+    """
     try:
         tree = etree.parse(str(xml_path))
     except (OSError, etree.XMLSyntaxError) as exc:
@@ -210,7 +249,7 @@ def parse_invoice_xml(path: str | Path) -> InvoiceDTO:
             else None
         ),
         due_date=main_due_date,
-        file_name=xml_path.name,
+        file_name=original_file_name,
         file_hash=None,  # opzionale: può essere calcolato dal servizio di import
         doc_status="imported",
         payment_status="unpaid",
@@ -220,6 +259,176 @@ def parse_invoice_xml(path: str | Path) -> InvoiceDTO:
     )
 
     return invoice_dto
+
+
+# =========================
+#  Gestione file P7M
+# =========================
+
+
+def _is_p7m_file(file_path: Path) -> bool:
+    """
+    Verifica se un file è un P7M basandosi sull'estensione.
+    """
+    return file_path.suffix.lower() in ['.p7m']
+
+
+def _extract_xml_from_p7m(p7m_path: Path) -> bytes:
+    """
+    Estrae il contenuto XML da un file P7M.
+    
+    I file FatturaPA P7M contengono l'XML codificato in Base64
+    all'interno di una struttura di firma digitale PKCS#7.
+    
+    :param p7m_path: percorso del file P7M
+    :return: contenuto XML come bytes
+    :raises P7MExtractionError: se l'estrazione fallisce
+    """
+    try:
+        # Leggi il contenuto Base64 del P7M
+        with open(p7m_path, 'r', encoding='utf-8', errors='ignore') as f:
+            b64_data = f.read()
+        
+        # Rimuovi spazi e newline
+        b64_clean = ''.join(b64_data.split())
+        
+        # Aggiungi padding se necessario
+        missing_padding = len(b64_clean) % 4
+        if missing_padding:
+            b64_clean += '=' * (4 - missing_padding)
+        
+        # Decodifica Base64
+        decoded = base64.b64decode(b64_clean)
+        
+        # Cerca l'inizio dell'XML nel binario decodificato
+        xml_start = _find_xml_start(decoded)
+        
+        if xml_start < 0:
+            raise P7MExtractionError(
+                f"Contenuto XML non trovato nel file P7M: {p7m_path}"
+            )
+        
+        # Cerca la fine dell'XML
+        xml_end = _find_xml_end(decoded, xml_start)
+        
+        if xml_end <= xml_start:
+            raise P7MExtractionError(
+                f"Fine XML non trovata nel file P7M: {p7m_path}"
+            )
+        
+        # Estrai il contenuto XML
+        xml_content = decoded[xml_start:xml_end]
+        
+        # Pulisci caratteri invalidi XML
+        xml_content = _clean_xml_bytes(xml_content)
+        
+        return xml_content
+        
+    except base64.binascii.Error as exc:
+        raise P7MExtractionError(
+            f"Errore decodifica Base64 del file P7M: {exc}"
+        ) from exc
+    except Exception as exc:
+        raise P7MExtractionError(
+            f"Errore durante l'estrazione XML da P7M: {exc}"
+        ) from exc
+
+
+def _clean_xml_bytes(data: bytes) -> bytes:
+    """
+    Rimuove caratteri invalidi XML dal contenuto binario.
+    
+    XML valido consente solo:
+    - caratteri ASCII stampabili
+    - tab, newline, carriage return
+    - caratteri Unicode validi
+    
+    Rimuove bytes che causano errori di parsing, inclusi bytes corrotti
+    all'interno dei tag XML.
+    """
+    # Decodifica con encoding windows-1252 (usato in molti XML FatturaPA)
+    try:
+        text = data.decode('windows-1252', errors='ignore')
+    except:
+        text = data.decode('utf-8', errors='ignore')
+    
+    # Rimuovi caratteri di controllo non validi per XML
+    # XML valido: #x9 | #xA | #xD | [#x20-#xD7FF] | [#xE000-#xFFFD] | [#x10000-#x10FFFF]
+    cleaned = []
+    in_tag = False
+    
+    for char in text:
+        code = ord(char)
+        
+        # Traccia se siamo dentro un tag
+        if char == '<':
+            in_tag = True
+            cleaned.append(char)
+        elif char == '>':
+            in_tag = False
+            cleaned.append(char)
+        # Se siamo dentro un tag, sii più restrittivo: accetta solo ASCII stampabili + spazi
+        elif in_tag:
+            if (0x20 <= code <= 0x7E) or code == 0x9:  # ASCII stampabile + tab
+                cleaned.append(char)
+            # Skip tutti gli altri caratteri dentro i tag
+        # Fuori dai tag, accetta caratteri XML validi
+        elif (code == 0x9 or code == 0xA or code == 0xD or 
+              (0x20 <= code <= 0xD7FF) or 
+              (0xE000 <= code <= 0xFFFD) or
+              (0x10000 <= code <= 0x10FFFF)):
+            cleaned.append(char)
+    
+    # Ricodifica in bytes
+    return ''.join(cleaned).encode('utf-8')
+
+
+def _find_xml_start(data: bytes) -> int:
+    """
+    Cerca l'offset di inizio dell'XML nel binario decodificato.
+    
+    Prova diversi pattern comuni:
+    - <?xml
+    - <p:FatturaElettronica
+    - <FatturaElettronica
+    """
+    patterns = [
+        b'<?xml',
+        b'<p:FatturaElettronica',
+        b'<FatturaElettronica',
+    ]
+    
+    for pattern in patterns:
+        pos = data.find(pattern)
+        if pos >= 0:
+            return pos
+    
+    return -1
+
+
+def _find_xml_end(data: bytes, start: int) -> int:
+    """
+    Cerca l'offset di fine dell'XML nel binario decodificato.
+    
+    Cerca i tag di chiusura più comuni, prendendo il più lontano
+    (per includere anche eventuali firme digitali XML Signature).
+    """
+    endings = [
+        b'</FatturaElettronica>',
+        b'</p:FatturaElettronica>',
+        b'</ds:Signature>',
+    ]
+    
+    max_end = -1
+    
+    for ending in endings:
+        pos = data.rfind(ending)
+        if pos > start:
+            end_pos = pos + len(ending)
+            if end_pos > max_end:
+                max_end = end_pos
+    
+    return max_end
 
 
 # =========================
@@ -392,61 +601,64 @@ def _parse_invoice_lines(body) -> List[InvoiceLineDTO]:
     """
     Estrae le righe fattura (DettaglioLinee).
 
-    Percorso tipico:
-    FatturaElettronicaBody/DatiBeniServizi/DettaglioLinee
+    Restituisce una lista di InvoiceLineDTO.
     """
-    lines_dto: List[InvoiceLineDTO] = []
+    lines: List[InvoiceLineDTO] = []
 
     line_nodes = body.xpath(".//*[local-name()='DettaglioLinee']")
 
-    for line_node in line_nodes:
+    for ln_node in line_nodes:
         line_number = _to_int(
-            _get_text(line_node, ".//*[local-name()='NumeroLinea']")
+            _get_text(ln_node, ".//*[local-name()='NumeroLinea']")
         )
-        description = _get_text(line_node, ".//*[local-name()='Descrizione']")
+        description = _get_text(ln_node, ".//*[local-name()='Descrizione']")
 
-        quantity = _to_decimal(_get_text(line_node, ".//*[local-name()='Quantita']"))
-        unit_price = _to_decimal(
-            _get_text(line_node, ".//*[local-name()='PrezzoUnitario']")
+        quantity = _to_decimal(
+            _get_text(ln_node, ".//*[local-name()='Quantita']")
         )
-        total_line_amount = _to_decimal(
-            _get_text(line_node, ".//*[local-name()='PrezzoTotale']")
-        )
-        vat_rate = _to_decimal(
-            _get_text(line_node, ".//*[local-name()='AliquotaIVA']")
-        )
-        vat_amount = None  # spesso non esplicito, si può ricavare
-
-        # Unità di misura
         unit_of_measure = _get_text(
-            line_node, ".//*[local-name()='UnitaMisura']"
+            ln_node, ".//*[local-name()='UnitaMisura']"
+        )
+        unit_price = _to_decimal(
+            _get_text(ln_node, ".//*[local-name()='PrezzoUnitario']")
         )
 
-        # Sconto/maggiorazione: qui gestiamo solo il caso semplice di un singolo sconto
-        discount_percent = _to_decimal(
-            _get_text(
-                line_node,
-                ".//*[local-name()='ScontoMaggiorazione']"
-                "/*[local-name()='Percentuale']",
-            )
-        )
+        # Sconti
         discount_amount = _to_decimal(
             _get_text(
-                line_node,
-                ".//*[local-name()='ScontoMaggiorazione']"
-                "/*[local-name()='Importo']",
+                ln_node,
+                ".//*[local-name()='ScontoMaggiorazione']/*[local-name()='Importo']",
+            )
+        )
+        discount_percent = _to_decimal(
+            _get_text(
+                ln_node,
+                ".//*[local-name()='ScontoMaggiorazione']/*[local-name()='Percentuale']",
             )
         )
 
-        # Codici articolo (opzionali)
-        sku_code = _get_text(
-            line_node,
-            ".//*[local-name()='CodiceArticolo']/*[local-name()='CodiceValore']",
+        # Totali e IVA
+        taxable_amount = _to_decimal(
+            _get_text(ln_node, ".//*[local-name()='ImponibileImporto']")
+        )
+        vat_rate = _to_decimal(
+            _get_text(ln_node, ".//*[local-name()='AliquotaIVA']")
+        )
+        vat_amount = _to_decimal(
+            _get_text(ln_node, ".//*[local-name()='Imposta']")
+        )
+        total_line_amount = _to_decimal(
+            _get_text(ln_node, ".//*[local-name()='PrezzoTotale']")
         )
 
-        taxable_amount = total_line_amount  # di solito PrezzoTotale è l'imponibile
+        # Codici articolo
+        sku_code = _get_text(
+            ln_node,
+            ".//*[local-name()='CodiceArticolo']/*[local-name()='CodiceValore']",
+        )
+        internal_code = None  # Potremmo raffinare
 
-        lines_dto.append(
+        lines.append(
             InvoiceLineDTO(
                 line_number=line_number,
                 description=description,
@@ -460,19 +672,21 @@ def _parse_invoice_lines(body) -> List[InvoiceLineDTO]:
                 vat_amount=vat_amount,
                 total_line_amount=total_line_amount,
                 sku_code=sku_code,
-                internal_code=None,
+                internal_code=internal_code,
             )
         )
 
-    return lines_dto
+    return lines
 
 
-# ---------- DatiRiepilogo (riepilogo IVA) ----------
+# ---------- DatiRiepilogo ----------
 
 
-def _parse_vat_summaries(body) -> tuple[List[VatSummaryDTO], Optional[Decimal], Optional[Decimal]]:
+def _parse_vat_summaries(body) -> tuple[
+    List[VatSummaryDTO], Optional[Decimal], Optional[Decimal]
+]:
     """
-    Estrae i riepiloghi IVA (DatiRiepilogo).
+    Estrae il riepilogo IVA (DatiRiepilogo).
 
     Restituisce:
     - lista di VatSummaryDTO

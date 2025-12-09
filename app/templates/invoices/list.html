@@ -3,186 +3,362 @@
 {% block title %}Fatture - Gestionale Acquisti{% endblock %}
 
 {% block content %}
-<h1>Fatture</h1>
+<div class="page-header">
+    <h1>📄 Fatture</h1>
+</div>
 
-<section class="panel">
-    <h2>Filtri</h2>
-    <form method="get" class="form-inline filters-form" id="invoice-filters-form">
-        <div class="form-row">
-            <label for="date_from">Data da</label>
-            <input type="date" id="date_from" name="date_from"
-                  value="{{ filters.date_from.strftime('%Y-%m-%d') if filters.date_from }}">
-        </div>
-        <div class="form-row">
-            <label for="date_to">Data a</label>
-            <input type="date" id="date_to" name="date_to"
-                  value="{{ filters.date_to.strftime('%Y-%m-%d') if filters.date_to }}">
-        </div>
-        <div class="form-row">
-            <label for="supplier_id">Fornitore</label>
-            <select id="supplier_id" name="supplier_id">
-                <option value="">Tutti</option>
-                {% for s in suppliers %}
-                  <option value="{{ s.id }}"
-                    {% if filters.supplier_id and filters.supplier_id == s.id %}selected{% endif %}>
-                    {{ s.name }}
-                  </option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="form-row">
-            <label for="legal_entity_id">Intestatario</label>
-            <select id="legal_entity_id" name="legal_entity_id">
-                <option value="">Tutti</option>
-                {% for le in legal_entities %}
-                  <option value="{{ le.id }}"
-                    {% if filters.legal_entity_id and filters.legal_entity_id == le.id %}selected{% endif %}>
-                    {{ le.name }} ({{ le.vat_number }})
-                  </option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="form-row">
-            <label for="year">Anno contabile</label>
-            <select id="year" name="year">
-                <option value="">Tutti</option>
-                {% for y in accounting_years %}
-                  <option value="{{ y }}" {% if filters.year and filters.year == y %}selected{% endif %}>{{ y }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="form-row">
-            <label for="doc_status">Stato doc.</label>
-            <select id="doc_status" name="doc_status">
-                <option value="">Tutti gli stati</option>
-                {% for status in [
-                    "imported",
-                    "pending_physical_copy",
-                    "verified",
-                    "rejected",
-                    "archived",
-                ] %}
-                  <option value="{{ status }}"{% if filters.doc_status == status %} selected{% endif %}>
-                    {{ status }}
-                  </option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="form-row">
-            <label for="physical_copy_status">Copia fisica</label>
-            <select id="physical_copy_status" name="physical_copy_status">
-                <option value="">Tutte</option>
-                {% for status in ["missing", "requested", "received"] %}
-                  <option value="{{ status }}"{% if filters.physical_copy_status == status %} selected{% endif %}>
-                      {{ status }}
-                  </option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="form-row">
-            <label for="payment_status">Stato pagamento</label>
-            <select id="payment_status" name="payment_status">
-                <option value="">Tutti</option>
-                {% for status in ["unpaid", "partial", "paid"] %}
-                  <option value="{{ status }}"
-                    {% if filters.payment_status == status %}selected{% endif %}>
-                    {{ status }}
-                  </option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="form-row">
-            <label for="min_total">Importo minimo</label>
-            <input type="number" step="0.01" id="min_total" name="min_total"
-                   value="{{ filters.min_total if filters.min_total is not none }}">
-        </div>
-        <div class="form-row">
-            <label for="max_total">Importo massimo</label>
-            <input type="number" step="0.01" id="max_total" name="max_total"
-                   value="{{ filters.max_total if filters.max_total is not none }}">
-        </div>
+<!-- LAYOUT A DUE COLONNE: SIDEBAR FILTRI + CONTENUTO -->
+<div class="layout-two-column">
+    <!-- SIDEBAR SINISTRA: FILTRI -->
+    <aside class="sidebar-filters">
+        <section class="panel">
+            <h2>🔍 Filtri</h2>
+            <form method="get" id="invoice-filters-form">
+                <!-- GRIGLIA FILTRI ORIZZONTALE -->
+                <div class="filters-grid">
+                    <!-- RIGA 1: Date + Fornitore + Intestatario -->
+                    <div class="filter-group">
+                        <label for="date_from">Data da</label>
+                        <input type="date" id="date_from" name="date_from"
+                              value="{{ filters.date_from.strftime('%Y-%m-%d') if filters.date_from }}">
+                    </div>
 
-        <div class="form-actions">
-            <button type="submit" class="btn-primary">Applica filtri</button>
-            <a href="{{ url_for('invoices.list_view') }}" class="btn-secondary">Reset</a>
-        </div>
-    </form>
-</section>
+                    <div class="filter-group">
+                        <label for="date_to">Data a</label>
+                        <input type="date" id="date_to" name="date_to"
+                              value="{{ filters.date_to.strftime('%Y-%m-%d') if filters.date_to }}">
+                    </div>
 
-<section class="panel">
-    <h2>Elenco fatture ({{ invoices|length }})</h2>
-    <div class="table-wrapper">
-        <table class="table table-striped table-hover">
-            <thead>
-            <tr>
-                <th>ID</th>
-                <th>Data</th>
-                <th>Numero</th>
-                <th>Fornitore</th>
-                <th>Intestatario</th>
-                <th>Totale lordo</th>
-                <th>Stato doc.</th>
-                <th>Copia fisica</th>
-                <th>Stato pagamento</th>
-                <th>Scadenza</th>
-                <th></th>
-            </tr>
-            </thead>
-            <tbody>
-            {% for inv in invoices %}
-              <tr>
-                  <td>{{ inv.id }}</td>
-                  <td>{{ inv.document_date.strftime('%d/%m/%Y') if inv.document_date }}</td>
-                  <td>{{ inv.document_number }}</td>
-                  <td>{{ inv.supplier.name if inv.supplier }}</td>
-                  <td>
-                      {{ inv.legal_entity.name if inv.legal_entity }}
-                      {% if inv.legal_entity %}
-                        <div class="text-muted small">{{ inv.legal_entity.vat_number }}</div>
-                      {% endif %}
-                  </td>
-                  <td class="text-right">
-                      {{ "%.2f"|format(inv.total_gross_amount or 0) }}
-                  </td>
-                  <td>{{ inv.doc_status }}</td>
-                  {% set physical_status = inv.physical_copy_status or "missing" %}
-                  {% set status_class = {
-                      "missing": "status-badge status-missing",
-                      "requested": "status-badge status-requested",
-                      "received": "status-badge status-received",
-                  }[physical_status] if physical_status in ["missing", "requested", "received"] else "status-badge" %}
-                  <td>
-                      <span class="{{ status_class }}">
-                          <span class="status-dot"></span>
-                          <span class="status-label">
-                              {% if physical_status == "requested" %}
-                                Richiesta
-                              {% elif physical_status == "received" %}
-                                Ricevuta
-                              {% else %}
-                                Mancante
+                    <div class="filter-group">
+                        <label for="supplier_id">Fornitore</label>
+                        <select id="supplier_id" name="supplier_id">
+                            <option value="">Tutti</option>
+                            {% for s in suppliers %}
+                              <option value="{{ s.id }}"
+                                {% if filters.supplier_id and filters.supplier_id == s.id %}selected{% endif %}>
+                                {{ s.name }}
+                              </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="legal_entity_id">Intestatario</label>
+                        <select id="legal_entity_id" name="legal_entity_id">
+                            <option value="">Tutti</option>
+                            {% for le in legal_entities %}
+                              <option value="{{ le.id }}"
+                                {% if filters.legal_entity_id and filters.legal_entity_id == le.id %}selected{% endif %}>
+                                {{ le.name }}
+                              </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- RIGA 2: Anno + Stato doc + Copia fisica + Pagamento -->
+                    <div class="filter-group">
+                        <label for="year">Anno</label>
+                        <select id="year" name="year">
+                            <option value="">Tutti</option>
+                            {% for y in accounting_years %}
+                              <option value="{{ y }}"
+                                {% if filters.year and filters.year == y %}selected{% endif %}>
+                                {{ y }}
+                              </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="doc_status">Stato doc.</label>
+                        <select id="doc_status" name="doc_status">
+                            <option value="">Tutti</option>
+                            <option value="imported" {% if filters.doc_status == 'imported' %}selected{% endif %}>Importata</option>
+                            <option value="confirmed" {% if filters.doc_status == 'confirmed' %}selected{% endif %}>Confermata</option>
+                            <option value="rejected" {% if filters.doc_status == 'rejected' %}selected{% endif %}>Scartata</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="physical_copy_status">Copia fisica</label>
+                        <select id="physical_copy_status" name="physical_copy_status">
+                            <option value="">Tutti</option>
+                            <option value="missing" {% if filters.physical_copy_status == 'missing' %}selected{% endif %}>Mancante</option>
+                            <option value="requested" {% if filters.physical_copy_status == 'requested' %}selected{% endif %}>Richiesta</option>
+                            <option value="received" {% if filters.physical_copy_status == 'received' %}selected{% endif %}>Ricevuta</option>
+                            <option value="attached" {% if filters.physical_copy_status == 'attached' %}selected{% endif %}>Allegata</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="payment_status">Pagamento</label>
+                        <select id="payment_status" name="payment_status">
+                            <option value="">Tutti</option>
+                            <option value="unpaid" {% if filters.payment_status == 'unpaid' %}selected{% endif %}>Non pagata</option>
+                            <option value="partial" {% if filters.payment_status == 'partial' %}selected{% endif %}>Parziale</option>
+                            <option value="paid" {% if filters.payment_status == 'paid' %}selected{% endif %}>Pagata</option>
+                            <option value="overdue" {% if filters.payment_status == 'overdue' %}selected{% endif %}>Scaduta</option>
+                        </select>
+                    </div>
+
+                    <!-- RIGA 3: Importi -->
+                    <div class="filter-group">
+                        <label for="min_total">Importo min</label>
+                        <input type="number" step="0.01" id="min_total" name="min_total"
+                               value="{{ filters.min_total if filters.min_total is not none }}"
+                               placeholder="0.00">
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="max_total">Importo max</label>
+                        <input type="number" step="0.01" id="max_total" name="max_total"
+                               value="{{ filters.max_total if filters.max_total is not none }}"
+                               placeholder="0.00">
+                    </div>
+                </div>
+
+                <!-- BOTTONI AZIONE -->
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">✓ Applica filtri</button>
+                    <a href="{{ url_for('invoices.list_view') }}" class="btn-secondary">↺ Reset</a>
+                </div>
+            </form>
+        </section>
+    </aside>
+
+    <!-- CONTENUTO PRINCIPALE: TABELLA FATTURE -->
+    <main class="main-content">
+        <section class="panel">
+            <div class="panel-header">
+                <h2>Elenco fatture</h2>
+                <span class="badge">{{ invoices|length }} risultati</span>
+            </div>
+
+            <div class="table-wrapper">
+                <table class="table table-striped table-hover">
+                    <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Data</th>
+                        <th>Numero</th>
+                        <th>Fornitore</th>
+                        <th>Intestatario</th>
+                        <th class="text-right">Totale lordo</th>
+                        <th>Stato doc.</th>
+                        <th>Copia fisica</th>
+                        <th>Stato pagamento</th>
+                        <th>Scadenza</th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for inv in invoices %}
+                      <tr>
+                          <td>{{ inv.id }}</td>
+                          <td>{{ inv.document_date.strftime('%d/%m/%Y') if inv.document_date else '-' }}</td>
+                          <td>{{ inv.document_number }}</td>
+                          <td>
+                              <strong>{{ inv.supplier.name if inv.supplier else '-' }}</strong>
+                          </td>
+                          <td>
+                              {{ inv.legal_entity.name if inv.legal_entity else '-' }}
+                              {% if inv.legal_entity %}
+                                <div class="text-muted small">{{ inv.legal_entity.vat_number }}</div>
                               {% endif %}
-                          </span>
-                      </span>
-                  </td>
-                  <td>-</td>
-                  <td>
-                      {{ inv.due_date.strftime('%d/%m/%Y') if inv.due_date }}
-                  </td>
-                  <td>
-                      <a href="{{ url_for('invoices.detail_view', invoice_id=inv.id) }}"
-                         class="btn-link">Dettaglio</a>
-                  </td>
-              </tr>
-            {% else %}
-              <tr>
-                  <td colspan="11" class="text-center">
-                      Nessuna fattura trovata con i filtri correnti.
-                  </td>
-              </tr>
-            {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</section>
+                          </td>
+                          <td class="text-right">
+                              <strong>€ {{ "%.2f"|format(inv.total_gross_amount or 0) }}</strong>
+                          </td>
+                          <td>
+                              <span class="badge badge-{{ 'warning' if inv.doc_status == 'imported' else 'success' if inv.doc_status == 'confirmed' else 'danger' }}">
+                                  {{ inv.doc_status }}
+                              </span>
+                          </td>
+                          <td>
+                              <span class="badge badge-{{ 'danger' if inv.physical_copy_status == 'missing' else 'warning' if inv.physical_copy_status == 'requested' else 'success' }}">
+                                  {{ inv.physical_copy_status or 'N/A' }}
+                              </span>
+                          </td>
+                          <td>
+                              <span class="badge badge-{{ 'danger' if inv.payment_status == 'unpaid' or inv.payment_status == 'overdue' else 'warning' if inv.payment_status == 'partial' else 'success' }}">
+                                  {{ inv.payment_status or 'N/A' }}
+                              </span>
+                          </td>
+                          <td>{{ inv.due_date.strftime('%d/%m/%Y') if inv.due_date else '-' }}</td>
+                          <td>
+                              <a href="{{ url_for('invoices.detail_view', invoice_id=inv.id) }}"
+                                 class="btn-link">Dettaglio →</a>
+                          </td>
+                      </tr>
+                    {% else %}
+                      <tr>
+                          <td colspan="11" class="text-center text-muted">
+                              Nessuna fattura trovata con i filtri selezionati.
+                          </td>
+                      </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+</div>
+
+<style>
+/* ==========================================================================
+   LAYOUT A DUE COLONNE: SIDEBAR + CONTENUTO
+   ========================================================================== */
+.layout-two-column {
+    display: flex;
+    gap: 1.5rem;
+    align-items: flex-start;
+}
+
+.sidebar-filters {
+    flex: 0 0 400px; /* Larghezza fissa sidebar */
+    position: sticky;
+    top: 1rem;
+}
+
+.main-content {
+    flex: 1;
+    min-width: 0; /* Fix overflow in flexbox */
+}
+
+/* ==========================================================================
+   GRIGLIA FILTRI ORIZZONTALE (RESPONSIVE GRID)
+   ========================================================================== */
+.filters-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr); /* 2 colonne di default */
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.filter-group label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #555;
+    margin: 0;
+}
+
+.filter-group input,
+.filter-group select {
+    width: 100%;
+    padding: 0.5rem;
+    font-size: 0.9rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fff;
+    transition: border-color 0.2s;
+}
+
+.filter-group input:focus,
+.filter-group select:focus {
+    outline: none;
+    border-color: #4a90e2;
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+}
+
+/* Bottoni azione filtri */
+.form-actions {
+    display: flex;
+    gap: 0.75rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid #eee;
+}
+
+.form-actions .btn-primary,
+.form-actions .btn-secondary {
+    flex: 1;
+}
+
+/* ==========================================================================
+   HEADER PANEL CON BADGE
+   ========================================================================== */
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.panel-header h2 {
+    margin: 0;
+    font-size: 1.3rem;
+}
+
+.panel-header .badge {
+    background: #4a90e2;
+    color: white;
+    padding: 0.4rem 0.8rem;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+/* ==========================================================================
+   BADGE COLORATI PER STATO
+   ========================================================================== */
+.badge {
+    display: inline-block;
+    padding: 0.3rem 0.6rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border-radius: 4px;
+    text-transform: capitalize;
+}
+
+.badge-success {
+    background: #d4edda;
+    color: #155724;
+}
+
+.badge-warning {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.badge-danger {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+/* ==========================================================================
+   RESPONSIVE: TABLET E MOBILE
+   ========================================================================== */
+@media (max-width: 1024px) {
+    .layout-two-column {
+        flex-direction: column;
+    }
+
+    .sidebar-filters {
+        flex: 1;
+        width: 100%;
+        position: static;
+    }
+}
+
+@media (max-width: 768px) {
+    .filters-grid {
+        grid-template-columns: 1fr; /* 1 colonna su mobile */
+    }
+
+    .table-wrapper {
+        overflow-x: auto;
+    }
+
+    table {
+        min-width: 900px; /* Forza scroll orizzontale su mobile */
+    }
+}
+</style>
+
+<script src="{{ url_for('static', filename='js/invoices_list.js') }}"></script>
 {% endblock %}

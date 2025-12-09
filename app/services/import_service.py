@@ -3,13 +3,17 @@ Servizio di import delle fatture elettroniche XML (FatturaPA).
 
 Funzione principale:
 - run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = None) -> dict
+
+Supporta:
+- File .xml nativi
+- File .p7m (firme digitali PKCS#7)
 """
 
 from __future__ import annotations
 
 import hashlib
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from datetime import datetime
 
@@ -19,7 +23,7 @@ from flask import current_app
 
 from app.extensions import db
 from app.models import Invoice, LegalEntity
-from app.parsers.fatturapa_parser import InvoiceDTO, parse_invoice_xml
+from app.parsers.fatturapa_parser import InvoiceDTO, parse_invoice_xml, P7MExtractionError
 from app.repositories.import_log_repo import create_import_log
 from app.repositories.invoice_repo import (
     create_invoice_with_details,
@@ -31,10 +35,14 @@ from app.services.logging import log_structured_event
 
 def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = None) -> Dict:
     """
-    Esegue l'import delle fatture XML da una cartella.
+    Esegue l'import delle fatture XML/P7M da una cartella.
 
     Gestisce transazioni per singolo file per evitare che un errore su un file
     blocchi l'intero batch.
+    
+    Supporta:
+    - File .xml
+    - File .p7m (firma digitale)
     """
     app = current_app._get_current_object()
     logger = app.logger
@@ -43,7 +51,12 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
     if not import_folder.exists():
         import_folder.mkdir(parents=True, exist_ok=True)
 
-    xml_files: List[Path] = sorted(import_folder.glob("*.xml"))
+    # Cerca sia .xml che .p7m
+    xml_files: List[Path] = sorted(
+        list(import_folder.glob("*.xml")) + 
+        list(import_folder.glob("*.p7m")) +
+        list(import_folder.glob("*.P7M"))
+    )
 
     summary = {
         "folder": str(import_folder),
@@ -73,71 +86,52 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
             # Calcoliamo l'hash del file per deduplicazione
             if not invoice_dto.file_hash:
                 invoice_dto.file_hash = _compute_file_hash(xml_path)
+        except P7MExtractionError as exc:
+            # Errore specifico per P7M
+            _log_error_p7m(logger, file_name, exc, summary, str(import_folder))
+            continue
         except Exception as exc:
             _log_error_parsing(logger, file_name, exc, summary, str(import_folder))
             continue
 
+        # A questo punto abbiamo un DTO valido
         try:
-            header_data = _extract_header_data(xml_path)
-            legal_entity = _get_or_create_legal_entity(header_data)
-            invoice_legal_entity_id = legal_entity_id or legal_entity.id
-            if invoice_legal_entity_id is None:
-                raise ValueError(
-                    "Impossibile determinare il legal_entity_id dal file XML e nessun valore fornito"
-                )
+            db.session.begin_nested()
 
-            if not hasattr(invoice_dto, "header") or invoice_dto.header is None:
-                invoice_dto.header = {}
-            invoice_dto.header["legal_entity_id"] = invoice_legal_entity_id
+            # Estrai header_data per legal_entity
+            header_data = _extract_header_data(xml_path)
+            
+            # Se non specificato esplicitamente, cerca di recuperare dall'XML
+            if legal_entity_id is None:
+                legal_entity = _get_or_create_legal_entity(header_data)
+                legal_entity_id = legal_entity.id
 
             supplier = get_or_create_supplier_from_dto(invoice_dto.supplier)
-            if supplier.id is None:
-                raise ValueError(f"ID fornitore nullo per {supplier.name}")
+            supplier_id = supplier.id
 
-            invoice, created = _create_invoice_tree(
-                invoice_dto,
-                supplier.id,
-                invoice_legal_entity_id,
-                str(import_folder),
-            )
-
-            if not created:
-                _log_skip(logger, file_name, invoice.id, summary, reason="Duplicato per file_name/file_hash")
-                _safe_log_import(
-                    file_name=file_name,
-                    status="skipped",
-                    message="Fattura già presente (nome/hash)",
-                    invoice_id=invoice.id,
-                    folder=str(import_folder),
-                    file_hash=invoice_dto.file_hash,
-                )
-                continue
-
-            create_import_log(
-                file_name=file_name,
-                file_hash=invoice_dto.file_hash,
+            invoice = _create_invoice_and_details(
+                invoice_dto=invoice_dto,
+                supplier_id=supplier_id,
+                legal_entity_id=legal_entity_id,
                 import_source=str(import_folder),
-                status="success",
-                message="Import completato con successo",
-                document_id=invoice.id,
             )
 
             db.session.commit()
-            log_structured_event(
-                "import_invoice_success",
-                invoice_id=invoice.id,
-                supplier_id=supplier.id,
-                file_name=file_name,
-                import_source=str(import_folder),
-            )
-            _log_success(logger, file_name, invoice.id, supplier.id, summary)
 
-        except Exception as exc:  # noqa: BLE001
+            _log_success(
+                logger,
+                file_name,
+                invoice.id,
+                supplier_id,
+                summary,
+            )
+
+        except Exception as exc:
             db.session.rollback()
-            _log_error_db(logger, file_name, exc, summary, str(import_folder), invoice_dto)
+            _log_error_db(logger, file_name, exc, summary)
 
     log_structured_event(
-        "run_import_completed",
+        action="run_import_completed",
         folder=str(import_folder),
         total_files=summary["total_files"],
         imported=summary["imported"],
@@ -148,10 +142,15 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
     return summary
 
 
-def _create_invoice_tree(
-    invoice_dto: InvoiceDTO, supplier_id: int, legal_entity_id: int, import_source: str
-) -> Tuple[Invoice, bool]:
-    """Wrapper per creare fattura + dettagli usando il repository centralizzato."""
+def _create_invoice_and_details(
+    invoice_dto: InvoiceDTO,
+    supplier_id: int,
+    legal_entity_id: int,
+    import_source: str,
+) -> Invoice:
+    """
+    Crea l'Invoice con tutte le relazioni collegate.
+    """
     return create_invoice_with_details(
         invoice_dto=invoice_dto,
         supplier_id=supplier_id,
@@ -161,7 +160,11 @@ def _create_invoice_tree(
 
 
 def _extract_header_data(xml_path: Path) -> Dict:
-    """Estrae i dati del cessionario/committente dall'XML."""
+    """
+    Estrae i dati del cessionario/committente dall'XML.
+    
+    Supporta sia file XML che P7M.
+    """
 
     def _first(node, xpath: str):
         result = node.xpath(xpath)
@@ -177,7 +180,24 @@ def _extract_header_data(xml_path: Path) -> Dict:
     header_data: Dict[str, Dict[str, Optional[str]]] = {}
 
     try:
-        tree = etree.parse(str(xml_path))
+        # Gestione P7M
+        if xml_path.suffix.lower() in ['.p7m']:
+            from app.parsers.fatturapa_parser import _extract_xml_from_p7m
+            import tempfile
+            
+            xml_content = _extract_xml_from_p7m(xml_path)
+            with tempfile.NamedTemporaryFile(mode='wb', suffix='.xml', delete=False) as tmp:
+                tmp.write(xml_content)
+                tmp_path = tmp.name
+            
+            try:
+                tree = etree.parse(tmp_path)
+            finally:
+                Path(tmp_path).unlink(missing_ok=True)
+        else:
+            # File XML normale
+            tree = etree.parse(str(xml_path))
+        
         root = tree.getroot()
     except Exception:
         return header_data
@@ -215,7 +235,6 @@ def _extract_header_data(xml_path: Path) -> Dict:
 
 def _get_or_create_legal_entity(header_data: Dict) -> LegalEntity:
     """Recupera o crea la LegalEntity in base ai dati di cessionario/committente."""
-
     cessionario = (header_data or {}).get("cessionario_committente") or {}
     vat_number = cessionario.get("vat_number") or cessionario.get("fiscal_code")
 
@@ -302,99 +321,81 @@ def _log_error_parsing(logger, file_name, exc, summary, folder):
     """Gestisce il log per errori di parsing XML (prima del DB)."""
     logger.error(
         "Errore di parsing FatturaPA.",
-        exc_info=True,
-        extra={"component": "import_service", "file_name": file_name, "status": "error"},
+        exc_info=exc,
+        extra={
+            "component": "import_service",
+            "file_name": file_name,
+            "status": "error",
+        },
     )
-
-    try:
-        _safe_log_import(
-            file_name=file_name,
-            status="error",
-            message=str(exc),
-            invoice_id=None,
-            folder=folder,
-        )
-    except Exception:
-        db.session.rollback()
-
     summary["errors"] += 1
     summary["details"].append(
         {
             "file_name": file_name,
             "status": "error",
-            "message": str(exc),
-            "invoice_id": None,
+            "message": f"Parsing error: {exc}",
         }
+    )
+    create_import_log(
+        file_name=file_name,
+        import_source=folder,
+        status="error",
+        message=f"Parsing error: {exc}",
     )
 
 
-def _log_error_db(logger, file_name, exc, summary, folder, dto: Optional[InvoiceDTO]):
-    """Gestisce il log per errori durante la transazione DB."""
+def _log_error_p7m(logger, file_name, exc, summary, folder):
+    """Gestisce il log per errori di estrazione P7M."""
     logger.error(
-        "Errore durante import DB.",
-        exc_info=True,
-        extra={"component": "import_service", "file_name": file_name, "status": "error"},
+        "Errore estrazione XML da file P7M.",
+        exc_info=exc,
+        extra={
+            "component": "import_service",
+            "file_name": file_name,
+            "status": "error",
+        },
     )
-
-    try:
-        _safe_log_import(
-            file_name=file_name,
-            status="error",
-            message=str(exc),
-            invoice_id=None,
-            folder=folder,
-            file_hash=dto.file_hash if dto else None,
-        )
-    except Exception:
-        db.session.rollback()
-
     summary["errors"] += 1
     summary["details"].append(
         {
             "file_name": file_name,
             "status": "error",
-            "message": str(exc),
-            "invoice_id": None,
+            "message": f"Estrazione P7M fallita: {exc}",
         }
+    )
+    create_import_log(
+        file_name=file_name,
+        import_source=folder,
+        status="error",
+        message=f"P7M extraction error: {exc}",
     )
 
 
-# =========================
-#  Persistenza Log Import
-# =========================
+def _log_error_db(logger, file_name, exc, summary):
+    """Gestisce il log per errori DB (durante il commit)."""
+    logger.error(
+        "Errore durante il commit.",
+        exc_info=exc,
+        extra={
+            "component": "import_service",
+            "file_name": file_name,
+            "status": "error",
+        },
+    )
+    summary["errors"] += 1
+    summary["details"].append(
+        {
+            "file_name": file_name,
+            "status": "error",
+            "message": f"DB error: {exc}",
+        }
+    )
 
 
 def _compute_file_hash(file_path: Path) -> str:
-    """
-    Calcola l'hash SHA256 di un file.
-
-    Restituisce l'hash in formato esadecimale.
-    """
+    """Calcola l'hash SHA-256 del file per deduplicazione."""
     sha256 = hashlib.sha256()
-    with open(file_path, 'rb') as f:
-        for chunk in iter(lambda: f.read(8192), b''):
+    with open(file_path, "rb") as f:
+        while chunk := f.read(8192):
             sha256.update(chunk)
     return sha256.hexdigest()
-
-
-def _safe_log_import(
-    *,
-    file_name: str,
-    status: str,
-    message: str,
-    document_id: Optional[int] = None,
-    invoice_id: Optional[int] = None,  # Backward compat - will use document_id if provided
-    folder: Optional[str] = None,
-    file_hash: Optional[str] = None,
-) -> None:
-    """Crea un record di import_log con gestione errori sicura."""
-    # Use document_id if provided, otherwise fall back to invoice_id for backward compat
-    doc_id = document_id if document_id is not None else invoice_id
-    create_import_log(
-        file_name=file_name,
-        file_hash=file_hash,
-        import_source=folder,
-        status=status,
-        message=message,
-        document_id=doc_id,
-    )
