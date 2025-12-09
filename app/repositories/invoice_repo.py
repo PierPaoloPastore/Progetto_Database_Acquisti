@@ -246,6 +246,7 @@ def create_invoice(**kwargs) -> Invoice:
     kwargs.pop("accounting_year", None)
     kwargs.pop("currency", None)
     kwargs.pop("payment_status", None)
+    kwargs.pop("file_hash", None)
 
     invoice = Invoice(**kwargs)
     db.session.add(invoice)
@@ -302,7 +303,6 @@ def create_invoice_with_details(
         "doc_status": invoice_dto.doc_status,
         "due_date": invoice_dto.due_date,
         "file_name": invoice_dto.file_name,
-        "file_hash": invoice_dto.file_hash,
         "import_source": import_source,
     }
 
