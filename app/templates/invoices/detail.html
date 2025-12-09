@@ -3,218 +3,265 @@
 {% block title %}Fattura #{{ invoice.id }} - Gestionale Acquisti{% endblock %}
 
 {% block content %}
-<h1>Dettaglio fattura #{{ invoice.id }}</h1>
+<div class="page-header">
+    <h1>Fattura #{{ invoice.id }}</h1>
+    <div class="page-actions">
+        <a href="{{ url_for('invoices.list_view') }}" class="btn-secondary">← Torna all'elenco</a>
+    </div>
+</div>
 
+<!-- ALERT REVISIONE (se imported) -->
 {% if invoice.doc_status == 'imported' %}
-<section class="panel">
-    <h2>Revisione fattura importata</h2>
-    <p>Conferma o scarta rapidamente la fattura importata.</p>
-    <div class="form-actions">
-        <form method="post" class="form-inline"
-              action="{{ url_for('invoices.confirm_invoice', invoice_id=invoice.id, order=request.args.get('order', 'desc')) }}">
-            <button type="submit" class="btn-primary">Conferma fattura</button>
+<div class="alert alert-warning">
+    <strong>⚠️ Revisione richiesta</strong>
+    <p>Questa fattura è stata importata ma non ancora confermata.</p>
+    <div class="alert-actions">
+        <form method="post" style="display:inline;"
+              action="{{ url_for('invoices.confirm_invoice', invoice_id=invoice.id) }}">
+            <button type="submit" class="btn-primary btn-sm">✓ Conferma</button>
         </form>
-        <form method="post" class="form-inline"
-              action="{{ url_for('invoices.reject_invoice', invoice_id=invoice.id, order=request.args.get('order', 'desc')) }}"
-              onsubmit="return confirm('Sei sicuro di scartare questa fattura?');">
-            <button type="submit" class="btn-secondary">Scarta fattura</button>
+        <form method="post" style="display:inline;"
+              action="{{ url_for('invoices.reject_invoice', invoice_id=invoice.id) }}"
+              onsubmit="return confirm('Scartare questa fattura?');">
+            <button type="submit" class="btn-secondary btn-sm">✗ Scarta</button>
         </form>
     </div>
-</section>
+</div>
 {% endif %}
 
-<section class="panel">
-    <h2>Dati fattura</h2>
-    <div class="two-columns">
-        <div>
-            <p><strong>Numero:</strong> {{ invoice.document_number }}</p>
-            <p><strong>Data fattura:</strong>
-                {{ invoice.document_date.strftime('%d/%m/%Y') if invoice.document_date }}</p>
-            <p><strong>Data registrazione:</strong>
-                {{ invoice.registration_date.strftime('%d/%m/%Y') if invoice.registration_date }}</p>
-            <p><strong>Intestatario:</strong>
-                {% if invoice.legal_entity %}
-                  {{ invoice.legal_entity.name }} - {{ invoice.legal_entity.vat_number }}
-                {% else %}
-                  -
-                {% endif %}
-            </p>
-            <p><strong>Anno contabile:</strong> {{ invoice.document_date.year if invoice.document_date else '-' }}</p>
-            <p><strong>File XML:</strong> {{ invoice.file_name }}</p>
+<!-- GRID CARDS: Dati Principali -->
+<div class="cards-grid cards-2col">
+    <!-- CARD: Dati Documento -->
+    <div class="card">
+        <div class="card-header">
+            <h3>📄 Dati Documento</h3>
         </div>
-        <div>
-            <p><strong>Totale imponibile:</strong>
-                {{ "%.2f"|format(invoice.total_taxable_amount or 0) }} EUR</p>
-            <p><strong>Totale IVA:</strong>
-                {{ "%.2f"|format(invoice.total_vat_amount or 0) }} EUR</p>
-            <p><strong>Totale lordo:</strong>
-                {{ "%.2f"|format(invoice.total_gross_amount or 0) }} EUR</p>
-            <p><strong>Scadenza principale:</strong>
-                {{ invoice.due_date.strftime('%d/%m/%Y') if invoice.due_date }}</p>
+        <div class="card-body">
+            <div class="data-row">
+                <span class="label">Numero:</span>
+                <span class="value">{{ invoice.document_number }}</span>
+            </div>
+            <div class="data-row">
+                <span class="label">Data fattura:</span>
+                <span class="value">{{ invoice.document_date.strftime('%d/%m/%Y') if invoice.document_date else '-' }}</span>
+            </div>
+            <div class="data-row">
+                <span class="label">Registrazione:</span>
+                <span class="value">{{ invoice.registration_date.strftime('%d/%m/%Y') if invoice.registration_date else '-' }}</span>
+            </div>
+            <div class="data-row">
+                <span class="label">Scadenza:</span>
+                <span class="value">{{ invoice.due_date.strftime('%d/%m/%Y') if invoice.due_date else '-' }}</span>
+            </div>
+            <div class="data-row">
+                <span class="label">Anno contabile:</span>
+                <span class="value">{{ invoice.document_date.year if invoice.document_date else '-' }}</span>
+            </div>
+            <div class="data-row">
+                <span class="label">File XML:</span>
+                <span class="value text-muted small">{{ invoice.file_name }}</span>
+            </div>
         </div>
     </div>
-</section>
 
-<section class="panel">
-    <h2>Fornitore</h2>
-    {% if supplier %}
-      <p><strong>Nome:</strong> {{ supplier.name }}</p>
-      <p><strong>P.IVA:</strong> {{ supplier.vat_number }}</p>
-      <p><strong>CF:</strong> {{ supplier.fiscal_code }}</p>
-      <p><strong>Indirizzo:</strong>
-          {{ supplier.address }},
-          {{ supplier.postal_code }} {{ supplier.city }} ({{ supplier.province }})</p>
-      <p><strong>PEC:</strong> {{ supplier.pec_email }}</p>
-      <p><a href="{{ url_for('suppliers.detail_view', supplier_id=supplier.id) }}"
-            class="btn-link">Vai al fornitore</a></p>
-    {% else %}
-      <p>Nessun fornitore collegato.</p>
-    {% endif %}
-</section>
-
-<section class="panel">
-    <h2>Stato documento</h2>
-    <form method="post" action="{{ url_for('invoices.update_status_view', invoice_id=invoice.id) }}"
-          class="form-inline" id="invoice-status-form">
-        <div class="form-row">
-            <label for="doc_status">Stato documento</label>
-            <select id="doc_status" name="doc_status">
-                {% for status in [
-                    "imported",
-                    "pending_physical_copy",
-                    "verified",
-                    "rejected",
-                    "archived",
-                ] %}
-                  <option value="{{ status }}"
-                    {% if invoice.doc_status == status %}selected{% endif %}>
-                    {{ status }}
-                  </option>
-                {% endfor %}
-            </select>
+    <!-- CARD: Totali -->
+    <div class="card">
+        <div class="card-header">
+            <h3>💰 Importi</h3>
         </div>
-        <!-- payment_status è deprecato in v3: lo stato pagamento si deduce dai Payment associati -->
-        <div class="form-row">
-            <label for="due_date">Scadenza principale</label>
-            <input type="date" id="due_date" name="due_date"
-                   value="{{ invoice.due_date.strftime('%Y-%m-%d') if invoice.due_date }}">
+        <div class="card-body">
+            <div class="data-row">
+                <span class="label">Imponibile:</span>
+                <span class="value">€ {{ "%.2f"|format(invoice.total_taxable_amount or 0) }}</span>
+            </div>
+            <div class="data-row">
+                <span class="label">IVA:</span>
+                <span class="value">€ {{ "%.2f"|format(invoice.total_vat_amount or 0) }}</span>
+            </div>
+            <div class="data-row highlight">
+                <span class="label">Totale lordo:</span>
+                <span class="value text-bold text-large">€ {{ "%.2f"|format(invoice.total_gross_amount or 0) }}</span>
+            </div>
         </div>
+    </div>
 
-        <div class="form-actions">
-            <button type="button" class="btn-secondary" data-doc-status="verified">
-                Conferma
-            </button>
-            <button type="button" class="btn-secondary" data-doc-status="rejected">
-                Scarta
-            </button>
-            <button type="submit" class="btn-primary">Aggiorna stato</button>
-            {% if not invoice.physical_copy_file_path %}
-                <a href="{{ url_for('invoices.attach_scan_view', invoice_id=invoice.id) }}"
-                   class="btn btn-primary">
-                    Collega scansione
-                </a>
+    <!-- CARD: Fornitore -->
+    <div class="card">
+        <div class="card-header">
+            <h3>🏢 Fornitore</h3>
+        </div>
+        <div class="card-body">
+            {% if supplier %}
+            <div class="data-row">
+                <span class="label">Nome:</span>
+                <span class="value">{{ supplier.name }}</span>
+            </div>
+            <div class="data-row">
+                <span class="label">P.IVA:</span>
+                <span class="value">{{ supplier.vat_number }}</span>
+            </div>
+            <div class="data-row">
+                <span class="label">CF:</span>
+                <span class="value">{{ supplier.fiscal_code or '-' }}</span>
+            </div>
+            <div class="data-row">
+                <span class="label">Indirizzo:</span>
+                <span class="value">{{ supplier.address }}, {{ supplier.postal_code }} {{ supplier.city }} ({{ supplier.province }})</span>
+            </div>
+            <div class="data-row">
+                <span class="label">PEC:</span>
+                <span class="value">{{ supplier.pec_email or '-' }}</span>
+            </div>
+            <a href="{{ url_for('suppliers.detail_view', supplier_id=supplier.id) }}"
+               class="btn-link btn-sm">→ Vai al fornitore</a>
+            {% else %}
+            <p class="text-muted">Nessun fornitore collegato</p>
             {% endif %}
         </div>
-    </form>
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const form = document.getElementById('invoice-status-form');
-            const docStatusSelect = document.getElementById('doc_status');
-            const quickButtons = document.querySelectorAll('[data-doc-status]');
+    </div>
 
-            quickButtons.forEach(function (button) {
-                button.addEventListener('click', function () {
-                    const targetStatus = this.dataset.docStatus;
-                    if (targetStatus) {
-                        docStatusSelect.value = targetStatus;
-                        form.submit();
-                    }
-                });
-            });
-        });
-    </script>
-</section>
-
-<section class="panel">
-    <h2>Copia fisica</h2>
-    {% set physical_status = invoice.physical_copy_status or 'missing' %}
-    {% set badge_class = {
-        'missing': 'status-badge status-missing',
-        'requested': 'status-badge status-requested',
-        'received': 'status-badge status-received'
-    }.get(physical_status, 'status-badge') %}
-    <div class="form-row">
-        <strong>Stato copia:</strong>
-        <span class="{{ badge_class }}">
-            <span class="status-dot"></span>
-            <span class="status-label">
-                {% if physical_status == 'requested' %}
-                    Richiesta
-                {% elif physical_status == 'received' %}
-                    Ricevuta
-                {% else %}
-                    Mancante
-                {% endif %}
-            </span>
-        </span>
-    </div>
-    <div class="form-row">
-        {% if invoice.physical_copy_requested_at %}
-            <div>Richiesta il: {{ invoice.physical_copy_requested_at }}</div>
-        {% endif %}
-        {% if invoice.physical_copy_received_at %}
-            <div>Ricevuta il: {{ invoice.physical_copy_received_at }}</div>
-        {% endif %}
-        {% if invoice.physical_copy_file_path %}
-            <div>Percorso file: {{ invoice.physical_copy_file_path }}</div>
-        {% endif %}
-    </div>
-    <div class="form-actions">
-        {% if physical_status in ['missing'] %}
-            <form method="post"
-                  action="{{ url_for('invoices.request_physical_copy', invoice_id=invoice.id) }}">
-                <button type="submit" class="btn-secondary">Richiedi copia fisica</button>
-            </form>
-        {% endif %}
-        {% if physical_status in ['missing', 'requested'] %}
-            <form method="post"
-                  action="{{ url_for('invoices.mark_physical_copy_received', invoice_id=invoice.id) }}"
-                  onsubmit="return confirm('Confermi la ricezione della copia fisica?');">
-                <button type="submit" class="btn-primary">Segna copia ricevuta</button>
-            </form>
-        {% endif %}
-    </div>
-    {% if physical_status != 'received' %}
-        <form method="post" enctype="multipart/form-data"
-              action="{{ url_for('invoices.upload_physical_copy', invoice_id=invoice.id) }}"
-              class="form-inline">
-            <div class="form-row">
-                <label for="physical_copy_file">Carica scansione</label>
-                <input type="file" id="physical_copy_file" name="file" required>
+    <!-- CARD: Intestatario -->
+    <div class="card">
+        <div class="card-header">
+            <h3>🏛️ Intestatario</h3>
+        </div>
+        <div class="card-body">
+            {% if invoice.legal_entity %}
+            <div class="data-row">
+                <span class="label">Nome:</span>
+                <span class="value">{{ invoice.legal_entity.name }}</span>
             </div>
+            <div class="data-row">
+                <span class="label">P.IVA:</span>
+                <span class="value">{{ invoice.legal_entity.vat_number }}</span>
+            </div>
+            <div class="data-row">
+                <span class="label">CF:</span>
+                <span class="value">{{ invoice.legal_entity.fiscal_code or '-' }}</span>
+            </div>
+            {% else %}
+            <p class="text-muted">Nessun intestatario</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- GRID CARDS: Stato + Copia Fisica -->
+<div class="cards-grid cards-2col">
+    <!-- CARD: Stato Documento -->
+    <div class="card">
+        <div class="card-header">
+            <h3>📋 Stato Documento</h3>
+        </div>
+        <div class="card-body">
+            <form method="post" action="{{ url_for('invoices.update_status_view', invoice_id=invoice.id) }}"
+                  id="invoice-status-form">
+                <div class="form-group">
+                    <label for="doc_status">Stato</label>
+                    <select id="doc_status" name="doc_status" class="form-control">
+                        <option value="imported"{% if invoice.doc_status == 'imported' %} selected{% endif %}>Importata</option>
+                        <option value="pending_physical_copy"{% if invoice.doc_status == 'pending_physical_copy' %} selected{% endif %}>In attesa copia</option>
+                        <option value="verified"{% if invoice.doc_status == 'verified' %} selected{% endif %}>Verificata</option>
+                        <option value="rejected"{% if invoice.doc_status == 'rejected' %} selected{% endif %}>Scartata</option>
+                        <option value="archived"{% if invoice.doc_status == 'archived' %} selected{% endif %}>Archiviata</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="due_date">Scadenza principale</label>
+                    <input type="date" id="due_date" name="due_date" class="form-control"
+                           value="{{ invoice.due_date.strftime('%Y-%m-%d') if invoice.due_date }}">
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">Aggiorna</button>
+                    {% if not invoice.physical_copy_file_path %}
+                        <a href="{{ url_for('invoices.attach_scan_view', invoice_id=invoice.id) }}"
+                           class="btn-secondary btn-sm">Collega scansione</a>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- CARD: Copia Fisica -->
+    <div class="card">
+        <div class="card-header">
+            <h3>📎 Copia Fisica</h3>
+        </div>
+        <div class="card-body">
+            {% set physical_status = invoice.physical_copy_status or 'missing' %}
+            <div class="data-row">
+                <span class="label">Stato:</span>
+                <span class="status-badge status-{{ physical_status }}">
+                    <span class="status-dot"></span>
+                    {{ physical_status }}
+                </span>
+            </div>
+            {% if invoice.physical_copy_requested_at %}
+            <div class="data-row">
+                <span class="label">Richiesta il:</span>
+                <span class="value">{{ invoice.physical_copy_requested_at.strftime('%d/%m/%Y %H:%M') }}</span>
+            </div>
+            {% endif %}
+            {% if invoice.physical_copy_received_at %}
+            <div class="data-row">
+                <span class="label">Ricevuta il:</span>
+                <span class="value">{{ invoice.physical_copy_received_at.strftime('%d/%m/%Y %H:%M') }}</span>
+            </div>
+            {% endif %}
+            {% if invoice.physical_copy_file_path %}
+            <div class="data-row">
+                <span class="label">File:</span>
+                <span class="value text-muted small">{{ invoice.physical_copy_file_path }}</span>
+            </div>
+            {% endif %}
+
             <div class="form-actions">
-                <button type="submit" class="btn-primary">Carica scansione</button>
+                {% if physical_status == 'missing' %}
+                    <form method="post" action="{{ url_for('invoices.request_physical_copy', invoice_id=invoice.id) }}">
+                        <button type="submit" class="btn-secondary btn-sm">Richiedi copia</button>
+                    </form>
+                {% endif %}
+                {% if physical_status in ['missing', 'requested'] %}
+                    <form method="post"
+                          action="{{ url_for('invoices.mark_physical_copy_received', invoice_id=invoice.id) }}"
+                          onsubmit="return confirm('Confermi ricezione copia fisica?');">
+                        <button type="submit" class="btn-primary btn-sm">Segna ricevuta</button>
+                    </form>
+                {% endif %}
             </div>
-        </form>
-    {% endif %}
-</section>
 
+            {% if physical_status != 'received' %}
+            <form method="post" enctype="multipart/form-data"
+                  action="{{ url_for('invoices.upload_physical_copy', invoice_id=invoice.id) }}"
+                  class="upload-form">
+                <div class="form-group">
+                    <label for="physical_copy_file">Carica scansione</label>
+                    <input type="file" id="physical_copy_file" name="file" class="form-control" required>
+                </div>
+                <button type="submit" class="btn-primary btn-sm">Upload</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- SEZIONE: Righe Fattura -->
 <section class="panel">
-    <h2>Righe fattura</h2>
-    <p>
+    <div class="panel-header">
+        <h2>📦 Righe Fattura</h2>
         <a href="{{ url_for('categories.bulk_assign_view', invoice_id=invoice.id) }}"
-           class="btn-secondary">Assegna categorie (bulk)</a>
-    </p>
+           class="btn-secondary btn-sm">Assegna categorie</a>
+    </div>
     <div class="table-wrapper">
-        <table class="table table-compact table-striped">
+        <table class="table-compact">
             <thead>
             <tr>
                 <th>#</th>
                 <th>Descrizione</th>
-                <th>Q.tà</th>
-                <th>Prezzo unit.</th>
-                <th>Aliquota IVA</th>
-                <th>Totale riga</th>
+                <th class="text-right">Q.tà</th>
+                <th class="text-right">Prezzo</th>
+                <th class="text-right">IVA</th>
+                <th class="text-right">Totale</th>
                 <th>Categoria</th>
             </tr>
             </thead>
@@ -222,16 +269,16 @@
             {% for line in lines %}
               <tr>
                   <td>{{ line.line_number }}</td>
-                  <td>{{ line.description }}</td>
+                  <td class="text-truncate" title="{{ line.description }}">{{ line.description }}</td>
                   <td class="text-right">{{ line.quantity }}</td>
                   <td class="text-right">{{ line.unit_price }}</td>
-                  <td class="text-right">{{ line.vat_rate }}</td>
-                  <td class="text-right">{{ line.total_line_amount }}</td>
-                  <td>{{ line.category.name if line.category }}</td>
+                  <td class="text-right">{{ line.vat_rate }}%</td>
+                  <td class="text-right text-bold">€ {{ line.total_line_amount }}</td>
+                  <td>{{ line.category.name if line.category else '-' }}</td>
               </tr>
             {% else %}
               <tr>
-                  <td colspan="7" class="text-center">Nessuna riga.</td>
+                  <td colspan="7" class="text-center text-muted">Nessuna riga</td>
               </tr>
             {% endfor %}
             </tbody>
@@ -239,94 +286,94 @@
     </div>
 </section>
 
-<section class="panel two-columns-stack">
-    <div>
-        <h2>Riepilogo IVA</h2>
-        <div class="table-wrapper">
-            <table class="table table-compact">
+<!-- GRID: Riepilogo IVA + Pagamenti -->
+<div class="cards-grid cards-2col">
+    <!-- CARD: Riepilogo IVA -->
+    <div class="card">
+        <div class="card-header">
+            <h3>📊 Riepilogo IVA</h3>
+        </div>
+        <div class="card-body">
+            <table class="table-compact">
                 <thead>
                 <tr>
                     <th>Aliquota</th>
-                    <th>Imponibile</th>
-                    <th>Imposta</th>
+                    <th class="text-right">Imponibile</th>
+                    <th class="text-right">Imposta</th>
                     <th>Natura</th>
                 </tr>
                 </thead>
                 <tbody>
                 {% for vs in vat_summaries %}
                   <tr>
-                      <td>{{ vs.vat_rate }}</td>
-                      <td class="text-right">{{ vs.taxable_amount }}</td>
-                      <td class="text-right">{{ vs.vat_amount }}</td>
-                      <td>{{ vs.vat_nature }}</td>
+                      <td>{{ vs.vat_rate }}%</td>
+                      <td class="text-right">€ {{ vs.taxable_amount }}</td>
+                      <td class="text-right">€ {{ vs.vat_amount }}</td>
+                      <td>{{ vs.vat_nature or '-' }}</td>
                   </tr>
                 {% else %}
                   <tr>
-                      <td colspan="4" class="text-center">Nessun riepilogo IVA.</td>
+                      <td colspan="4" class="text-center text-muted">Nessun riepilogo</td>
                   </tr>
                 {% endfor %}
                 </tbody>
             </table>
         </div>
     </div>
-    <div>
-        <h2>Pagamenti</h2>
-        <p>
-            <a href="{{ url_for('payments.inbox_view') }}" class="btn-link">Vai all'inbox pagamenti</a>
-        </p>
-        <div class="table-wrapper">
-            <table class="table table-compact">
+
+    <!-- CARD: Pagamenti -->
+    <div class="card">
+        <div class="card-header">
+            <h3>💳 Pagamenti</h3>
+            <a href="{{ url_for('payments.inbox_view') }}" class="btn-link btn-sm">Inbox pagamenti →</a>
+        </div>
+        <div class="card-body">
+            <table class="table-compact">
                 <thead>
                 <tr>
                     <th>Scadenza</th>
-                    <th>Importo previsto</th>
-                    <th>Data pagamento</th>
-                    <th>Importo pagato</th>
-                    <th>Metodo</th>
+                    <th class="text-right">Previsto</th>
+                    <th class="text-right">Pagato</th>
                     <th>Stato</th>
-                    <th>Documento</th>
                 </tr>
                 </thead>
                 <tbody>
                 {% for p in payments %}
                   <tr>
-                  <td>{{ p.due_date.strftime('%d/%m/%Y') if p.due_date }}</td>
-                      <td class="text-right">{{ p.expected_amount }}</td>
-                  <td>{{ p.paid_date.strftime('%d/%m/%Y') if p.paid_date }}</td>
-                      <td class="text-right">{{ p.paid_amount }}</td>
-                      <td>{{ p.payment_method }}</td>
-                      <td>{{ p.status }}</td>
+                      <td>{{ p.due_date.strftime('%d/%m/%Y') if p.due_date else '-' }}</td>
+                      <td class="text-right">€ {{ p.expected_amount }}</td>
+                      <td class="text-right">€ {{ p.paid_amount or 0 }}</td>
                       <td>
-                          {% if p.payment_document %}
-                              <a href="{{ url_for('payments.review_payment', document_id=p.payment_document.id) }}" class="btn-link">Documento #{{ p.payment_document.id }}</a>
-                          {% else %}
-                              -
-                          {% endif %}
+                          <span class="status-badge status-{{ p.status }}">{{ p.status }}</span>
                       </td>
                   </tr>
                 {% else %}
                   <tr>
-                      <td colspan="7" class="text-center">Nessun pagamento registrato.</td>
+                      <td colspan="4" class="text-center text-muted">Nessun pagamento</td>
                   </tr>
                 {% endfor %}
                 </tbody>
             </table>
         </div>
     </div>
-</section>
+</div>
 
+<!-- SEZIONE: Note -->
 <section class="panel">
-    <h2>Note</h2>
+    <div class="panel-header">
+        <h2>📝 Note</h2>
+    </div>
     {% if notes %}
-      <ul class="list-simple">
+      <ul class="notes-list">
       {% for note in notes %}
-        <li>
-            <strong>{{ note.created_at.strftime('%d/%m/%Y %H:%M') if note.created_at }}</strong> - {{ note.content }}
+        <li class="note-item">
+            <span class="note-date">{{ note.created_at.strftime('%d/%m/%Y %H:%M') if note.created_at }}</span>
+            <span class="note-content">{{ note.content }}</span>
         </li>
       {% endfor %}
       </ul>
     {% else %}
-      <p>Nessuna nota presente.</p>
+      <p class="text-muted">Nessuna nota presente.</p>
     {% endif %}
 </section>
 

@@ -3,44 +3,45 @@
 {% block title %}Dashboard - Gestionale Acquisti{% endblock %}
 
 {% block content %}
-<h1>Dashboard</h1>
+<div class="page-header">
+    <h1>Dashboard</h1>
+</div>
 
-<p>Benvenuto nel gestionale acquisti. Usa i collegamenti rapidi qui sotto:</p>
+<div class="welcome-message">
+    <h2>👋 Benvenuto nel gestionale acquisti</h2>
+    <p>Gestisci fatture, fornitori, pagamenti e molto altro.</p>
+</div>
 
-<div class="cards-grid">
-    <a class="card-link" href="{{ url_for('invoices.list_view') }}">
-        <div class="card">
-            <h2>Fatture</h2>
-            <p>Consulta, filtra ed esporta le fatture di acquisto.</p>
-        </div>
+<!-- MENU ORIZZONTALE CON BOTTONI QUADRATI -->
+<div class="dashboard-menu">
+    <a class="menu-button" href="{{ url_for('invoices.list_view') }}">
+        <div class="menu-icon">📄</div>
+        <div class="menu-label">Fatture</div>
     </a>
 
-    <a class="card-link" href="{{ url_for('suppliers.list_view') }}">
-        <div class="card">
-            <h2>Fornitori</h2>
-            <p>Elenco fornitori con numero fatture e totale acquisti.</p>
-        </div>
+    <a class="menu-button" href="{{ url_for('suppliers.list_view') }}">
+        <div class="menu-icon">🏢</div>
+        <div class="menu-label">Fornitori</div>
     </a>
 
-    <a class="card-link" href="{{ url_for('categories.list_view') }}">
-        <div class="card">
-            <h2>Categorie</h2>
-            <p>Gestisci le categorie gestionali delle righe fattura.</p>
-        </div>
+    <a class="menu-button" href="{{ url_for('categories.list_view') }}">
+        <div class="menu-icon">🏷️</div>
+        <div class="menu-label">Categorie</div>
     </a>
 
-    <a class="card-link" href="{{ url_for('import.run_view') }}">
-        <div class="card">
-            <h2>Import XML</h2>
-            <p>Importa le fatture elettroniche da una cartella.</p>
-        </div>
+    <a class="menu-button" href="{{ url_for('import.run_view') }}">
+        <div class="menu-icon">⬇️</div>
+        <div class="menu-label">Import XML</div>
     </a>
 
-    <a class="card-link" href="{{ url_for('export.options_view') }}">
-        <div class="card">
-            <h2>Export</h2>
-            <p>Esporta le fatture in CSV per analisi esterne.</p>
-        </div>
+    <a class="menu-button" href="{{ url_for('export.options_view') }}">
+        <div class="menu-icon">⬆️</div>
+        <div class="menu-label">Export</div>
+    </a>
+
+    <a class="menu-button" href="{{ url_for('payments.inbox_view') }}">
+        <div class="menu-icon">💳</div>
+        <div class="menu-label">Pagamenti</div>
     </a>
 </div>
 {% endblock %}
