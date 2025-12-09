@@ -25,7 +25,7 @@ class VatSummary(db.Model):
     vat_rate = db.Column(db.Numeric(5, 2), nullable=False)  # Aliquota IVA in percentuale
     taxable_amount = db.Column(db.Numeric(15, 2), nullable=False)  # Imponibile
     vat_amount = db.Column(db.Numeric(15, 2), nullable=False)  # Imposta
-    nature = db.Column(
+    vat_nature = db.Column(
         db.String(8), nullable=True
     )  # Natura operazione (es. N1, N2, N3...) se presente
 

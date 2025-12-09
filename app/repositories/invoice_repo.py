@@ -389,7 +389,7 @@ def create_vat_summary_from_dto(document_id: int, vat_dto: VatSummaryDTO) -> Vat
         vat_rate=vat_dto.vat_rate,
         taxable_amount=vat_dto.taxable_amount,
         vat_amount=vat_dto.vat_amount,
-        nature=vat_dto.nature,
+        vat_nature=vat_dto.vat_nature,
     )
     db.session.add(summary)
     return summary
