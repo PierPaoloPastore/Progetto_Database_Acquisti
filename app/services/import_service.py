@@ -7,6 +7,7 @@ Funzione principale:
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -69,6 +70,9 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
             # Garantiamo che il nome file dell'XML importato sia sempre valorizzato
             if not invoice_dto.file_name:
                 invoice_dto.file_name = file_name
+            # Calcoliamo l'hash del file per deduplicazione
+            if not invoice_dto.file_hash:
+                invoice_dto.file_hash = _compute_file_hash(xml_path)
         except Exception as exc:
             _log_error_parsing(logger, file_name, exc, summary, str(import_folder))
             continue
@@ -358,6 +362,19 @@ def _log_error_db(logger, file_name, exc, summary, folder, dto: Optional[Invoice
 # =========================
 #  Persistenza Log Import
 # =========================
+
+
+def _compute_file_hash(file_path: Path) -> str:
+    """
+    Calcola l'hash SHA256 di un file.
+
+    Restituisce l'hash in formato esadecimale.
+    """
+    sha256 = hashlib.sha256()
+    with open(file_path, 'rb') as f:
+        for chunk in iter(lambda: f.read(8192), b''):
+            sha256.update(chunk)
+    return sha256.hexdigest()
 
 
 def _safe_log_import(

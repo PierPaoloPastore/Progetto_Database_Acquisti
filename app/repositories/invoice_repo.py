@@ -8,7 +8,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 
 from app.extensions import db
-from app.models import Invoice, InvoiceLine, LegalEntity, Payment, VatSummary
+from app.models import ImportLog, Invoice, InvoiceLine, LegalEntity, Payment, VatSummary
 from app.parsers.fatturapa_parser import InvoiceDTO, InvoiceLineDTO, PaymentDTO, VatSummaryDTO
 
 
@@ -35,14 +35,49 @@ def get_invoice_by_file_name(file_name: str) -> Optional[Invoice]:
     return Invoice.query.filter_by(file_name=file_name).first()
 
 
-def find_existing_invoice(
-    file_name: Optional[str] = None
-) -> Optional[Invoice]:
-    """Cerca una fattura già importata confrontando file_name."""
-    if not file_name:
+def get_invoice_by_file_hash(file_hash: str) -> Optional[Invoice]:
+    """
+    Restituisce la fattura associata a un determinato file_hash.
+
+    Il file_hash è salvato in import_logs, quindi la ricerca avviene tramite join.
+    """
+    if not file_hash:
         return None
 
-    return Invoice.query.filter_by(file_name=file_name).first()
+    import_log = (
+        ImportLog.query
+        .filter(ImportLog.file_hash == file_hash)
+        .filter(ImportLog.document_id.isnot(None))
+        .order_by(ImportLog.created_at.desc())
+        .first()
+    )
+
+    if import_log and import_log.document_id:
+        return get_invoice_by_id(import_log.document_id)
+
+    return None
+
+
+def find_existing_invoice(
+    file_name: Optional[str] = None,
+    file_hash: Optional[str] = None
+) -> Optional[Invoice]:
+    """
+    Cerca una fattura già importata confrontando file_name e/o file_hash.
+
+    file_hash viene cercato tramite ImportLog (tabella import_logs).
+    """
+    # Prima controlla per file_name (più veloce, se fornito)
+    if file_name:
+        existing = Invoice.query.filter_by(file_name=file_name).first()
+        if existing:
+            return existing
+
+    # Poi controlla per file_hash tramite ImportLog
+    if file_hash:
+        return get_invoice_by_file_hash(file_hash)
+
+    return None
 
 
 def list_invoices(limit: Optional[int] = 200) -> List[Invoice]:
@@ -281,6 +316,7 @@ def create_invoice_with_details(
     """
     existing = find_existing_invoice(
         file_name=invoice_dto.file_name,
+        file_hash=getattr(invoice_dto, 'file_hash', None),
     )
     if existing:
         return existing, False

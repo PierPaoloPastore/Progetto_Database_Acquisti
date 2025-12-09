@@ -74,6 +74,8 @@ from .import_log_repo import (
     get_import_log_by_id,
     list_import_logs,
     list_import_logs_by_file_name,
+    get_import_log_by_file_hash,
+    find_document_by_file_hash,
     create_import_log,
 )
 
@@ -143,5 +145,7 @@ __all__ = [
     "get_import_log_by_id",
     "list_import_logs",
     "list_import_logs_by_file_name",
+    "get_import_log_by_file_hash",
+    "find_document_by_file_hash",
     "create_import_log",
 ]
