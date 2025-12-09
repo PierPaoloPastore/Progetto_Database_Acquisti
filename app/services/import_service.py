@@ -115,7 +115,7 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
                 import_source=str(import_folder),
                 status="success",
                 message="Import completato con successo",
-                invoice_id=invoice.id,
+                document_id=invoice.id,
             )
 
             db.session.commit()
@@ -365,16 +365,19 @@ def _safe_log_import(
     file_name: str,
     status: str,
     message: str,
-    invoice_id: Optional[int],
+    document_id: Optional[int] = None,
+    invoice_id: Optional[int] = None,  # Backward compat - will use document_id if provided
     folder: Optional[str] = None,
     file_hash: Optional[str] = None,
 ) -> None:
     """Crea un record di import_log con gestione errori sicura."""
+    # Use document_id if provided, otherwise fall back to invoice_id for backward compat
+    doc_id = document_id if document_id is not None else invoice_id
     create_import_log(
         file_name=file_name,
         file_hash=file_hash,
         import_source=folder,
         status=status,
         message=message,
-        invoice_id=invoice_id,
+        document_id=doc_id,
     )

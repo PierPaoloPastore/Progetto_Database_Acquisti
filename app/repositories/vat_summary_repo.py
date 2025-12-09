@@ -10,10 +10,10 @@ from app.extensions import db
 from app.models import VatSummary
 
 
-def list_vat_summaries_by_invoice(invoice_id: int) -> List[VatSummary]:
-    """Restituisce tutti i riepiloghi IVA associati a una fattura."""
+def list_vat_summaries_by_invoice(document_id: int) -> List[VatSummary]:
+    """Restituisce tutti i riepiloghi IVA associati a un documento."""
     return (
-        VatSummary.query.filter_by(invoice_id=invoice_id)
+        VatSummary.query.filter_by(document_id=document_id)
         .order_by(VatSummary.vat_rate.asc())
         .all()
     )

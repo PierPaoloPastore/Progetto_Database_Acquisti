@@ -49,7 +49,7 @@ def list_overdue_payments_for_ui(
     results: List[Dict[str, Any]] = []
 
     for p in payments:
-        invoice: Invoice = p.invoice
+        invoice: Invoice = p.document
         supplier_name = invoice.supplier.name if invoice and invoice.supplier else "N/A"
         results.append(
             {
@@ -92,7 +92,7 @@ def generate_payment_schedule(
     results: List[Dict[str, Any]] = []
 
     for p in payments:
-        invoice: Invoice = p.invoice
+        invoice: Invoice = p.document
         supplier_name = invoice.supplier.name if invoice and invoice.supplier else "N/A"
         results.append(
             {
@@ -116,7 +116,7 @@ def create_payment(
     status: Optional[str] = None,
     notes: Optional[str] = None,
 ) -> Optional[Payment]:
-    """Crea un nuovo pagamento associato a una fattura."""
+    """Crea un nuovo pagamento associato a un documento (invoice)."""
 
     with UnitOfWork() as session:
         invoice = session.get(Invoice, invoice_id)
@@ -124,7 +124,7 @@ def create_payment(
             return None
 
         payment = Payment(
-            invoice_id=invoice.id,
+            document_id=invoice.id,
             due_date=due_date,
             expected_amount=expected_amount,
             payment_terms=payment_terms,
@@ -218,8 +218,11 @@ def review_payment_document(document_id: int) -> Dict[str, Any]:
     if document is None:
         raise ValueError("Documento di pagamento non trovato")
 
+    # In v3, payment_status non esiste più su Invoice.
+    # Mostriamo le ultime 200 fatture ordinate per data.
+    # Il frontend può filtrare per stato pagamento analizzando i Payment associati.
     candidate_invoices = (
-        Invoice.query.filter(Invoice.payment_status != "paid")
+        Invoice.query
         .order_by(Invoice.document_date.desc())
         .limit(200)
         .all()
@@ -292,7 +295,12 @@ def assign_payments_to_invoices(
 
 
 def update_invoice_payment_status(invoice_id: int, session=None) -> Optional[Invoice]:
-    """Aggiorna il campo payment_status in base ai pagamenti registrati."""
+    """
+    DEPRECATO in v3: payment_status non è più un campo di Invoice.
+    Lo stato pagamento si deduce dai record Payment associati.
+
+    Questa funzione è mantenuta per retrocompatibilità ma non fa nulla.
+    """
 
     manage_context = session is None
     if manage_context:
@@ -303,23 +311,8 @@ def update_invoice_payment_status(invoice_id: int, session=None) -> Optional[Inv
     if invoice is None:
         return None
 
-    total_paid = (
-        session.query(db.func.coalesce(db.func.sum(Payment.paid_amount), 0))
-        .filter(Payment.invoice_id == invoice_id)
-        .scalar()
-    )
-
-    gross_amount = invoice.total_gross_amount or Decimal("0")
-    total_paid_decimal = Decimal(total_paid or 0)
-
-    if total_paid_decimal == 0:
-        invoice.payment_status = "unpaid"
-    elif gross_amount and total_paid_decimal < gross_amount:
-        invoice.payment_status = "partial"
-    elif gross_amount and total_paid_decimal >= gross_amount:
-        invoice.payment_status = "paid"
-    else:
-        invoice.payment_status = "partial"
+    # In v3, non aggiorniamo payment_status su Invoice perché non esiste più.
+    # Lo stato si deduce aggregando i Payment.status dei record associati.
 
     session.flush()
     return invoice
