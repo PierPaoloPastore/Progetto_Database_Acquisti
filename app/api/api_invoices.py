@@ -79,7 +79,6 @@ def api_update_invoice_status(invoice_id: int):
             "payload": {
                 "invoice_id": invoice.id,
                 "doc_status": invoice.doc_status,
-                "payment_status": invoice.payment_status,
                 "due_date": invoice.due_date.isoformat()
                 if invoice.due_date
                 else None,
@@ -134,7 +133,7 @@ def api_assign_category_to_line(line_id: int):
             "message": "Categoria aggiornata con successo.",
             "payload": {
                 "line_id": line.id,
-                "invoice_id": line.invoice_id,
+                "document_id": line.document_id,
                 "category_id": line.category_id,
             },
         }

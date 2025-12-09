@@ -79,7 +79,7 @@
                   <td class="text-right">
                       {{ "%.2f"|format(inv.total_gross_amount or 0) }}
                   </td>
-                  <td>{{ inv.payment_status }}</td>
+                  <td>-</td>
                   <td>
                       <a href="{{ url_for('invoices.detail_view', invoice_id=inv.id) }}"
                          class="btn-link">Dettaglio fattura</a>

@@ -4,7 +4,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Dict, List, Optional, Tuple
 
-from sqlalchemy import func, or_  # questo rimane in alto nel file
+from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 
 from app.extensions import db
@@ -35,27 +35,14 @@ def get_invoice_by_file_name(file_name: str) -> Optional[Invoice]:
     return Invoice.query.filter_by(file_name=file_name).first()
 
 
-def get_invoice_by_file_hash(file_hash: str) -> Optional[Invoice]:
-    """Restituisce la fattura associata a un determinato hash di file, se esiste."""
-    if not file_hash:
-        return None
-    return Invoice.query.filter_by(file_hash=file_hash).first()
-
-
 def find_existing_invoice(
-    file_name: Optional[str] = None, file_hash: Optional[str] = None
+    file_name: Optional[str] = None
 ) -> Optional[Invoice]:
-    """Cerca una fattura già importata confrontando file_name e/o file_hash."""
-    filters = []
-    if file_hash:
-        filters.append(Invoice.file_hash == file_hash)
-    if file_name:
-        filters.append(Invoice.file_name == file_name)
-
-    if not filters:
+    """Cerca una fattura già importata confrontando file_name."""
+    if not file_name:
         return None
 
-    return Invoice.query.filter(or_(*filters)).first()
+    return Invoice.query.filter_by(file_name=file_name).first()
 
 
 def list_invoices(limit: Optional[int] = 200) -> List[Invoice]:
@@ -242,10 +229,14 @@ def create_invoice(**kwargs) -> Invoice:
     if kwargs.get("legal_entity_id") is None:
         raise ValueError("legal_entity_id è obbligatorio per creare una fattura")
 
-    # Rimuovi accounting_year se passato (non è più una colonna del DB)
+    # Rimuovi campi legacy che non sono più colonne del DB v3
     kwargs.pop("accounting_year", None)
     kwargs.pop("currency", None)
     kwargs.pop("payment_status", None)
+    kwargs.pop("file_hash", None)
+    kwargs.pop("invoice_date", None)
+    kwargs.pop("invoice_number", None)
+    kwargs.pop("invoice_series", None)
 
     invoice = Invoice(**kwargs)
     db.session.add(invoice)
@@ -261,8 +252,14 @@ def update_invoice(invoice: Invoice, **kwargs) -> Invoice:
     if "legal_entity_id" in kwargs and kwargs.get("legal_entity_id") is None:
         raise ValueError("legal_entity_id non può essere nullo")
 
-    # Rimuovi accounting_year se passato (non è più una colonna del DB)
+    # Rimuovi campi legacy che non sono più colonne del DB v3
     kwargs.pop("accounting_year", None)
+    kwargs.pop("currency", None)
+    kwargs.pop("payment_status", None)
+    kwargs.pop("file_hash", None)
+    kwargs.pop("invoice_date", None)
+    kwargs.pop("invoice_number", None)
+    kwargs.pop("invoice_series", None)
 
     for key, value in kwargs.items():
         if hasattr(invoice, key):
@@ -284,7 +281,6 @@ def create_invoice_with_details(
     """
     existing = find_existing_invoice(
         file_name=invoice_dto.file_name,
-        file_hash=invoice_dto.file_hash,
     )
     if existing:
         return existing, False
@@ -302,7 +298,6 @@ def create_invoice_with_details(
         "doc_status": invoice_dto.doc_status,
         "due_date": invoice_dto.due_date,
         "file_name": invoice_dto.file_name,
-        "file_hash": invoice_dto.file_hash,
         "import_source": import_source,
     }
 

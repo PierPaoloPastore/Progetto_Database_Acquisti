@@ -168,8 +168,10 @@ def update_invoice_status(
     due_date: Optional[date] = None,
 ) -> Optional[Invoice]:
     """
-    Aggiorna lo stato documento e/o lo stato pagamento e/o la data di scadenza
-    di una fattura.
+    Aggiorna lo stato documento e/o la data di scadenza di una fattura.
+
+    NOTA: payment_status è deprecato in v3 - lo stato dei pagamenti si gestisce
+    tramite i record Payment associati, non come campo diretto su Invoice.
 
     doc_status accetta i valori:
     imported, pending_physical_copy, verified, rejected, archived.
@@ -184,8 +186,7 @@ def update_invoice_status(
     with UnitOfWork() as session:
         if doc_status is not None:
             invoice.doc_status = doc_status
-        if payment_status is not None:
-            invoice.payment_status = payment_status
+        # payment_status non viene più impostato su Invoice (v3 DB schema)
         if due_date is not None:
             invoice.due_date = due_date
 
@@ -196,7 +197,6 @@ def update_invoice_status(
         "update_invoice_status",
         invoice_id=invoice.id,
         doc_status=invoice.doc_status,
-        payment_status=invoice.payment_status,
     )
 
     return invoice
