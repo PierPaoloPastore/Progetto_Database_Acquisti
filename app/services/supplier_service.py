@@ -38,7 +38,7 @@ def list_suppliers_with_stats() -> List[Dict[str, Any]]:
     results: List[Dict[str, Any]] = []
 
     for s in suppliers:
-        invoice_count = s.invoices.count()
+        invoice_count = len(s.invoices)
         total_gross_amount = (
             db.session.query(db.func.coalesce(db.func.sum(Invoice.total_gross_amount), 0))
             .filter(Invoice.supplier_id == s.id)
@@ -78,7 +78,7 @@ def get_supplier_detail(
     if supplier is None:
         return None
 
-    invoices_query = supplier.invoices.order_by(
+    invoices_query = supplier.documents.filter_by(document_type='invoice').order_by(
         Invoice.document_date.desc(), Invoice.id.desc()
     )
 
