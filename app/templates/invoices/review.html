@@ -4,36 +4,39 @@
 <div class="container-fluid vh-100 d-flex flex-column p-0">
     
     <div class="bg-dark text-white p-2 d-flex justify-content-between align-items-center" style="height: 50px;">
-        <h6 class="m-0 ps-3">🔍 Revisione: {{ invoice.supplier.name }} (Fattura {{ invoice.number }})</h6>
+        <h6 class="m-0 ps-3">
+            🔍 Revisione: {{ invoice.supplier.name }} 
+            <span class="badge bg-light text-dark ms-2">{{ invoice.document_type|upper }}</span>
+        </h6>
         <div class="pe-3">
-            <a href="{{ url_for('invoices.index') }}" class="text-white text-decoration-none small">Esci</a>
+            <a href="{{ url_for('invoices.list_view') }}" class="text-white text-decoration-none small">Esci</a>
         </div>
     </div>
 
     <div class="row flex-grow-1 m-0 overflow-hidden">
         
         <div class="col-md-5 bg-white border-end overflow-auto p-4" style="height: calc(100vh - 50px);">
-            <form method="POST" action="{{ url_for('invoices.review_loop', invoice_id=invoice.id) }}">
+            <form method="POST" action="{{ url_for('invoices.review_loop_invoice_view', invoice_id=invoice.id) }}">
                 
-                <h5 class="text-primary border-bottom pb-2 mb-4">Modifica Dati Importati</h5>
+                <h5 class="text-primary border-bottom pb-2 mb-4">Modifica Dati Documento</h5>
                 
                 <input type="hidden" name="invoice_id" value="{{ invoice.id }}">
 
                 <div class="mb-3">
-                    <label class="form-label fw-bold">Numero Fattura</label>
-                    <input type="text" name="number" class="form-control" value="{{ invoice.number }}" required>
+                    <label class="form-label fw-bold">Numero Documento</label>
+                    <input type="text" name="number" class="form-control" value="{{ invoice.document_number }}" required>
                 </div>
 
                 <div class="mb-3">
                     <label class="form-label fw-bold">Data Documento</label>
-                    <input type="date" name="date" class="form-control" value="{{ invoice.date }}" required>
+                    <input type="date" name="date" class="form-control" value="{{ invoice.document_date }}" required>
                 </div>
 
                 <div class="mb-3">
                     <label class="form-label fw-bold">Importo Totale (€)</label>
                     <div class="input-group">
                         <span class="input-group-text">€</span>
-                        <input type="number" step="0.01" name="total_amount" class="form-control fw-bold fs-5 text-end" value="{{ invoice.total_amount }}" required>
+                        <input type="number" step="0.01" name="total_amount" class="form-control fw-bold fs-5 text-end" value="{{ invoice.total_gross_amount }}" required>
                     </div>
                 </div>
 
@@ -45,8 +48,8 @@
                     <button type="submit" class="btn btn-success btn-lg shadow-sm">
                         <i class="bi bi-check-circle-fill"></i> Conferma & Prossima
                     </button>
-                    <a href="{{ url_for('invoices.review_loop') }}" class="btn btn-outline-secondary btn-sm mt-2">
-                        Salta questa fattura
+                    <a href="{{ url_for('invoices.review_loop_redirect_view') }}" class="btn btn-outline-secondary btn-sm mt-2">
+                        Salta questo documento
                     </a>
                 </div>
             </form>
@@ -56,7 +59,7 @@
             <iframe src="{{ url_for('invoices.preview_invoice_visual', invoice_id=invoice.id) }}" 
                     class="w-100 h-100 border-0" 
                     style="display: block;"
-                    title="Foglio di Cortesia">
+                    title="Anteprima Documento">
             </iframe>
         </div>
     </div>

@@ -1,61 +1,74 @@
 {% extends "base.html" %}
 
-{% block title %}Fatture da rivedere - Gestionale Acquisti{% endblock %}
+{% block title %}Documenti da Rivedere - Gestionale Acquisti{% endblock %}
 
 {% block content %}
-<h1>Fatture da rivedere</h1>
-
-<section class="panel">
-    <div class="form-actions">
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1>Documenti da rivedere</h1>
         {% if next_invoice %}
-            <a class="btn-primary" href="{{ url_for('invoices.detail_view', invoice_id=next_invoice.id, order=order) }}">
-                Vai alla prossima fattura da rivedere
+            <a class="btn btn-primary" href="{{ url_for('invoices.review_loop_invoice_view', invoice_id=next_invoice.id) }}">
+                <i class="bi bi-play-circle"></i> Avvia Revisione ({{ next_invoice.document_date }})
             </a>
         {% else %}
-            <button class="btn-secondary" disabled>Nessuna fattura da rivedere</button>
+             <button class="btn btn-secondary" disabled>Nessun documento da rivedere</button>
         {% endif %}
     </div>
-</section>
 
-<section class="panel">
-    <h2>Fatture importate ({{ invoices|length }})</h2>
-    <div class="table-wrapper">
-        <table class="table table-striped table-hover">
-            <thead>
-            <tr>
-                <th>Numero</th>
-                <th>Fornitore</th>
-                <th>Intestatario</th>
-                <th>Data fattura</th>
-                <th>Totale lordo</th>
-                <th></th>
-            </tr>
-            </thead>
-            <tbody>
-            {% for inv in invoices %}
-              <tr>
-                  <td>{{ inv.document_number }}</td>
-                  <td>{{ inv.supplier.name if inv.supplier }}</td>
-                  <td>
-                      {{ inv.legal_entity.name if inv.legal_entity }}
-                      {% if inv.legal_entity %}
-                        <div class="text-muted small">{{ inv.legal_entity.vat_number }}</div>
-                      {% endif %}
-                  </td>
-                  <td>{{ inv.document_date.strftime('%d/%m/%Y') if inv.document_date }}</td>
-                  <td class="text-right">{{ "%.2f"|format(inv.total_gross_amount or 0) }}</td>
-                  <td>
-                      <a href="{{ url_for('invoices.detail_view', invoice_id=inv.id, order=order) }}"
-                         class="btn-link">Dettaglio</a>
-                  </td>
-              </tr>
-            {% else %}
-              <tr>
-                  <td colspan="6" class="text-center">Nessuna fattura importata da rivedere.</td>
-              </tr>
-            {% endfor %}
-            </tbody>
-        </table>
+    <div class="card shadow-sm">
+        <div class="card-header bg-white">
+            <h5 class="mb-0">Coda di lavorazione ({{ invoices|length }})</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped mb-0 align-middle">
+                    <thead class="table-light">
+                    <tr>
+                        <th>Tipo</th>
+                        <th>Data</th>
+                        <th>Numero</th>
+                        <th>Fornitore</th>
+                        <th>Intestatario</th>
+                        <th class="text-end">Totale</th>
+                        <th class="text-end">Azioni</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for doc in invoices %}
+                      <tr>
+                          <td>
+                              <span class="badge bg-secondary">{{ doc.document_type|upper }}</span>
+                          </td>
+                          <td>{{ doc.document_date.strftime('%d/%m/%Y') if doc.document_date else 'N/D' }}</td>
+                          <td class="fw-bold">{{ doc.document_number }}</td>
+                          <td>{{ doc.supplier.name if doc.supplier else 'Sconosciuto' }}</td>
+                          <td>
+                              {% if doc.legal_entity %}
+                                <span class="small">{{ doc.legal_entity.name }}</span>
+                              {% else %}
+                                <span class="text-muted small">-</span>
+                              {% endif %}
+                          </td>
+                          <td class="text-end fw-bold">{{ "%.2f"|format(doc.total_gross_amount or 0) }} €</td>
+                          <td class="text-end">
+                              <a href="{{ url_for('invoices.review_loop_invoice_view', invoice_id=doc.id) }}"
+                                 class="btn btn-sm btn-outline-primary">
+                                  <i class="bi bi-pencil"></i> Rivedi
+                              </a>
+                          </td>
+                      </tr>
+                    {% else %}
+                      <tr>
+                          <td colspan="7" class="text-center py-5 text-muted">
+                              <i class="bi bi-check-circle fs-1 d-block mb-3"></i>
+                              Nessun documento importato da rivedere.
+                          </td>
+                      </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
-</section>
+</div>
 {% endblock %}

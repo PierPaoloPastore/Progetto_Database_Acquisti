@@ -227,6 +227,41 @@ class DocumentService:
             except (ArithmeticError, ValueError, TypeError):
                 return False, "Importo non valido"
 
+        # FIX: "reviewed" non esiste nel DB, usiamo "verified"
+        document.doc_status = "verified" 
+
+        try:
+            db.session.add(document)
+            db.session.commit()
+        except Exception as exc:
+            db.session.rollback()
+            return False, f"Errore salvataggio: {exc}"
+
+        return True, "Revisione completata"
+        document = document_repo.get_document_by_id(document_id)
+        if document is None:
+            return False, "Documento non trovato"
+
+        if "number" in form_data:
+            document.document_number = str(form_data.get("number") or "")
+
+        raw_date = form_data.get("date")
+        if raw_date:
+            if isinstance(raw_date, date):
+                document.document_date = raw_date
+            elif isinstance(raw_date, str):
+                try:
+                    document.document_date = datetime.strptime(raw_date, "%Y-%m-%d").date()
+                except ValueError:
+                    return False, "Data non valida"
+
+        raw_total = form_data.get("total_amount")
+        if raw_total not in (None, ""):
+            try:
+                document.total_gross_amount = Decimal(str(raw_total))
+            except (ArithmeticError, ValueError, TypeError):
+                return False, "Importo non valido"
+
         document.doc_status = "reviewed" # O 'verified' se preferisci uniformare
 
         try:
