@@ -233,6 +233,7 @@ def create_invoice(**kwargs) -> Invoice:
 
     # Rimuovi accounting_year se passato (non è più una colonna del DB)
     kwargs.pop("accounting_year", None)
+    kwargs.pop("currency", None)
 
     invoice = Invoice(**kwargs)
     db.session.add(invoice)
@@ -283,7 +284,6 @@ def create_invoice_with_details(
         "document_number": invoice_dto.invoice_number,
         "document_date": invoice_dto.invoice_date,
         "registration_date": invoice_dto.registration_date,
-        "currency": invoice_dto.currency or "EUR",
         "total_taxable_amount": invoice_dto.total_taxable_amount,
         "total_vat_amount": invoice_dto.total_vat_amount,
         "total_gross_amount": invoice_dto.total_gross_amount,
