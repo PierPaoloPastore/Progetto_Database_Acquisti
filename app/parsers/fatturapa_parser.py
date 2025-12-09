@@ -78,7 +78,7 @@ class VatSummaryDTO:
     vat_rate: Decimal
     taxable_amount: Decimal
     vat_amount: Decimal
-    nature: Optional[str] = None
+    vat_nature: Optional[str] = None
 
 
 @dataclass
@@ -495,7 +495,7 @@ def _parse_vat_summaries(body) -> tuple[List[VatSummaryDTO], Optional[Decimal], 
         vat_amount = _to_decimal(
             _get_text(s_node, ".//*[local-name()='Imposta']")
         )
-        nature = _get_text(s_node, ".//*[local-name()='Natura']")
+        vat_nature = _get_text(s_node, ".//*[local-name()='Natura']")
 
         if vat_rate is None or taxable_amount is None or vat_amount is None:
             # Se mancano dati essenziali, saltiamo la riga per evitare
@@ -507,7 +507,7 @@ def _parse_vat_summaries(body) -> tuple[List[VatSummaryDTO], Optional[Decimal], 
                 vat_rate=vat_rate,
                 taxable_amount=taxable_amount,
                 vat_amount=vat_amount,
-                nature=nature,
+                vat_nature=vat_nature,
             )
         )
 
