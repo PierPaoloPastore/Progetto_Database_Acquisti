@@ -78,7 +78,11 @@ def get_supplier_detail(
     if supplier is None:
         return None
 
-    invoices_query = supplier.documents.filter_by(document_type='invoice').order_by(
+    # Create a proper database query for invoices
+    invoices_query = db.session.query(Invoice).filter(
+        Invoice.supplier_id == supplier_id,
+        Invoice.document_type == 'invoice'
+    ).order_by(
         Invoice.document_date.desc(), Invoice.id.desc()
     )
 
