@@ -118,7 +118,12 @@ def search_invoices_by_filters(
     limit: Optional[int] = 200,
 ) -> List[Invoice]:
     """Ricerca fatture applicando tutti i filtri supportati dall'UI elenco."""
-    query = Invoice.query
+    query = db.session.query(Invoice)
+
+    if payment_status is not None:
+        query = query.join(Payment, Payment.document_id == Invoice.id).filter(
+            Payment.status == payment_status
+        )
 
     if legal_entity_id is not None:
         query = query.filter(Invoice.legal_entity_id == legal_entity_id)
@@ -128,8 +133,6 @@ def search_invoices_by_filters(
         query = query.filter(Invoice.supplier_id == supplier_id)
     if doc_status is not None:
         query = query.filter(Invoice.doc_status == doc_status)
-    if payment_status is not None:
-        query = query.filter(Invoice.payment_status == payment_status)
     if physical_copy_status is not None:
         query = query.filter(Invoice.physical_copy_status == physical_copy_status)
 
@@ -144,6 +147,10 @@ def search_invoices_by_filters(
         query = query.filter(Invoice.total_gross_amount <= max_total)
 
     query = query.order_by(Invoice.document_date.desc(), Invoice.id.desc())
+
+    if payment_status is not None:
+        query = query.distinct()
+
     if limit is not None:
         query = query.limit(limit)
 
@@ -211,14 +218,18 @@ def filter_invoices_by_payment_status(
     Restituisce le fatture filtrate per stato di pagamento
     (unpaid, partial, paid, ...), opzionalmente per intervallo di date.
     """
-    query = Invoice.query.filter_by(payment_status=payment_status)
+    query = (
+        db.session.query(Invoice)
+        .join(Payment, Payment.document_id == Invoice.id)
+        .filter(Payment.status == payment_status)
+    )
 
     if date_from is not None:
         query = query.filter(Invoice.document_date >= date_from)
     if date_to is not None:
         query = query.filter(Invoice.document_date <= date_to)
 
-    query = query.order_by(Invoice.document_date.asc(), Invoice.id.asc())
+    query = query.order_by(Invoice.document_date.asc(), Invoice.id.asc()).distinct()
     return query.all()
 
 
@@ -234,6 +245,7 @@ def create_invoice(**kwargs) -> Invoice:
     # Rimuovi accounting_year se passato (non è più una colonna del DB)
     kwargs.pop("accounting_year", None)
     kwargs.pop("currency", None)
+    kwargs.pop("payment_status", None)
 
     invoice = Invoice(**kwargs)
     db.session.add(invoice)
@@ -288,7 +300,6 @@ def create_invoice_with_details(
         "total_vat_amount": invoice_dto.total_vat_amount,
         "total_gross_amount": invoice_dto.total_gross_amount,
         "doc_status": invoice_dto.doc_status,
-        "payment_status": invoice_dto.payment_status,
         "due_date": invoice_dto.due_date,
         "file_name": invoice_dto.file_name,
         "file_hash": invoice_dto.file_hash,
