@@ -196,7 +196,9 @@ def _parse_xml_file(xml_path: Path, original_file_name: str) -> InvoiceDTO:
     :param original_file_name: nome originale del file (usato nel DTO)
     """
     try:
-        tree = etree.parse(str(xml_path))
+        # Usa parser con recover=True per gestire XML malformati
+        parser = etree.XMLParser(recover=True, encoding='utf-8')
+        tree = etree.parse(str(xml_path), parser)
     except (OSError, etree.XMLSyntaxError) as exc:
         raise FatturaPAParseError(f"Errore nel parsing XML: {exc}") from exc
 
@@ -498,7 +500,7 @@ def _parse_supplier(root) -> SupplierDTO:
 
     if supplier_node is None:
         # In teoria è obbligatorio, ma possiamo almeno evitare crash
-        return SupplierDTO()
+        return SupplierDTO(name="Fornitore sconosciuto")
 
     # Dati anagrafici
     name = _get_text(
@@ -542,6 +544,15 @@ def _parse_supplier(root) -> SupplierDTO:
     country = _get_text(
         supplier_node, ".//*[local-name()='Sede']/*[local-name()='Nazione']"
     )
+    
+    # Fallback: se manca il nome ma abbiamo P.IVA/CF, usa quello
+    if not name:
+        if vat_number:
+            name = f"P.IVA {vat_number}"
+        elif fiscal_code:
+            name = f"CF {fiscal_code}"
+        else:
+            name = "Fornitore sconosciuto"
 
     return SupplierDTO(
         name=name,

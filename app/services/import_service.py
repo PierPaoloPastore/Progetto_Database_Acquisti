@@ -109,12 +109,18 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
             supplier = get_or_create_supplier_from_dto(invoice_dto.supplier)
             supplier_id = supplier.id
 
-            invoice = _create_invoice_and_details(
+            # Crea invoice (restituisce tupla (invoice, created))
+            invoice, created = _create_invoice_and_details(
                 invoice_dto=invoice_dto,
                 supplier_id=supplier_id,
                 legal_entity_id=legal_entity_id,
                 import_source=str(import_folder),
             )
+            
+            # Se non creato (duplicato), skippa
+            if not created:
+                _log_skip(logger, file_name, invoice.id, summary, reason="Duplicato per file_name/file_hash")
+                continue
 
             db.session.commit()
 
@@ -180,12 +186,15 @@ def _extract_header_data(xml_path: Path) -> Dict:
     header_data: Dict[str, Dict[str, Optional[str]]] = {}
 
     try:
-        # Gestione P7M
+        # Gestione P7M: usa la stessa logica del parser
         if xml_path.suffix.lower() in ['.p7m']:
-            from app.parsers.fatturapa_parser import _extract_xml_from_p7m
+            from app.parsers.fatturapa_parser import _extract_xml_from_p7m, _clean_xml_bytes
             import tempfile
             
+            # Estrai XML dal P7M
             xml_content = _extract_xml_from_p7m(xml_path)
+            
+            # Crea file temporaneo
             with tempfile.NamedTemporaryFile(mode='wb', suffix='.xml', delete=False) as tmp:
                 tmp.write(xml_content)
                 tmp_path = tmp.name
@@ -199,7 +208,8 @@ def _extract_header_data(xml_path: Path) -> Dict:
             tree = etree.parse(str(xml_path))
         
         root = tree.getroot()
-    except Exception:
+    except Exception as e:
+        # Se fallisce il parsing, ritorna dict vuoto
         return header_data
 
     cc_node = _first(root, ".//*[local-name()='CessionarioCommittente']")
