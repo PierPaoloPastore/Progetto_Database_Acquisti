@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid vh-100 d-flex flex-column p-0">
+    <div class="bg-dark text-white p-2 d-flex justify-content-between align-items-center" style="height: 50px;">
+        <h6 class="m-0 ps-3">
+            🔍 Revisione: {{ invoice.supplier.name if invoice.supplier else 'N/D' }} 
+            <span class="badge bg-light text-dark ms-2">{{ invoice.document_type|upper }}</span>
+        </h6>        <div class="pe-3">
+            <a href="{{ url_for('documents.list_view') }}" class="text-white text-decoration-none small">Esci</a>
+        </div>
+    </div>
+    <div class="row flex-grow-1 m-0 overflow-hidden">
+        <div class="col-md-5 bg-white border-end overflow-auto p-4" style="height: calc(100vh - 50px);">
+            <form method="POST" action="{{ url_for('documents.review_loop_invoice_view', document_id=invoice.id) }}">
+                <h5 class="text-primary border-bottom pb-2 mb-4">Modifica Dati Documento</h5>
+                <input type="hidden" name="invoice_id" value="{{ invoice.id }}">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Numero Documento</label>
+                    <input type="text" name="number" class="form-control" value="{{ invoice.document_number }}" required>
+                </div>
+                <div class="d-grid gap-2 mt-5">
+                    <button type="submit" class="btn btn-success btn-lg shadow-sm">
+                        <i class="bi bi-check-circle-fill"></i> Conferma & Prossima
+                    </button>
+                    <a href="{{ url_for('documents.review_loop_redirect_view') }}" class="btn btn-outline-secondary btn-sm mt-2">
+                        Salta questo documento
+                    </a>
+                </div>
+            </form>
+        </div>
+        <div class="col-md-7 p-0 bg-secondary d-flex align-items-center justify-content-center">
+            <iframe src="{{ url_for('documents.preview_visual', document_id=invoice.id) }}" 
+                    class="w-100 h-100 border-0" style="display: block;" title="Anteprima">
+            </iframe>
+        </div>
+    </div>
+</div>
+{% endblock %}

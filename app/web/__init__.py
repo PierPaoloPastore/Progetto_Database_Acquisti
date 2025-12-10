@@ -1,10 +1,8 @@
-"""
-Pacchetto per le route web (HTML) dell'applicazione.
+# ... (parte Web rimane uguale) ...
 
-Contiene i blueprint relativi a:
-- dashboard principale
-- fatture
-- fornitori
-- categorie
-- import/export
-"""
+    # API
+    from .api import api_documents_bp, api_categories_bp
+
+    # Registra con il nuovo prefisso
+    app.register_blueprint(api_documents_bp, url_prefix="/api/documents")
+    app.register_blueprint(api_categories_bp, url_prefix="/api/categories")

@@ -18,7 +18,6 @@ from app.repositories.document_repo import list_accounting_years
 from app.repositories.supplier_repo import list_suppliers
 from app.repositories.legal_entity_repo import list_legal_entities
 
-# Rinominato Blueprint
 documents_bp = Blueprint("documents", __name__)
 
 ALLOWED_PHYSICAL_COPY_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "tif", "tiff"}
@@ -35,18 +34,14 @@ def _parse_date(value: str) -> Optional[datetime.date]:
 @documents_bp.route("/", methods=["GET"])
 def list_view():
     filters = InvoiceSearchFilters.from_query_args(request.args)
-    
-    # Ora cerchiamo tutti i documenti, non solo le fatture, se non specificato diversamente
-    # Possiamo passare document_type=None per avere tutto
     documents = doc_service.search_documents(filters=filters, limit=300, document_type=None)
-
     suppliers = list_suppliers(include_inactive=False)
     legal_entities = list_legal_entities(include_inactive=False)
     accounting_years = list_accounting_years()
 
-    # Nota: usiamo ancora la cartella 'invoices' per i template per ora
+    # FIX: path template aggiornato a 'documents/'
     return render_template(
-        "invoices/list.html",
+        "documents/list.html",
         documents=documents,
         suppliers=suppliers,
         legal_entities=legal_entities,
@@ -58,14 +53,13 @@ def list_view():
 @documents_bp.route("/review/list", methods=["GET"])
 def review_list_view():
     order = request.args.get("order", "desc")
-    # Qui manteniamo il filtro invoice per la revisione fatture specifica, o lo apriamo a tutto?
-    # Per ora mostriamo tutto ciò che è 'imported'
     documents = doc_service.list_documents_to_review(order=order, document_type=None)
     next_doc = doc_service.get_next_document_to_review(order=order, document_type=None)
 
+    # FIX: path template aggiornato
     return render_template(
-        "invoices/review_list.html",
-        invoices=documents, # Il template usa ancora 'invoices' come var interna per ora o 'doc'
+        "documents/review_list.html",
+        invoices=documents, 
         next_invoice=next_doc,
         order=order,
     )
@@ -73,7 +67,6 @@ def review_list_view():
 
 @documents_bp.route("/review", methods=["GET"])
 def review_loop_redirect_view():
-    # Cerca il prossimo documento generico
     next_doc = doc_service.get_next_document_to_review(document_type=None)
     if next_doc:
         return redirect(url_for("documents.review_loop_invoice_view", document_id=next_doc.id))
@@ -94,14 +87,16 @@ def review_loop_invoice_view(document_id: int):
 
     document = DocumentService.get_document_by_id(document_id)
     if document is None: abort(404)
-    return render_template('invoices/review.html', invoice=document) # invoice var per compatibilità template
+    # FIX: path template aggiornato
+    return render_template('documents/review.html', invoice=document)
 
 
 @documents_bp.route("/preview/<int:document_id>", methods=["GET"], endpoint="preview_visual")
 def preview_visual(document_id: int):
     document = DocumentService.get_document_by_id(document_id)
     if document is None: abort(404)
-    return render_template("invoices/preview_template.html", invoice=document)
+    # FIX: path template aggiornato
+    return render_template("documents/preview_template.html", invoice=document)
 
 
 @documents_bp.route("/<int:document_id>", methods=["GET"])
@@ -110,14 +105,14 @@ def detail_view(document_id: int):
     if detail is None:
         flash("Documento non trovato.", "warning")
         return redirect(url_for("documents.list_view"))
-    return render_template("invoices/detail.html", **detail)
+    # FIX: path template aggiornato
+    return render_template("documents/detail.html", **detail)
 
 
 @documents_bp.route("/<int:document_id>/status", methods=["POST"])
 def update_status_view(document_id: int):
     allowed_doc_statuses = {"imported", "pending_physical_copy", "verified", "rejected", "archived"}
     doc_status = request.form.get("doc_status") or None
-    
     if doc_status is not None and doc_status not in allowed_doc_statuses:
         flash("Valore di stato documento non valido.", "danger")
         return redirect(url_for("documents.detail_view", document_id=document_id))
@@ -125,15 +120,55 @@ def update_status_view(document_id: int):
     due_date_str = request.form.get("due_date") or ""
     due_date = _parse_date(due_date_str)
 
-    doc = doc_service.update_document_status(
-        document_id=document_id,
-        doc_status=doc_status,
-        due_date=due_date,
-    )
+    doc = doc_service.update_document_status(document_id=document_id, doc_status=doc_status, due_date=due_date)
     if doc is None:
         flash("Documento non trovato.", "danger")
     else:
         flash("Stato aggiornato con successo.", "success")
+    return redirect(url_for("documents.detail_view", document_id=document_id))
+
+
+@documents_bp.route("/<int:document_id>/confirm", methods=["POST"])
+def confirm_invoice(document_id: int):
+    order = request.args.get("order", "desc")
+    invoice = doc_service.confirm_document(document_id)
+    if invoice is None: abort(404)
+    flash("Documento confermato.", "success")
+    
+    next_invoice = doc_service.get_next_document_to_review(order=order, document_type=None)
+    if next_invoice:
+        return redirect(url_for("documents.detail_view", document_id=next_invoice.id, order=order))
+    flash("Nessun altro documento da rivedere.", "info")
+    return redirect(url_for("documents.review_list_view", order=order))
+
+
+@documents_bp.route("/<int:document_id>/reject", methods=["POST"])
+def reject_invoice(document_id: int):
+    order = request.args.get("order", "desc")
+    invoice = doc_service.reject_document(document_id)
+    if invoice is None: abort(404)
+    flash("Documento scartato.", "success")
+
+    next_invoice = doc_service.get_next_document_to_review(order=order, document_type=None)
+    if next_invoice:
+        return redirect(url_for("documents.detail_view", document_id=next_invoice.id, order=order))
+    flash("Nessun altro documento da rivedere.", "info")
+    return redirect(url_for("documents.review_list_view", order=order))
+
+
+@documents_bp.route("/<int:document_id>/physical-copy/request", methods=["POST"], endpoint="request_physical_copy")
+def request_physical_copy_view(document_id: int):
+    invoice = doc_service.request_physical_copy(document_id)
+    if invoice is None: abort(404)
+    flash("Richiesta copia fisica registrata.", "success")
+    return redirect(url_for("documents.detail_view", document_id=document_id))
+
+
+@documents_bp.route("/<int:document_id>/physical-copy/received", methods=["POST"], endpoint="mark_physical_copy_received")
+def mark_physical_copy_received_view(document_id: int):
+    invoice = doc_service.mark_physical_copy_received(document_id, file=None)
+    if invoice is None: abort(404)
+    flash("Copia fisica segnata come ricevuta.", "success")
     return redirect(url_for("documents.detail_view", document_id=document_id))
 
 
@@ -143,13 +178,37 @@ def upload_physical_copy_view(document_id: int):
     if file is None or not file.filename:
         flash("Seleziona un file da caricare.", "warning")
         return redirect(url_for("documents.detail_view", document_id=document_id))
-    
     if not _is_allowed_file(file.filename):
         flash("Formato file non supportato.", "danger")
         return redirect(url_for("documents.detail_view", document_id=document_id))
 
     doc = doc_service.mark_physical_copy_received(document_id, file=file)
     if doc is None: abort(404)
-    
     flash("Copia fisica caricata.", "success")
+    return redirect(url_for("documents.detail_view", document_id=document_id))
+
+
+@documents_bp.get("/<int:document_id>/attach-scan")
+def attach_scan_view(document_id: int):
+    invoice = Document.query.get_or_404(document_id)
+    from app.services.scan_service import list_inbox_files
+    files = list_inbox_files()
+    # FIX: path template aggiornato
+    return render_template("documents/attach_scan.html", invoice=invoice, inbox_files=files)
+
+
+@documents_bp.post("/<int:document_id>/attach-scan")
+def attach_scan_process(document_id: int):
+    invoice = Document.query.get_or_404(document_id)
+    filename = request.form.get("selected_file")
+    if not filename:
+        flash("Seleziona un file prima di procedere.", "warning")
+        return redirect(url_for("documents.attach_scan_view", document_id=document_id))
+
+    from app.services.scan_service import attach_scan_to_invoice
+    try:
+        attach_scan_to_invoice(filename, invoice)
+        flash("Scansione collegata correttamente.", "success")
+    except Exception as e:
+        flash(f"Errore: {e}", "danger")
     return redirect(url_for("documents.detail_view", document_id=document_id))

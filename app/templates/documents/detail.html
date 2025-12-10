@@ -6,7 +6,7 @@
 <div class="page-header">
     <h1>Fattura #{{ invoice.id }}</h1>
     <div class="page-actions">
-        <a href="{{ url_for('invoices.list_view') }}" class="btn-secondary">← Torna all'elenco</a>
+        <a href="{{ url_for('documents.list_view') }}" class="btn-secondary">← Torna all'elenco</a>
     </div>
 </div>
 
@@ -17,11 +17,11 @@
     <p>Questa fattura è stata importata ma non ancora confermata.</p>
     <div class="alert-actions">
         <form method="post" style="display:inline;"
-              action="{{ url_for('invoices.confirm_invoice', invoice_id=invoice.id) }}">
+              action="{{ url_for('documents.confirm_invoice', document_id=invoice.id) }}">
             <button type="submit" class="btn-primary btn-sm">✓ Conferma</button>
         </form>
         <form method="post" style="display:inline;"
-              action="{{ url_for('invoices.reject_invoice', invoice_id=invoice.id) }}"
+              action="{{ url_for('documents.reject_invoice', document_id=invoice.id) }}"
               onsubmit="return confirm('Scartare questa fattura?');">
             <button type="submit" class="btn-secondary btn-sm">✗ Scarta</button>
         </form>
@@ -154,7 +154,7 @@
             <h3>📋 Stato Documento</h3>
         </div>
         <div class="card-body">
-            <form method="post" action="{{ url_for('invoices.update_status_view', invoice_id=invoice.id) }}"
+            <form method="post" action="{{ url_for('documents.update_status_view', document_id=invoice.id) }}"
                   id="invoice-status-form">
                 <div class="form-group">
                     <label for="doc_status">Stato</label>
@@ -174,7 +174,7 @@
                 <div class="form-actions">
                     <button type="submit" class="btn-primary">Aggiorna</button>
                     {% if not invoice.physical_copy_file_path %}
-                        <a href="{{ url_for('invoices.attach_scan_view', invoice_id=invoice.id) }}"
+                        <a href="{{ url_for('documents.attach_scan_view', document_id=invoice.id) }}"
                            class="btn-secondary btn-sm">Collega scansione</a>
                     {% endif %}
                 </div>
@@ -217,13 +217,13 @@
 
             <div class="form-actions">
                 {% if physical_status == 'missing' %}
-                    <form method="post" action="{{ url_for('invoices.request_physical_copy', invoice_id=invoice.id) }}">
+                    <form method="post" action="{{ url_for('documents.request_physical_copy', document_id=invoice.id) }}">
                         <button type="submit" class="btn-secondary btn-sm">Richiedi copia</button>
                     </form>
                 {% endif %}
                 {% if physical_status in ['missing', 'requested'] %}
                     <form method="post"
-                          action="{{ url_for('invoices.mark_physical_copy_received', invoice_id=invoice.id) }}"
+                          action="{{ url_for('documents.mark_physical_copy_received', document_id=invoice.id) }}"
                           onsubmit="return confirm('Confermi ricezione copia fisica?');">
                         <button type="submit" class="btn-primary btn-sm">Segna ricevuta</button>
                     </form>
@@ -232,7 +232,7 @@
 
             {% if physical_status != 'received' %}
             <form method="post" enctype="multipart/form-data"
-                  action="{{ url_for('invoices.upload_physical_copy', invoice_id=invoice.id) }}"
+                  action="{{ url_for('documents.upload_physical_copy', document_id=invoice.id) }}"
                   class="upload-form">
                 <div class="form-group">
                     <label for="physical_copy_file">Carica scansione</label>
@@ -249,7 +249,7 @@
 <section class="panel">
     <div class="panel-header">
         <h2>📦 Righe Fattura</h2>
-        <a href="{{ url_for('categories.bulk_assign_view', invoice_id=invoice.id) }}"
+        <a href="{{ url_for('categories.bulk_assign_view', document_id=invoice.id) }}"
            class="btn-secondary btn-sm">Assegna categorie</a>
     </div>
     <div class="table-wrapper">
