@@ -1,85 +1,112 @@
 {% extends "base.html" %}
 
-{% block title %}Assegna categorie - Fattura #{{ invoice_id }}{% endblock %}
+{% block title %}Assegna Categorie - Gestionale Acquisti{% endblock %}
 
 {% block content %}
-<h1>Assegna categorie alle righe - Fattura #{{ invoice_id }}</h1>
+<h1>Assegna Categoria (Doc #{{ document_id }})</h1>
 
-<section class="panel">
-    <h2>Impostazioni</h2>
-    <form method="post"
-          action="{{ url_for('categories.bulk_assign_view', invoice_id=invoice_id) }}"
-          id="bulk-assign-form">
+<div class="row">
+    <div class="col-md-8">
+        <form method="POST" action="{{ url_for('categories.bulk_assign_view', document_id=document_id) }}">
+            
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-6">
+                            <label for="category_id" class="form-label">Scegli Categoria</label>
+                            <select name="category_id" id="category_id" class="form-select">
+                                <option value="">-- Nessuna (Rimuovi) --</option>
+                                {% for cat in categories %}
+                                <option value="{{ cat.id }}">{{ cat.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="apply_to_all" id="apply_to_all" value="1">
+                                <label class="form-check-label" for="apply_to_all">
+                                    Applica a TUTTE le righe (ignora selezione)
+                                </label>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">Applica Modifiche</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-        <div class="form-row">
-            <label for="category_id">Categoria da assegnare</label>
-            <select id="category_id" name="category_id">
-                <option value="">-- Nessuna (rimuovi categoria) --</option>
-                {% for c in categories %}
-                  <option value="{{ c.id }}">{{ c.name }}</option>
-                {% endfor %}
-            </select>
+            <section class="panel">
+                <h2>Seleziona Righe</h2>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                        <tr>
+                            <th style="width: 40px;">
+                                <input type="checkbox" id="select-all-lines" class="form-check-input">
+                            </th>
+                            <th>Descrizione</th>
+                            <th class="text-end">Importo</th>
+                            <th>Categoria Attuale</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for line in lines %}
+                        <tr>
+                            <td>
+                                <input type="checkbox" name="line_ids" value="{{ line.id }}" class="form-check-input line-checkbox">
+                            </td>
+                            <td class="text-truncate" style="max-width: 300px;" title="{{ line.description }}">
+                                {{ line.description }}
+                            </td>
+                            <td class="text-end font-monospace">
+                                {{ "%.2f"|format(line.total_line_amount or 0) }} €
+                            </td>
+                            <td>
+                                {% if line.category %}
+                                    <span class="badge bg-info text-dark">{{ line.category.name }}</span>
+                                {% else %}
+                                    <span class="text-muted small">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="4" class="text-center text-muted py-3">Nessuna riga trovata.</td>
+                        </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </form>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card bg-light">
+            <div class="card-body">
+                <h5>Istruzioni</h5>
+                <ul class="small text-muted ps-3">
+                    <li>Seleziona le righe che vuoi modificare.</li>
+                    <li>Scegli la categoria dal menu a tendina.</li>
+                    <li>Clicca "Applica Modifiche".</li>
+                    <li>Se spunti "Applica a TUTTE", la selezione manuale viene ignorata.</li>
+                </ul>
+                <hr>
+                <a href="{{ url_for('documents.detail_view', document_id=document_id) }}" class="btn btn-outline-secondary w-100">
+                    ← Torna al Documento
+                </a>
+            </div>
         </div>
+    </div>
+</div>
 
-        <div class="form-row">
-            <label>
-                <input type="checkbox" name="apply_to_all" id="apply_to_all" value="1">
-                Applica a tutte le righe (ignora selezione manuale)
-            </label>
-        </div>
-
-        <div class="form-actions">
-            <button type="submit" class="btn-primary">Applica</button>
-            <a href="{{ url_for('invoices.detail_view', invoice_id=invoice_id) }}"
-               class="btn-secondary">Annulla</a>
-        </div>
-
-        <hr>
-
-        <h2>Seleziona righe (se non applichi a tutte)</h2>
-
-        <div class="table-wrapper">
-            <table class="table table-compact table-striped" id="bulk-lines-table">
-                <thead>
-                <tr>
-                    <th>
-                        <input type="checkbox" id="select_all_rows">
-                    </th>
-                    <th>#</th>
-                    <th>Descrizione</th>
-                    <th>Categoria attuale</th>
-                    <th>Totale riga</th>
-                </tr>
-                </thead>
-                <tbody>
-                {% for line in lines %}
-                  <tr>
-                      <td>
-                          <input type="checkbox" name="line_ids" value="{{ line.id }}" class="line-checkbox">
-                      </td>
-                      <td>{{ line.line_number }}</td>
-                      <td>{{ line.description }}</td>
-                      <td>{{ line.category.name if line.category }}</td>
-                      <td class="text-right">{{ line.total_line_amount }}</td>
-                  </tr>
-                {% else %}
-                  <tr>
-                      <td colspan="5" class="text-center">Nessuna riga.</td>
-                  </tr>
-                {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </form>
-</section>
-
-<p>
-    <a href="{{ url_for('invoices.detail_view', invoice_id=invoice_id) }}" class="btn-link">
-        &larr; Torna alla fattura
-    </a>
-</p>
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='js/categories_assign.js') }}"></script>
+<script>
+    // Script semplice per "Seleziona tutto"
+    document.getElementById('select-all-lines').addEventListener('change', function() {
+        const checked = this.checked;
+        document.querySelectorAll('.line-checkbox').forEach(cb => cb.checked = checked);
+    });
+</script>
 {% endblock %}

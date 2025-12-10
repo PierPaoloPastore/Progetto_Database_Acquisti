@@ -4,7 +4,7 @@ Route per la gestione delle categorie (Category).
 Comprende:
 - elenco categorie (GET /categories/)
 - creazione/aggiornamento categoria (POST /categories/save)
-- assegnazione bulk di categoria alle righe fattura (POST /categories/bulk-assign)
+- assegnazione bulk di categoria alle righe documento (POST /categories/bulk-assign)
 """
 
 from __future__ import annotations
@@ -34,10 +34,6 @@ categories_bp = Blueprint("categories", __name__)
 def list_view():
     """
     Pagina elenco categorie.
-
-    Include:
-    - tabella categorie
-    - form base per creare/modificare una categoria
     """
     categories = list_categories_for_ui()
     return render_template(
@@ -49,11 +45,7 @@ def list_view():
 @categories_bp.route("/save", methods=["POST"])
 def save_view():
     """
-    Crea o aggiorna una categoria in base ai campi del form:
-
-    - category_id (opzionale)
-    - name
-    - description
+    Crea o aggiorna una categoria.
     """
     category_id_str = request.form.get("category_id") or None
     name = request.form.get("name", "").strip()
@@ -80,22 +72,20 @@ def save_view():
     return redirect(url_for("categories.list_view"))
 
 
-@categories_bp.route("/bulk-assign/<int:invoice_id>", methods=["GET", "POST"])
-def bulk_assign_view(invoice_id: int):
+# FIX: invoice_id -> document_id
+@categories_bp.route("/bulk-assign/<int:document_id>", methods=["GET", "POST"])
+def bulk_assign_view(document_id: int):
     """
-    Schermata per l'assegnazione bulk di una categoria alle righe di una fattura.
-
-    GET:
-        mostra elenco righe + select categoria + possibilità di selezionare righe
-    POST:
-        applica la categoria scelta alle righe selezionate (o tutte)
+    Schermata per l'assegnazione bulk di una categoria alle righe di un documento.
     """
     if request.method == "GET":
         categories = list_categories_for_ui()
-        lines = list_lines_by_invoice(invoice_id)
+        # Nota: la funzione repo si chiama ancora list_lines_by_invoice ma accetta document_id
+        lines = list_lines_by_invoice(document_id)
+        
         return render_template(
             "categories/assign_bulk.html",
-            invoice_id=invoice_id,
+            document_id=document_id, # FIX: passiamo document_id
             categories=categories,
             lines=lines,
         )
@@ -114,7 +104,6 @@ def bulk_assign_view(invoice_id: int):
 
     line_ids: Optional[List[int]] = None
     if not apply_to_all:
-        # Converto gli ID riga selezionati in interi
         temp: List[int] = []
         for v in selected_line_ids:
             try:
@@ -123,8 +112,10 @@ def bulk_assign_view(invoice_id: int):
                 continue
         line_ids = temp
 
+    # La funzione del service accetta ancora 'invoice_id' come nome parametro formale,
+    # ma semanticamente è un document_id. Lo passiamo posizionale o keyword.
     result = bulk_assign_category_to_invoice_lines(
-        invoice_id=invoice_id,
+        invoice_id=document_id, 
         category_id=category_id,
         line_ids=line_ids,
     )
@@ -137,4 +128,5 @@ def bulk_assign_view(invoice_id: int):
     else:
         flash(result.get("message", "Errore durante l'assegnazione categorie."), "danger")
 
-    return redirect(url_for("invoices.detail_view", invoice_id=invoice_id))
+    # FIX: Redirect a documents.detail_view
+    return redirect(url_for("documents.detail_view", document_id=document_id))

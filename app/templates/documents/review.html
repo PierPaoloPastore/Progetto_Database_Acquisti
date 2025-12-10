@@ -1,23 +1,49 @@
 {% extends "base.html" %}
+
 {% block content %}
 <div class="container-fluid vh-100 d-flex flex-column p-0">
+    
     <div class="bg-dark text-white p-2 d-flex justify-content-between align-items-center" style="height: 50px;">
         <h6 class="m-0 ps-3">
             🔍 Revisione: {{ invoice.supplier.name if invoice.supplier else 'N/D' }} 
             <span class="badge bg-light text-dark ms-2">{{ invoice.document_type|upper }}</span>
-        </h6>        <div class="pe-3">
+        </h6>
+        <div class="pe-3">
             <a href="{{ url_for('documents.list_view') }}" class="text-white text-decoration-none small">Esci</a>
         </div>
     </div>
+
     <div class="row flex-grow-1 m-0 overflow-hidden">
+        
         <div class="col-md-5 bg-white border-end overflow-auto p-4" style="height: calc(100vh - 50px);">
             <form method="POST" action="{{ url_for('documents.review_loop_invoice_view', document_id=invoice.id) }}">
+                
                 <h5 class="text-primary border-bottom pb-2 mb-4">Modifica Dati Documento</h5>
+                
                 <input type="hidden" name="invoice_id" value="{{ invoice.id }}">
+
                 <div class="mb-3">
                     <label class="form-label fw-bold">Numero Documento</label>
                     <input type="text" name="number" class="form-control" value="{{ invoice.document_number }}" required>
                 </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Data Documento</label>
+                    <input type="date" name="date" class="form-control" value="{{ invoice.document_date }}" required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Importo Totale (€)</label>
+                    <div class="input-group">
+                        <span class="input-group-text">€</span>
+                        <input type="number" step="0.01" name="total_amount" class="form-control fw-bold fs-5 text-end" value="{{ invoice.total_gross_amount }}" required>
+                    </div>
+                </div>
+
+                <div class="alert alert-warning mt-4 py-2">
+                    <small><i class="bi bi-exclamation-triangle"></i> Verifica che il totale corrisponda al documento a destra.</small>
+                </div>
+
                 <div class="d-grid gap-2 mt-5">
                     <button type="submit" class="btn btn-success btn-lg shadow-sm">
                         <i class="bi bi-check-circle-fill"></i> Conferma & Prossima
@@ -28,9 +54,12 @@
                 </div>
             </form>
         </div>
+
         <div class="col-md-7 p-0 bg-secondary d-flex align-items-center justify-content-center">
             <iframe src="{{ url_for('documents.preview_visual', document_id=invoice.id) }}" 
-                    class="w-100 h-100 border-0" style="display: block;" title="Anteprima">
+                    class="w-100 h-100 border-0" 
+                    style="display: block;"
+                    title="Anteprima Documento">
             </iframe>
         </div>
     </div>

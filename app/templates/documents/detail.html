@@ -1,20 +1,19 @@
 {% extends "base.html" %}
 
-{% block title %}Fattura #{{ invoice.id }} - Gestionale Acquisti{% endblock %}
+{% block title %}Documento #{{ invoice.id }} - Gestionale Acquisti{% endblock %}
 
 {% block content %}
 <div class="page-header">
-    <h1>Fattura #{{ invoice.id }}</h1>
+    <h1>Documento #{{ invoice.id }}</h1>
     <div class="page-actions">
         <a href="{{ url_for('documents.list_view') }}" class="btn-secondary">← Torna all'elenco</a>
     </div>
 </div>
 
-<!-- ALERT REVISIONE (se imported) -->
 {% if invoice.doc_status == 'imported' %}
 <div class="alert alert-warning">
     <strong>⚠️ Revisione richiesta</strong>
-    <p>Questa fattura è stata importata ma non ancora confermata.</p>
+    <p>Questo documento è stato importato ma non ancora confermato.</p>
     <div class="alert-actions">
         <form method="post" style="display:inline;"
               action="{{ url_for('documents.confirm_invoice', document_id=invoice.id) }}">
@@ -22,16 +21,14 @@
         </form>
         <form method="post" style="display:inline;"
               action="{{ url_for('documents.reject_invoice', document_id=invoice.id) }}"
-              onsubmit="return confirm('Scartare questa fattura?');">
+              onsubmit="return confirm('Scartare questo documento?');">
             <button type="submit" class="btn-secondary btn-sm">✗ Scarta</button>
         </form>
     </div>
 </div>
 {% endif %}
 
-<!-- GRID CARDS: Dati Principali -->
 <div class="cards-grid cards-2col">
-    <!-- CARD: Dati Documento -->
     <div class="card">
         <div class="card-header">
             <h3>📄 Dati Documento</h3>
@@ -42,7 +39,7 @@
                 <span class="value">{{ invoice.document_number }}</span>
             </div>
             <div class="data-row">
-                <span class="label">Data fattura:</span>
+                <span class="label">Data Documento:</span>
                 <span class="value">{{ invoice.document_date.strftime('%d/%m/%Y') if invoice.document_date else '-' }}</span>
             </div>
             <div class="data-row">
@@ -64,7 +61,6 @@
         </div>
     </div>
 
-    <!-- CARD: Totali -->
     <div class="card">
         <div class="card-header">
             <h3>💰 Importi</h3>
@@ -85,7 +81,6 @@
         </div>
     </div>
 
-    <!-- CARD: Fornitore -->
     <div class="card">
         <div class="card-header">
             <h3>🏢 Fornitore</h3>
@@ -120,7 +115,6 @@
         </div>
     </div>
 
-    <!-- CARD: Intestatario -->
     <div class="card">
         <div class="card-header">
             <h3>🏛️ Intestatario</h3>
@@ -146,9 +140,7 @@
     </div>
 </div>
 
-<!-- GRID CARDS: Stato + Copia Fisica -->
 <div class="cards-grid cards-2col">
-    <!-- CARD: Stato Documento -->
     <div class="card">
         <div class="card-header">
             <h3>📋 Stato Documento</h3>
@@ -182,7 +174,6 @@
         </div>
     </div>
 
-    <!-- CARD: Copia Fisica -->
     <div class="card">
         <div class="card-header">
             <h3>📎 Copia Fisica</h3>
@@ -245,10 +236,9 @@
     </div>
 </div>
 
-<!-- SEZIONE: Righe Fattura -->
 <section class="panel">
     <div class="panel-header">
-        <h2>📦 Righe Fattura</h2>
+        <h2>📦 Righe Documento</h2>
         <a href="{{ url_for('categories.bulk_assign_view', document_id=invoice.id) }}"
            class="btn-secondary btn-sm">Assegna categorie</a>
     </div>
@@ -286,9 +276,7 @@
     </div>
 </section>
 
-<!-- GRID: Riepilogo IVA + Pagamenti -->
 <div class="cards-grid cards-2col">
-    <!-- CARD: Riepilogo IVA -->
     <div class="card">
         <div class="card-header">
             <h3>📊 Riepilogo IVA</h3>
@@ -321,7 +309,6 @@
         </div>
     </div>
 
-    <!-- CARD: Pagamenti -->
     <div class="card">
         <div class="card-header">
             <h3>💳 Pagamenti</h3>
@@ -358,7 +345,6 @@
     </div>
 </div>
 
-<!-- SEZIONE: Note -->
 <section class="panel">
     <div class="panel-header">
         <h2>📝 Note</h2>

@@ -1,9 +1,14 @@
 {% extends "base.html" %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+
+{% block title %}Documenti da Rivedere - Gestionale Acquisti{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-3">
         <h1>Documenti da rivedere</h1>
         {% if next_invoice %}
             <a class="btn btn-primary" href="{{ url_for('documents.review_loop_invoice_view', document_id=next_invoice.id) }}">
-                <i class="bi bi-play-circle"></i> Avvia Revisione
+                <i class="bi bi-play-circle"></i> Avvia Revisione ({{ next_invoice.document_date }})
             </a>
         {% else %}
              <button class="btn btn-secondary" disabled>Nessun documento da rivedere</button>
@@ -46,9 +51,11 @@
                           </td>
                           <td class="text-end fw-bold">{{ "%.2f"|format(doc.total_gross_amount or 0) }} €</td>
                           <td class="text-end">
-                            <a href="{{ url_for('documents.review_loop_invoice_view', document_id=doc.id) }}"
-                               class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Rivedi</a>
-                        </td>
+                              <a href="{{ url_for('documents.review_loop_invoice_view', document_id=doc.id) }}"
+                                 class="btn btn-sm btn-outline-primary">
+                                  <i class="bi bi-pencil"></i> Rivedi
+                              </a>
+                          </td>
                       </tr>
                     {% else %}
                       <tr>

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>Collega scansione al documento #{{ invoice.id }}</h2>
 
+<h2>Collega scansione al documento #{{ invoice.id }}</h2>
 
 {% if inbox_files %}
     <form method="POST">
@@ -14,13 +14,14 @@
         </select>
 
         <br><br>
-        <button type="submit" class="btn btn-primary">Collega alla fattura</button>
+        <button type="submit" class="btn btn-primary">Collega al documento</button>
     </form>
 {% else %}
     <p>Nessun file trovato nella inbox. Configura la cartella dalle impostazioni.</p>
 {% endif %}
 
-<a href="{{ url_for('documents.detail_view', document_id=invoice.id) }}">Torna al documento</a>
+<a href="{{ url_for('documents.detail_view', document_id=invoice.id) }}">
+    Torna al documento
+</a>
+
 {% endblock %}
-
-
