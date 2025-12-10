@@ -11,7 +11,11 @@ settings_bp = Blueprint("settings", __name__, url_prefix="/settings")
 
 
 @settings_bp.get("/")
-def edit_settings():
+def index():
+    """
+    Pagina principale delle impostazioni (GET).
+    Corrisponde all'endpoint 'settings.index'.
+    """
     scan_inbox = get_setting("SCAN_INBOX_PATH", "")
     copy_storage = get_setting("PHYSICAL_COPY_STORAGE_PATH", "")
 
@@ -24,6 +28,9 @@ def edit_settings():
 
 @settings_bp.post("/")
 def save_settings():
+    """
+    Salvataggio delle impostazioni (POST).
+    """
     scan_inbox = request.form.get("scan_inbox", "").strip()
     copy_storage = request.form.get("copy_storage", "").strip()
 
@@ -31,4 +38,6 @@ def save_settings():
     set_setting("PHYSICAL_COPY_STORAGE_PATH", copy_storage)
 
     flash("Impostazioni salvate correttamente", "success")
-    return redirect(url_for("settings.edit_settings"))
+    
+    # FIX: Reindirizza all'endpoint corretto 'settings.index'
+    return redirect(url_for("settings.index"))
