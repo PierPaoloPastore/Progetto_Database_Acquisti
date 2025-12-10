@@ -1,64 +1,74 @@
 {% extends "base.html" %}
 
-{% block title %}Inbox pagamenti - Gestionale Acquisti{% endblock %}
+{% block title %}Inbox Pagamenti - Gestionale Acquisti{% endblock %}
 
 {% block content %}
-<h1>Inbox pagamenti</h1>
-
-<section class="panel">
-    <h2>Carica documenti di pagamento</h2>
-    <form method="post" action="{{ url_for('payments.upload_payments') }}" enctype="multipart/form-data">
-        <div class="form-row">
-            <label for="payment_files">Seleziona PDF</label>
-            <input type="file" id="payment_files" name="files" multiple required>
-        </div>
-        <div class="form-actions">
-            <button type="submit" class="btn-primary">Carica</button>
-        </div>
-    </form>
-</section>
-
-<section class="panel">
-    <h2>Documenti in lavorazione</h2>
-    <div class="table-wrapper">
-        <table class="table table-compact table-striped">
-            <thead>
-            <tr>
-                <th>Nome file</th>
-                <th>Tipo pagamento</th>
-                <th>Data upload</th>
-                <th>Importo rilevato</th>
-                <th>Data pagamento</th>
-                <th>Stato</th>
-                <th>Azioni</th>
-            </tr>
-            </thead>
-            <tbody>
-            {% for doc in documents %}
-                <tr>
-                    <td>{{ doc.file_name }}</td>
-                    <td>{{ doc.payment_type }}</td>
-                    <td>{{ doc.uploaded_at.strftime('%d/%m/%Y %H:%M') if doc.uploaded_at }}</td>
-                    <td class="text-right">
-                        {% if doc.parsed_amount %}
-                            {{ "%.2f"|format(doc.parsed_amount) }}
-                        {% else %}
-                            -
-                        {% endif %}
-                    </td>
-                    <td>{{ doc.parsed_payment_date.strftime('%d/%m/%Y') if doc.parsed_payment_date }}</td>
-                    <td>{{ doc.status }}</td>
-                    <td>
-                        <a href="{{ url_for('payments.review_payment', document_id=doc.id) }}" class="btn-link">Rivedi</a>
-                    </td>
-                </tr>
-            {% else %}
-                <tr>
-                    <td colspan="7" class="text-center">Nessun documento da lavorare.</td>
-                </tr>
-            {% endfor %}
-            </tbody>
-        </table>
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1>Inbox Documenti Bancari</h1>
+        <form method="post" enctype="multipart/form-data" action="{{ url_for('payments.upload_documents') }}" class="d-flex align-items-center">
+            <input type="file" name="files" multiple class="form-control me-2" required>
+            <button type="submit" class="btn btn-primary text-nowrap">
+                <i class="bi bi-upload"></i> Carica PDF
+            </button>
+        </form>
     </div>
-</section>
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-white">
+            <h5 class="mb-0">Documenti da processare</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped mb-0 align-middle">
+                    <thead class="table-light">
+                    <tr>
+                        <th>Nome File</th>
+                        <th>Tipo</th>
+                        <th>Data Caricamento</th>
+                        <th>Stato</th>
+                        <th class="text-end">Azioni</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for doc in documents %}
+                      <tr>
+                          <td>
+                              <i class="bi bi-file-earmark-pdf text-danger me-2"></i>
+                              <span class="fw-bold">{{ doc.file_name }}</span>
+                          </td>
+                          <td>
+                              <span class="badge bg-secondary">{{ doc.payment_type|default('N/D') }}</span>
+                          </td>
+                          <td>{{ doc.uploaded_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                          <td>
+                              {% if doc.status == 'pending_review' %}
+                                <span class="badge bg-warning text-dark">Da Revisionare</span>
+                              {% elif doc.status == 'processed' %}
+                                <span class="badge bg-success">Processato</span>
+                              {% else %}
+                                <span class="badge bg-light text-dark border">{{ doc.status }}</span>
+                              {% endif %}
+                          </td>
+                          <td class="text-end">
+                              <a href="{{ url_for('payments.review_view', document_id=doc.id) }}" 
+                                 class="btn btn-sm btn-primary">
+                                  <i class="bi bi-pencil-square"></i> Gestisci
+                              </a>
+                          </td>
+                      </tr>
+                    {% else %}
+                      <tr>
+                          <td colspan="5" class="text-center py-5 text-muted">
+                              <i class="bi bi-inbox fs-1 d-block mb-3"></i>
+                              Nessun documento di pagamento da revisionare.
+                          </td>
+                      </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}

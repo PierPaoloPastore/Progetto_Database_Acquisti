@@ -25,8 +25,9 @@ def inbox_view():
     return render_template("payments/inbox.html", documents=documents)
 
 
+# FIX: Rinominato per matchare url_for('payments.upload_documents') nel template
 @payments_bp.route("/payments/upload", methods=["POST"])
-def upload_payments():
+def upload_documents():
     files = request.files.getlist("files")
     if not files:
         flash("Nessun file caricato.", "warning")
@@ -37,8 +38,9 @@ def upload_payments():
     return redirect(url_for("payments.inbox_view"))
 
 
+# FIX: Rinominato per matchare url_for('payments.review_view') nel template
 @payments_bp.route("/payments/<int:document_id>/review", methods=["GET"])
-def review_payment(document_id: int):
+def review_view(document_id: int):
     try:
         context = payment_service.review_payment_document(document_id)
     except ValueError:
@@ -76,9 +78,10 @@ def assign_payment(document_id: int):
 
     if document.status == "partially_assigned":
         flash("Pagamenti parzialmente assegnati. Completa le associazioni.", "warning")
-        return redirect(url_for("payments.review_payment", document_id=document_id))
+        # FIX: Redirect alla funzione rinominata
+        return redirect(url_for("payments.review_view", document_id=document_id))
 
-    flash("Pagamenti registrati e fatture aggiornate.", "success")
+    flash("Pagamenti registrati e documenti aggiornati.", "success")
     return redirect(url_for("payments.inbox_view"))
 
 
