@@ -32,12 +32,12 @@ from .document_repo import (
     list_supplier_legal_entities,
 )
 
-from .invoice_line_repo import (
-    get_invoice_line_by_id,
-    list_lines_by_invoice,
+from .document_line_repo import (
+    get_document_line_by_id,
+    list_lines_by_document,
     list_lines_by_category,
-    create_invoice_line,
-    update_invoice_line,
+    create_document_line,
+    update_document_line,
 )
 from .vat_summary_repo import (
     list_vat_summaries_by_invoice,
@@ -103,11 +103,11 @@ __all__ = [
     "list_accounting_years",
     "get_supplier_account_balance",
     "list_supplier_legal_entities",
-    # Invoice lines
-    "list_lines_by_invoice",
+    # Document lines
+    "list_lines_by_document",
     "list_lines_by_category",
-    "create_invoice_line",
-    "update_invoice_line",
+    "create_document_line",
+    "update_document_line",
     # VAT summaries
     "list_vat_summaries_by_invoice",
     "create_vat_summary",
@@ -122,8 +122,8 @@ __all__ = [
     "list_payment_documents_by_status",
     "list_payments_for_invoice",
     "sum_payments_for_invoice",
-    # Invoice line util
-    "get_invoice_line_by_id",
+    # Document line util
+    "get_document_line_by_id",
     # Categories
     "get_category_by_id",
     "get_category_by_name",

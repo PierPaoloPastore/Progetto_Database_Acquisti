@@ -1,5 +1,5 @@
 """DTO per servizi applicativi."""
 
-from .invoice_filters import InvoiceSearchFilters
+from .document_filters import DocumentSearchFilters
 
-__all__ = ["InvoiceSearchFilters"]
+__all__ = ["DocumentSearchFilters"]

@@ -20,7 +20,7 @@ from flask import Blueprint, request, jsonify
 # Importiamo i servizi aggiornati
 from app.services import update_document_status
 from app.services import assign_category_to_line
-from app.models import InvoiceLine
+from app.models import DocumentLine
 
 # Rinomina Blueprint
 api_documents_bp = Blueprint("api_documents", __name__)
@@ -101,7 +101,7 @@ def api_assign_category_to_line(line_id: int):
                 }
             ), 400
 
-    line: Optional[InvoiceLine] = assign_category_to_line(
+    line: Optional[DocumentLine] = assign_category_to_line(
         line_id=line_id,
         category_id=category_id,
     )

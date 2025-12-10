@@ -1,7 +1,7 @@
 """
-Modello InvoiceLine (tabella: invoice_lines).
+Modello DocumentLine (tabella: invoice_lines).
 
-Rappresenta una singola riga della fattura (DettaglioLinee).
+Rappresenta una singola riga del documento (DettaglioLinee).
 """
 
 from datetime import datetime
@@ -9,7 +9,7 @@ from datetime import datetime
 from app.extensions import db
 
 
-class InvoiceLine(db.Model):
+class DocumentLine(db.Model):
     __tablename__ = "invoice_lines"
 
     id = db.Column(db.Integer, primary_key=True)
@@ -61,4 +61,4 @@ class InvoiceLine(db.Model):
     category = db.relationship("Category", back_populates="invoice_lines")
 
     def __repr__(self) -> str:
-        return f"<InvoiceLine id={self.id} document_id={self.document_id}>"
+        return f"<DocumentLine id={self.id} document_id={self.document_id}>"

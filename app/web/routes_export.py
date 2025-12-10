@@ -22,7 +22,7 @@ from flask import (
 
 # FIX: Importiamo search_documents dal nuovo servizio
 from app.services import search_documents
-from app.services.dto import InvoiceSearchFilters
+from app.services.dto import DocumentSearchFilters
 
 
 export_bp = Blueprint("export", __name__)
@@ -56,7 +56,7 @@ def export_invoices_csv():
 
     # FIX: Chiamata a search_documents specificando il tipo 'invoice'
     invoices = search_documents(
-        filters=InvoiceSearchFilters(
+        filters=DocumentSearchFilters(
             date_from=date_from,
             date_to=date_to,
         ),
