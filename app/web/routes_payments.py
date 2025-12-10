@@ -1,14 +1,7 @@
 from __future__ import annotations
 
 from flask import (
-    Blueprint,
-    abort,
-    flash,
-    redirect,
-    render_template,
-    request,
-    send_file,
-    url_for,
+    Blueprint, abort, flash, redirect, render_template, request, send_file, url_for,
 )
 
 from app.repositories import get_payment_document
@@ -19,13 +12,13 @@ payments_bp = Blueprint("payments", __name__)
 
 @payments_bp.route("/payments/inbox", methods=["GET"])
 def inbox_view():
+    # FIX: Filtra per 'partial' invece di 'partially_assigned' e rimuove 'error'
     documents = payment_service.get_payment_inbox(
-        ["pending_review", "partially_assigned", "error"]
+        ["pending_review", "partial", "imported"]
     )
     return render_template("payments/inbox.html", documents=documents)
 
 
-# FIX: Rinominato per matchare url_for('payments.upload_documents') nel template
 @payments_bp.route("/payments/upload", methods=["POST"])
 def upload_documents():
     files = request.files.getlist("files")
@@ -38,7 +31,6 @@ def upload_documents():
     return redirect(url_for("payments.inbox_view"))
 
 
-# FIX: Rinominato per matchare url_for('payments.review_view') nel template
 @payments_bp.route("/payments/<int:document_id>/review", methods=["GET"])
 def review_view(document_id: int):
     try:
@@ -57,6 +49,11 @@ def review_view(document_id: int):
 def assign_payment(document_id: int):
     invoice_ids = request.form.getlist("invoice_id")
     assignments = []
+    
+    if not invoice_ids:
+        flash("Nessuna fattura selezionata.", "warning")
+        return redirect(url_for("payments.review_view", document_id=document_id))
+
     for invoice_id in invoice_ids:
         amount_value = request.form.get(f"amount_{invoice_id}")
         if not amount_value:
@@ -76,9 +73,9 @@ def assign_payment(document_id: int):
     except ValueError:
         abort(404)
 
-    if document.status == "partially_assigned":
+    # FIX: Controlla lo stato 'partial'
+    if document.status == "partial":
         flash("Pagamenti parzialmente assegnati. Completa le associazioni.", "warning")
-        # FIX: Redirect alla funzione rinominata
         return redirect(url_for("payments.review_view", document_id=document_id))
 
     flash("Pagamenti registrati e documenti aggiornati.", "success")
@@ -88,7 +85,5 @@ def assign_payment(document_id: int):
 @payments_bp.route("/payments/<int:document_id>/file", methods=["GET"])
 def serve_payment_file(document_id: int):
     document = get_payment_document(document_id)
-    if document is None:
-        abort(404)
-
+    if document is None: abort(404)
     return send_file(document.file_path, download_name=document.file_name)

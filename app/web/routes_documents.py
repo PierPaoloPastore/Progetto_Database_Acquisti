@@ -187,28 +187,30 @@ def upload_physical_copy_view(document_id: int):
     flash("Copia fisica caricata.", "success")
     return redirect(url_for("documents.detail_view", document_id=document_id))
 
-
-@documents_bp.get("/<int:document_id>/attach-scan")
+@documents_bp.route("/<int:document_id>/attach-scan", methods=["GET"])
 def attach_scan_view(document_id: int):
-    invoice = Document.query.get_or_404(document_id)
-    from app.services.scan_service import list_inbox_files
-    files = list_inbox_files()
-    # FIX: path template aggiornato
-    return render_template("documents/attach_scan.html", invoice=invoice, inbox_files=files)
+    """Mostra il form per caricare una scansione direttamente."""
+    document = Document.query.get_or_404(document_id)
+    # Non chiamiamo più list_inbox_files(), non serve per l'upload diretto
+    return render_template("documents/attach_scan.html", invoice=document)
 
 
-@documents_bp.post("/<int:document_id>/attach-scan")
+@documents_bp.route("/<int:document_id>/attach-scan", methods=["POST"])
 def attach_scan_process(document_id: int):
-    invoice = Document.query.get_or_404(document_id)
-    filename = request.form.get("selected_file")
-    if not filename:
-        flash("Seleziona un file prima di procedere.", "warning")
+    """Gestisce l'upload del file di scansione."""
+    document = Document.query.get_or_404(document_id)
+    
+    file = request.files.get("file")
+    if file is None or not file.filename:
+        flash("Seleziona un file da caricare.", "warning")
         return redirect(url_for("documents.attach_scan_view", document_id=document_id))
 
-    from app.services.scan_service import attach_scan_to_invoice
-    try:
-        attach_scan_to_invoice(filename, invoice)
-        flash("Scansione collegata correttamente.", "success")
-    except Exception as e:
-        flash(f"Errore: {e}", "danger")
+    if not _is_allowed_file(file.filename):
+        flash("Formato file non supportato (usa PDF, JPG, PNG).", "danger")
+        return redirect(url_for("documents.attach_scan_view", document_id=document_id))
+
+    # Usiamo la funzione esistente nel service che gestisce già salvataggio e aggiornamento DB
+    doc_service.mark_physical_copy_received(document_id, file=file)
+    
+    flash("Scansione caricata e collegata correttamente.", "success")
     return redirect(url_for("documents.detail_view", document_id=document_id))

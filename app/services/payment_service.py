@@ -14,7 +14,7 @@ from werkzeug.utils import secure_filename
 from app.extensions import db
 from app.models import Document, Payment, PaymentDocument
 from app.repositories import (
-    create_payment,
+    create_payment as create_payment_repo, # FIX: Alias per evitare conflitti
     create_payment_document,
     get_payment_document,
     list_overdue_payments,
@@ -27,9 +27,7 @@ from app.services.unit_of_work import UnitOfWork
 def list_overdue_payments_for_ui(
     reference_date: Optional[date] = None,
 ) -> List[Dict[str, Any]]:
-    """
-    Restituisce i pagamenti scaduti e non pagati.
-    """
+    """Restituisce i pagamenti scaduti e non pagati."""
     payments = list_overdue_payments(reference_date=reference_date)
     results: List[Dict[str, Any]] = []
 
@@ -39,7 +37,7 @@ def list_overdue_payments_for_ui(
         results.append(
             {
                 "payment": p,
-                "invoice": document, # Chiave legacy 'invoice'
+                "invoice": document,
                 "supplier_name": supplier_name,
             }
         )
@@ -51,9 +49,7 @@ def generate_payment_schedule(
     start_date: date,
     end_date: date,
 ) -> List[Dict[str, Any]]:
-    """
-    Genera uno scadenzario dei pagamenti tra start_date e end_date.
-    """
+    """Genera uno scadenzario dei pagamenti tra start_date e end_date."""
     query = (
         Payment.query.filter(
             Payment.due_date.isnot(None),
@@ -92,7 +88,6 @@ def create_payment(
     notes: Optional[str] = None,
 ) -> Optional[Payment]:
     """Crea un nuovo pagamento associato a un documento."""
-
     with UnitOfWork() as session:
         document = session.get(Document, invoice_id)
         if document is None:
@@ -120,7 +115,6 @@ def update_payment(
     **kwargs: Any,
 ) -> Optional[Payment]:
     """Aggiorna i campi di un pagamento esistente."""
-
     with UnitOfWork() as session:
         payment = session.get(Payment, payment_id)
         if payment is None:
@@ -181,12 +175,10 @@ def get_payment_inbox(statuses: List[str]) -> List[PaymentDocument]:
 
 def review_payment_document(document_id: int) -> Dict[str, Any]:
     """Carica il documento e i documenti candidati per l'associazione."""
-
     document = get_payment_document(document_id)
     if document is None:
         raise ValueError("Documento di pagamento non trovato")
 
-    # Mostriamo gli ultimi 200 documenti (tipo invoice)
     candidate_invoices = (
         Document.query
         .filter_by(document_type='invoice')
@@ -202,7 +194,6 @@ def assign_payments_to_invoices(
     document_id: int, assignments: List[Dict[str, Any]]
 ) -> PaymentDocument:
     """Crea pagamenti collegati al documento e aggiorna gli stati."""
-
     with UnitOfWork() as session:
         doc_payment: Optional[PaymentDocument] = session.get(PaymentDocument, document_id)
         if doc_payment is None:
@@ -236,8 +227,9 @@ def assign_payments_to_invoices(
 
             doc_gross = Decimal(document.total_gross_amount or 0)
 
-            payment = create_payment(
-                invoice=document, # create_payment accetta Document ma il param si chiama invoice in repo (da fixare se strict)
+            # FIX: Usa create_payment_repo e passa 'document' invece di 'invoice'
+            payment = create_payment_repo(
+                document=document,
                 amount=amount,
                 payment_document=doc_payment,
                 paid_date=paid_date,
@@ -248,10 +240,11 @@ def assign_payments_to_invoices(
             session.add(payment)
             total_assigned += amount
 
+        # FIX: Usa 'partial' e 'reconciled' come da vincolo DB (invece di partially_assigned/processed)
         if doc_payment.parsed_amount is not None and total_assigned < Decimal(doc_payment.parsed_amount):
-            doc_payment.status = "partially_assigned"
+            doc_payment.status = "partial"
         elif total_assigned > 0:
-            doc_payment.status = "processed"
+            doc_payment.status = "reconciled"
         else:
             doc_payment.status = "pending_review"
 

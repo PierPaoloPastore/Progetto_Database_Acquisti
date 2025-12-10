@@ -1,27 +1,41 @@
 {% extends "base.html" %}
+
+{% block title %}Collega Scansione - Doc #{{ invoice.id }}{% endblock %}
+
 {% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-paperclip"></i> Collega Scansione</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">
+                        Stai caricando il documento fisico per il record 
+                        <strong>#{{ invoice.document_number }}</strong> del 
+                        {{ invoice.document_date.strftime('%d/%m/%Y') if invoice.document_date else 'N/D' }}.
+                    </p>
 
-<h2>Collega scansione al documento #{{ invoice.id }}</h2>
+                    <form method="POST" enctype="multipart/form-data">
+                        <div class="mb-4">
+                            <label for="file" class="form-label fw-bold">Scegli file (PDF o Immagine)</label>
+                            <input class="form-control" type="file" id="file" name="file" accept=".pdf,.jpg,.jpeg,.png,.tif" required>
+                            <div class="form-text">Puoi trascinare il file qui sopra o cliccare per sfogliare.</div>
+                        </div>
 
-{% if inbox_files %}
-    <form method="POST">
-
-        <label>Seleziona un file dalla cartella scansioni:</label><br>
-        <select name="selected_file" size="10" style="width: 400px;">
-            {% for file in inbox_files %}
-                <option value="{{ file }}">{{ file }}</option>
-            {% endfor %}
-        </select>
-
-        <br><br>
-        <button type="submit" class="btn btn-primary">Collega al documento</button>
-    </form>
-{% else %}
-    <p>Nessun file trovato nella inbox. Configura la cartella dalle impostazioni.</p>
-{% endif %}
-
-<a href="{{ url_for('documents.detail_view', document_id=invoice.id) }}">
-    Torna al documento
-</a>
-
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-cloud-upload"></i> Carica e Collega
+                            </button>
+                            <a href="{{ url_for('documents.detail_view', document_id=invoice.id) }}" class="btn btn-outline-secondary">
+                                Annulla
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}

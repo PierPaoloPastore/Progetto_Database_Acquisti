@@ -44,8 +44,10 @@
                           <td>
                               {% if doc.status == 'pending_review' %}
                                 <span class="badge bg-warning text-dark">Da Revisionare</span>
-                              {% elif doc.status == 'processed' %}
-                                <span class="badge bg-success">Processato</span>
+                              {% elif doc.status == 'reconciled' %}
+                                <span class="badge bg-success">Completato</span>
+                              {% elif doc.status == 'partial' %}
+                                <span class="badge bg-info text-dark">Parziale</span>
                               {% else %}
                                 <span class="badge bg-light text-dark border">{{ doc.status }}</span>
                               {% endif %}
