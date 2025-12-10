@@ -8,7 +8,7 @@ Nota: Invoice è stato sostituito da Document.
 from .legal_entity import LegalEntity
 from .supplier import Supplier
 from .document import Document
-from .invoice_line import InvoiceLine
+from .document_line import DocumentLine
 from .vat_summary import VatSummary
 from .payment import Payment, PaymentDocument
 from .delivery_note import DeliveryNote
@@ -23,7 +23,7 @@ __all__ = [
     "LegalEntity",
     "Supplier",
     "Document",
-    "InvoiceLine",
+    "DocumentLine",
     "VatSummary",
     "Payment",
     "PaymentDocument",

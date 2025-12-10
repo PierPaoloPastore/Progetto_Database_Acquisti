@@ -1,4 +1,4 @@
-"""DTO e helper per i filtri di ricerca fatture."""
+"""DTO e helper per i filtri di ricerca documenti."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from typing import Any, Mapping, Optional
 
 
 @dataclass
-class InvoiceSearchFilters:
+class DocumentSearchFilters:
     date_from: Optional[date] = None
     date_to: Optional[date] = None
     supplier_id: Optional[int] = None
@@ -49,7 +49,7 @@ class InvoiceSearchFilters:
             return None
 
     @classmethod
-    def from_query_args(cls, args: Mapping[str, Any]) -> "InvoiceSearchFilters":
+    def from_query_args(cls, args: Mapping[str, Any]) -> "DocumentSearchFilters":
         return cls(
             date_from=cls._parse_date(args.get("date_from", "")),
             date_to=cls._parse_date(args.get("date_to", "")),

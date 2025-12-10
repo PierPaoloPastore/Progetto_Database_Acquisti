@@ -19,12 +19,12 @@ from app.extensions import db
 from app.services.logging import log_structured_event
 from app.models import Document
 from app.repositories import document_repo
-from app.services.dto import InvoiceSearchFilters
+from app.services.dto import DocumentSearchFilters
 from app.services.unit_of_work import UnitOfWork
 
 
 def search_documents(
-    filters: InvoiceSearchFilters,
+    filters: DocumentSearchFilters,
     limit: Optional[int] = 200,
     document_type: Optional[str] = None, # Opzionale: per filtrare solo 'invoice', 'f24', ecc.
 ) -> List[Document]:

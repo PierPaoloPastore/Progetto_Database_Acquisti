@@ -140,11 +140,11 @@ class Document(db.Model):
     legal_entity = db.relationship("LegalEntity", backref="documents")
 
     invoice_lines = db.relationship(
-        "InvoiceLine",
+        "DocumentLine",
         back_populates="document",
         lazy="dynamic",
         cascade="all, delete-orphan",
-        foreign_keys="InvoiceLine.document_id",
+        foreign_keys="DocumentLine.document_id",
     )
 
     vat_summaries = db.relationship(

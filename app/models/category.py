@@ -31,7 +31,7 @@ class Category(db.Model):
 
     # Relazioni
     invoice_lines = db.relationship(
-        "InvoiceLine",
+        "DocumentLine",
         back_populates="category",
         lazy="dynamic",
     )

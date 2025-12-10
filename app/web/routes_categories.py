@@ -25,7 +25,7 @@ from app.services import (
     create_or_update_category,
     bulk_assign_category_to_invoice_lines,
 )
-from app.repositories import list_lines_by_invoice
+from app.repositories import list_lines_by_document
 
 categories_bp = Blueprint("categories", __name__)
 
@@ -80,8 +80,7 @@ def bulk_assign_view(document_id: int):
     """
     if request.method == "GET":
         categories = list_categories_for_ui()
-        # Nota: la funzione repo si chiama ancora list_lines_by_invoice ma accetta document_id
-        lines = list_lines_by_invoice(document_id)
+        lines = list_lines_by_document(document_id)
         
         return render_template(
             "categories/assign_bulk.html",

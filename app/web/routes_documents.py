@@ -13,7 +13,7 @@ from flask import (
 from app.models import Document
 from app.services import document_service as doc_service
 from app.services.document_service import DocumentService
-from app.services.dto import InvoiceSearchFilters
+from app.services.dto import DocumentSearchFilters
 from app.repositories.document_repo import list_accounting_years
 from app.repositories.supplier_repo import list_suppliers
 from app.repositories.legal_entity_repo import list_legal_entities
@@ -33,7 +33,7 @@ def _parse_date(value: str) -> Optional[datetime.date]:
 
 @documents_bp.route("/", methods=["GET"])
 def list_view():
-    filters = InvoiceSearchFilters.from_query_args(request.args)
+    filters = DocumentSearchFilters.from_query_args(request.args)
     documents = doc_service.search_documents(filters=filters, limit=300, document_type=None)
     suppliers = list_suppliers(include_inactive=False)
     legal_entities = list_legal_entities(include_inactive=False)

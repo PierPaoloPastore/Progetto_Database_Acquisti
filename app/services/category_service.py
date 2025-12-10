@@ -1,5 +1,5 @@
 """
-Servizi per la gestione delle categorie (Category) e assegnazione alle righe fattura.
+Servizi per la gestione delle categorie (Category) e assegnazione alle righe documento.
 
 Funzioni principali:
 - list_categories_for_ui()
@@ -13,15 +13,15 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 from app.extensions import db
-from app.models import InvoiceLine
+from app.models import DocumentLine
 from app.repositories import (
     list_active_categories,
     get_category_by_id,
     get_category_by_name,
     create_category,
     update_category,
-    get_invoice_line_by_id,
-    list_lines_by_invoice,
+    get_document_line_by_id,
+    list_lines_by_document,
 )
 
 
@@ -68,13 +68,13 @@ def create_or_update_category(
     return category
 
 
-def assign_category_to_line(line_id: int, category_id: Optional[int]) -> Optional[InvoiceLine]:
+def assign_category_to_line(line_id: int, category_id: Optional[int]) -> Optional[DocumentLine]:
     """
-    Assegna (o rimuove se category_id è None) una categoria a una singola riga fattura.
+    Assegna (o rimuove se category_id è None) una categoria a una singola riga documento.
 
     Esegue commit immediato.
     """
-    line = get_invoice_line_by_id(line_id)
+    line = get_document_line_by_id(line_id)
     if line is None:
         return None
 
@@ -96,14 +96,14 @@ def bulk_assign_category_to_invoice_lines(
     line_ids: Optional[List[int]] = None,
 ) -> Dict[str, Any]:
     """
-    Assegna (o rimuove) una categoria a più righe della stessa fattura.
+    Assegna (o rimuove) una categoria a più righe dello stesso documento.
 
-    :param invoice_id: ID della fattura
+    :param invoice_id: ID del documento
     :param category_id: categoria da assegnare, oppure None per rimuovere
     :param line_ids: lista di ID riga da aggiornare; se None, aggiorna tutte le righe
     :return: riepilogo dell'operazione
     """
-    lines = list_lines_by_invoice(invoice_id)
+    lines = list_lines_by_document(invoice_id)
     if line_ids is not None:
         lines = [l for l in lines if l.id in line_ids]
 

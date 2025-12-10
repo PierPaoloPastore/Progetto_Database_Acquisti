@@ -12,7 +12,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 
 from app.extensions import db
-from app.models import ImportLog, Document, InvoiceLine, LegalEntity, Payment, VatSummary
+from app.models import ImportLog, Document, DocumentLine, LegalEntity, Payment, VatSummary
 # Nota: Importiamo i DTO, ma li usiamo per creare un generico Document
 from app.parsers.fatturapa_parser import InvoiceDTO, InvoiceLineDTO, PaymentDTO, VatSummaryDTO
 
@@ -206,7 +206,7 @@ def create_document_from_fatturapa(
     return document, True
 
 def _create_line(doc_id: int, dto: InvoiceLineDTO):
-    line = InvoiceLine(
+    line = DocumentLine(
         document_id=doc_id,
         line_number=dto.line_number,
         description=dto.description or "N/D",
