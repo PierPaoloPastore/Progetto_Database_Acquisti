@@ -3,11 +3,12 @@ Route per la gestione dei Documenti.
 """
 from __future__ import annotations
 
+import os
 from datetime import datetime
 from typing import Optional
-
+from app.services.document_service import render_invoice_html # Importa la nuova funzione
 from flask import (
-    Blueprint, render_template, request, redirect, url_for, flash, abort,
+    Blueprint, render_template,render_template_string, request, redirect, url_for, flash, abort,send_file,current_app
 )
 
 from app.models import Document
@@ -90,12 +91,57 @@ def review_loop_invoice_view(document_id: int):
     if document is None: abort(404)
     return render_template('documents/review.html', invoice=document)
 
+    
 @documents_bp.route("/preview/<int:document_id>", methods=["GET"], endpoint="preview_visual")
 def preview_visual(document_id: int):
+    # 1. Recupera il documento
     document = DocumentService.get_document_by_id(document_id)
-    if document is None: abort(404)
-    return render_template("documents/preview_template.html", invoice=document)
+    if document is None:
+        abort(404)
 
+    upload_folder = current_app.config.get("UPLOAD_FOLDER", "storage/uploads")
+    xml_full_path = None
+
+    # --- LOGICA DI RISOLUZIONE DEL PERCORSO ---
+    
+    # CASO A: Il file è nello storage interno (file_path popolato)
+    if document.file_path:
+        # Se è assoluto (es. vecchi test), usalo diretto
+        if os.path.isabs(document.file_path):
+             xml_full_path = document.file_path
+        else:
+             # Normale: uniamo alla cartella uploads
+             xml_full_path = os.path.join(upload_folder, document.file_path)
+
+    # CASO B: Usiamo la sorgente originale (import_source)
+    elif document.import_source:
+        candidate_path = document.import_source
+        
+        # Verifica euristica: Se finisce per .xml o .p7m è probabilmente un file completo
+        if candidate_path.lower().endswith(('.xml', '.p7m', '.xml.p7m')):
+            xml_full_path = candidate_path
+        
+        # Se NON ha estensione (è una cartella) e abbiamo il file_name, li uniamo
+        elif document.file_name:
+            xml_full_path = os.path.join(candidate_path, document.file_name)
+        
+        # Fallback
+        else:
+            xml_full_path = candidate_path
+    
+    else:
+        return "<h1>Errore</h1><p>Nessun percorso file presente nel database.</p>", 404
+
+    # --- RENDERING ---
+    xsl_full_path = os.path.join(current_app.root_path, "static", "xsl", "FoglioStileAssoSoftware.xsl")
+
+    try:
+        html_content = render_invoice_html(xml_full_path, xsl_full_path)
+        return render_template_string(html_content)
+    except FileNotFoundError:
+        return f"<h1>File non trovato</h1><p>Il sistema ha cercato qui:<br><code>{xml_full_path}</code><br>Ma il file non esiste (forse è stato spostato o cancellato).</p>", 404
+    except Exception as e:
+        return f"<h1>Errore di visualizzazione</h1><p>{str(e)}</p>", 500
 @documents_bp.route("/<int:document_id>", methods=["GET"])
 def detail_view(document_id: int):
     detail = doc_service.get_document_detail(document_id)

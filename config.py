@@ -5,6 +5,7 @@ Modulo di configurazione per l'applicazione Flask.
 import os
 from pathlib import Path
 
+
 BASE_DIR = Path(__file__).resolve().parent
 
 
@@ -29,11 +30,23 @@ class Config:
     SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", DEFAULT_DB_URL)
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-    # --- IMPORT FATTURE XML --------------------------------------------------
+    # --- GESTIONE FILE (UPLOAD & STORAGE) ------------------------------------
+    # Cartella base per gli upload generici e le scansioni fisiche
+    # Nota: Assicurati che questa cartella 'storage' esista nel tuo progetto
+    UPLOAD_FOLDER = os.environ.get(
+        "UPLOAD_FOLDER", 
+        str(BASE_DIR / "storage")
+    )
+    
+    # Cartella specifica dove il parser cerca i file XML da importare
     IMPORT_XML_FOLDER = os.environ.get(
         "IMPORT_XML_FOLDER",
         str(BASE_DIR / "data" / "fatture_xml"),
     )
+
+    # Limite massimo dimensione file upload (es. 16 MB)
+    # Utile per evitare crash se si caricano scansioni PDF enormi
+    MAX_CONTENT_LENGTH = 16 * 1024 * 1024 
 
     # --- LOGGING -------------------------------------------------------------
     LOG_DIR = os.environ.get("LOG_DIR", str(BASE_DIR / "logs"))

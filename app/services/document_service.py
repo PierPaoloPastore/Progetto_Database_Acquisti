@@ -22,6 +22,11 @@ from app.models import Document
 from app.repositories import document_repo
 from app.services.dto import DocumentSearchFilters
 from app.services.unit_of_work import UnitOfWork
+from app.services import scan_service
+import os
+from lxml import etree
+from flask import current_app
+
 
 
 def search_documents(
@@ -135,12 +140,14 @@ def get_next_document_to_review(order: str = "desc", document_type: str = 'invoi
     return document_repo.get_next_imported_document(document_type=document_type, order=order)
 
 
+# In app/services/document_service.py
+
 def mark_physical_copy_received(
     document_id: int, *, file: Optional[FileStorage] = None
 ) -> Optional[Document]:
     """Segna la copia cartacea come ricevuta e salva il file."""
     
-    # 1. Recupera documento (usiamo db.session per essere sicuri)
+    # Usa UnitOfWork per gestire la sessione (o db.session direttamente se preferisci, ma gestisci il commit)
     document = db.session.get(Document, document_id)
     if document is None:
         return None
@@ -148,11 +155,13 @@ def mark_physical_copy_received(
     stored_path: Optional[str] = None
 
     try:
-        # 2. Salva file su disco (se presente)
+        # 1. Salva file su disco
         if file is not None:
+            # Importa qui per evitare import circolari se necessario
             from app.services.scan_service import store_physical_copy
             stored_path = store_physical_copy(document, file)
-            # Assegna il path al documento
+            
+            # 2. Assegna il path al NUOVO campo del modello
             document.physical_copy_file_path = stored_path
 
         # 3. Aggiorna stati
@@ -162,9 +171,8 @@ def mark_physical_copy_received(
         if document.doc_status == "imported":
             document.doc_status = "verified"
 
-        # 4. Salva nel DB (Commit esplicito)
         db.session.add(document)
-        db.session.commit()
+        db.session.commit() # Commit esplicito per salvare le modifiche
 
     except Exception as e:
         db.session.rollback()
@@ -176,7 +184,6 @@ def mark_physical_copy_received(
         path=stored_path
     )
     return document
-
 
 def request_physical_copy(document_id: int) -> Optional[Document]:
     with UnitOfWork() as session:
@@ -239,3 +246,30 @@ class DocumentService:
     @staticmethod
     def get_document_by_id(doc_id: int) -> Optional[Document]:
         return document_repo.get_document_by_id(doc_id)
+
+
+def render_invoice_html(xml_path: str, xsl_path: str) -> str:
+        """
+        Trasforma l'XML della fattura in HTML usando l'XSLT di AssoSoftware.
+        """
+        if not os.path.exists(xml_path):
+            raise FileNotFoundError(f"File XML non trovato: {xml_path}")
+        
+        if not os.path.exists(xsl_path):
+            raise FileNotFoundError(f"Foglio di stile non trovato: {xsl_path}")
+
+        try:
+            # Parsing XML e XSL
+            dom = etree.parse(xml_path)
+            xslt = etree.parse(xsl_path)
+            transform = etree.XSLT(xslt)
+            
+            # Trasformazione
+            newdom = transform(dom)
+            
+            # Conversione in stringa HTML
+            return etree.tostring(newdom, pretty_print=True, method='html').decode('utf-8')
+        except Exception as e:
+            # In produzione vorrai loggare l'errore reale
+            return f"<h1>Errore di visualizzazione</h1><p>{str(e)}</p>"
+            

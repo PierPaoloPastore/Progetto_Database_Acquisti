@@ -77,8 +77,14 @@ class Document(db.Model):
     # Informazioni sul file sorgente
     import_source = db.Column(db.String(255), nullable=True)
     file_name = db.Column(db.String(255), nullable=True)
-    file_path = db.Column(db.String(500), nullable=True)
+    # ... (altre colonne esistenti come file_path, imported_at)
+    file_path = db.Column(db.String(500), nullable=True) 
     imported_at = db.Column(db.DateTime, nullable=True, index=True)
+
+    # --- AGGIUNTA FONDAMENTALE ---
+    # Path relativo per la copia fisica scansionata/caricata
+    physical_copy_file_path = db.Column(db.String(500), nullable=True)
+    # -----------------------------
 
     # Stato copia fisica
     physical_copy_status = db.Column(
@@ -140,11 +146,12 @@ class Document(db.Model):
     legal_entity = db.relationship("LegalEntity", backref="documents")
 
     invoice_lines = db.relationship(
-        "DocumentLine",
+        "DocumentLine",  # Assicurati che sia "DocumentLine", NON "InvoiceLine"
         back_populates="document",
         lazy="dynamic",
         cascade="all, delete-orphan",
-        foreign_keys="DocumentLine.document_id",
+        # IL PROBLEMA È QUI SOTTO:
+        foreign_keys="DocumentLine.document_id",  # Deve essere "DocumentLine.document_id"
     )
 
     vat_summaries = db.relationship(
