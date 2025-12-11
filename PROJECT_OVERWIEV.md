@@ -132,7 +132,7 @@ Report aggregati per tipo documento (fatture, F24, assicurazioni, ecc.).
 
 ## Direzioni di sviluppo
 
-- Generalizzazione del modello da “fattura” a **documento/movimento di acquisto**, mantenendo `invoices` come primo caso concreto.
+- Generalizzazione del modello da "fattura" a **documento/movimento di acquisto**, mantenendo `invoices` come primo caso concreto.
 - Integrazione di documenti PDF per:
   - assicurazioni,
   - F24,
@@ -140,10 +140,17 @@ Report aggregati per tipo documento (fatture, F24, assicurazioni, ecc.).
   - affitti,
   - altri tributi/tasse,
   con flussi semi-guidati analoghi a DDT e pagamenti.
-- Migliorare l’automazione nella **riconciliazione**:
+- Migliorare l'automazione nella **riconciliazione**:
   - fatture ↔ DDT (attesi vs reali),
   - fatture/scadenze ↔ documenti di pagamento bancari.
 - Migliorare UX delle schermate di:
   - revisione fatture,
   - gestione scadenziario,
   - gestione DDT mancanti (incluse azioni rapide, es. email precompilate per richiesta copie).
+- **Refactoring Tecnico Parser (Versione 2.0)**:
+  - Migrazione dal parsing manuale basato su `lxml` all'uso di **`xsdata`** per la generazione automatica di DTO.
+  - Obiettivo: garantire **Type Safety** completa e **copertura al 100% delle specifiche** FatturaPA partendo dagli schemi XSD ufficiali dell'Agenzia delle Entrate.
+  - Vantaggi:
+    - Riduzione drastica della manutenzione del codice di parsing,
+    - Supporto automatico di tutti i campi previsti dallo standard,
+    - Maggiore resilienza ai cambiamenti dello schema XML ufficiale.

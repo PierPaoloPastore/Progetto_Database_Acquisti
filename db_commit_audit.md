@@ -1,5 +1,7 @@
 # db.session.commit() usage audit in app/services
 
+> **⚠️ REFACTORING IN CORSO**: Questo documento traccia la migrazione verso il pattern **UnitOfWork** per la gestione transazionale del database. L'obiettivo è rimuovere tutti i commit espliciti (`db.session.commit()`) dai Service Layer, delegando il controllo transazionale al pattern UnitOfWork per garantire atomicità, consistency e rollback coerente in caso di errori. Questa è la **priorità attuale** per migliorare la stabilità e manutenibilità del sistema.
+
 ## Findings
 
 - `create_or_update_category` in `app/services/category_service.py` performs category creation or update and commits immediately. 【F:app/services/category_service.py†L37-L68】
