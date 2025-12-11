@@ -8,6 +8,7 @@ from typing import List, Optional
 
 from app.extensions import db
 from app.models import Category
+from typing import List, Optional, Any
 
 
 def get_category_by_id(category_id: int) -> Optional[Category]:
@@ -60,3 +61,5 @@ def update_category(category: Category, **kwargs) -> Category:
         if hasattr(category, key):
             setattr(category, key, value)
     return category
+
+

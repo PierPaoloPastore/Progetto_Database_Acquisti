@@ -37,6 +37,7 @@ def list_categories_for_ui() -> List:
 def create_or_update_category(
     name: str,
     description: Optional[str] = None,
+    vat_rate: Optional[float] = None, # <----- Nuovo Parametro
     category_id: Optional[int] = None,
 ) -> Any:
     """
@@ -56,6 +57,7 @@ def create_or_update_category(
     data = {
         "name": name,
         "description": description,
+        "vat_rate": vat_rate, #<---- AGGIUNTO AL DIZIONARIO
         "is_active": True,
     }
 
@@ -134,3 +136,23 @@ def bulk_assign_category_to_invoice_lines(
         "message": "Categorie aggiornate con successo",
         "updated_count": updated_count,
     }
+
+
+# app/services/category_service.py
+
+# ... import esistenti ...
+
+def predict_category_for_line(description: str) -> Optional[int]:
+    """
+    PLACEHOLDER per futura implementazione AI/ML.
+    
+    Dato una descrizione (es. riga fattura o causale), tenta di prevedere
+    l'ID della categoria appropriata.
+    
+    Attuale comportamento: Ritorna sempre None (nessuna predizione).
+    
+    :param description: Testo da analizzare
+    :return: ID categoria o None
+    """
+    # TODO: In futuro, integrare qui logica Fuzzy Matching o ML Model
+    return None

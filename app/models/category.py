@@ -29,6 +29,10 @@ class Category(db.Model):
         db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
     )
 
+    # NUOVO CAMPO
+    # Nullable=True perché vecchie categorie potrebbero non averlo
+    vat_rate = db.Column(db.Numeric(5, 2), nullable=True)
+
     # Relazioni
     invoice_lines = db.relationship(
         "DocumentLine",

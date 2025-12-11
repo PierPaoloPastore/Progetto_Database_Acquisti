@@ -50,6 +50,15 @@ def save_view():
     category_id_str = request.form.get("category_id") or None
     name = request.form.get("name", "").strip()
     description = request.form.get("description", "").strip() or None
+    vat_rate_str= request.form.get("vat_rate", "").strip()
+    vat_rate: Optional[float] = None
+    if vat_rate_str:
+        try:
+            #Sostituisce la virgola con il punto per lo standard internazionale
+            vat_rates = float(vat_rate_str.replace(",", "."))
+        except ValueError:
+            vat_rate = None    
+
 
     if not name:
         flash("Il nome della categoria è obbligatorio.", "warning")
@@ -65,6 +74,7 @@ def save_view():
     category = create_or_update_category(
         name=name,
         description=description,
+        vat_rate=vat_rate, # <---- PASSAGGIO AL SERVICE
         category_id=category_id,
     )
 
