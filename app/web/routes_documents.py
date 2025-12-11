@@ -1,8 +1,8 @@
 """
-Route per la gestione dei Documenti (ex Invoices).
+Route per la gestione dei Documenti.
 """
-
 from __future__ import annotations
+
 from datetime import datetime
 from typing import Optional
 
@@ -13,6 +13,7 @@ from flask import (
 from app.models import Document
 from app.services import document_service as doc_service
 from app.services.document_service import DocumentService
+# FIX: Importa DocumentSearchFilters
 from app.services.dto import DocumentSearchFilters
 from app.repositories.document_repo import list_accounting_years
 from app.repositories.supplier_repo import list_suppliers
@@ -33,13 +34,15 @@ def _parse_date(value: str) -> Optional[datetime.date]:
 
 @documents_bp.route("/", methods=["GET"])
 def list_view():
+    # FIX: Usa DocumentSearchFilters
     filters = DocumentSearchFilters.from_query_args(request.args)
+    
     documents = doc_service.search_documents(filters=filters, limit=300, document_type=None)
+
     suppliers = list_suppliers(include_inactive=False)
     legal_entities = list_legal_entities(include_inactive=False)
     accounting_years = list_accounting_years()
 
-    # FIX: path template aggiornato a 'documents/'
     return render_template(
         "documents/list.html",
         documents=documents,
@@ -49,21 +52,20 @@ def list_view():
         filters=filters,
     )
 
-
+# ... (il resto del file rimane uguale, assicurati di avere from __future__ in cima) ...
+# [Copia il resto del file routes_documents.py che avevi, la parte importante è l'import e la funzione list_view]
 @documents_bp.route("/review/list", methods=["GET"])
 def review_list_view():
     order = request.args.get("order", "desc")
     documents = doc_service.list_documents_to_review(order=order, document_type=None)
     next_doc = doc_service.get_next_document_to_review(order=order, document_type=None)
 
-    # FIX: path template aggiornato
     return render_template(
         "documents/review_list.html",
         invoices=documents, 
         next_invoice=next_doc,
         order=order,
     )
-
 
 @documents_bp.route("/review", methods=["GET"])
 def review_loop_redirect_view():
@@ -72,7 +74,6 @@ def review_loop_redirect_view():
         return redirect(url_for("documents.review_loop_invoice_view", document_id=next_doc.id))
     flash("Tutti i documenti importati sono stati gestiti.", "success")
     return redirect(url_for("documents.list_view"))
-
 
 @documents_bp.route("/review/<int:document_id>", methods=["GET", "POST"])
 def review_loop_invoice_view(document_id: int):
@@ -87,17 +88,13 @@ def review_loop_invoice_view(document_id: int):
 
     document = DocumentService.get_document_by_id(document_id)
     if document is None: abort(404)
-    # FIX: path template aggiornato
     return render_template('documents/review.html', invoice=document)
-
 
 @documents_bp.route("/preview/<int:document_id>", methods=["GET"], endpoint="preview_visual")
 def preview_visual(document_id: int):
     document = DocumentService.get_document_by_id(document_id)
     if document is None: abort(404)
-    # FIX: path template aggiornato
     return render_template("documents/preview_template.html", invoice=document)
-
 
 @documents_bp.route("/<int:document_id>", methods=["GET"])
 def detail_view(document_id: int):
@@ -105,14 +102,13 @@ def detail_view(document_id: int):
     if detail is None:
         flash("Documento non trovato.", "warning")
         return redirect(url_for("documents.list_view"))
-    # FIX: path template aggiornato
     return render_template("documents/detail.html", **detail)
-
 
 @documents_bp.route("/<int:document_id>/status", methods=["POST"])
 def update_status_view(document_id: int):
     allowed_doc_statuses = {"imported", "pending_physical_copy", "verified", "rejected", "archived"}
     doc_status = request.form.get("doc_status") or None
+    
     if doc_status is not None and doc_status not in allowed_doc_statuses:
         flash("Valore di stato documento non valido.", "danger")
         return redirect(url_for("documents.detail_view", document_id=document_id))
@@ -126,51 +122,6 @@ def update_status_view(document_id: int):
     else:
         flash("Stato aggiornato con successo.", "success")
     return redirect(url_for("documents.detail_view", document_id=document_id))
-
-
-@documents_bp.route("/<int:document_id>/confirm", methods=["POST"])
-def confirm_invoice(document_id: int):
-    order = request.args.get("order", "desc")
-    invoice = doc_service.confirm_document(document_id)
-    if invoice is None: abort(404)
-    flash("Documento confermato.", "success")
-    
-    next_invoice = doc_service.get_next_document_to_review(order=order, document_type=None)
-    if next_invoice:
-        return redirect(url_for("documents.detail_view", document_id=next_invoice.id, order=order))
-    flash("Nessun altro documento da rivedere.", "info")
-    return redirect(url_for("documents.review_list_view", order=order))
-
-
-@documents_bp.route("/<int:document_id>/reject", methods=["POST"])
-def reject_invoice(document_id: int):
-    order = request.args.get("order", "desc")
-    invoice = doc_service.reject_document(document_id)
-    if invoice is None: abort(404)
-    flash("Documento scartato.", "success")
-
-    next_invoice = doc_service.get_next_document_to_review(order=order, document_type=None)
-    if next_invoice:
-        return redirect(url_for("documents.detail_view", document_id=next_invoice.id, order=order))
-    flash("Nessun altro documento da rivedere.", "info")
-    return redirect(url_for("documents.review_list_view", order=order))
-
-
-@documents_bp.route("/<int:document_id>/physical-copy/request", methods=["POST"], endpoint="request_physical_copy")
-def request_physical_copy_view(document_id: int):
-    invoice = doc_service.request_physical_copy(document_id)
-    if invoice is None: abort(404)
-    flash("Richiesta copia fisica registrata.", "success")
-    return redirect(url_for("documents.detail_view", document_id=document_id))
-
-
-@documents_bp.route("/<int:document_id>/physical-copy/received", methods=["POST"], endpoint="mark_physical_copy_received")
-def mark_physical_copy_received_view(document_id: int):
-    invoice = doc_service.mark_physical_copy_received(document_id, file=None)
-    if invoice is None: abort(404)
-    flash("Copia fisica segnata come ricevuta.", "success")
-    return redirect(url_for("documents.detail_view", document_id=document_id))
-
 
 @documents_bp.route("/<int:document_id>/physical-copy/upload", methods=["POST"], endpoint="upload_physical_copy")
 def upload_physical_copy_view(document_id: int):
@@ -187,15 +138,51 @@ def upload_physical_copy_view(document_id: int):
     flash("Copia fisica caricata.", "success")
     return redirect(url_for("documents.detail_view", document_id=document_id))
 
-@documents_bp.route("/<int:document_id>/attach-scan", methods=["GET"])
+@documents_bp.route("/<int:document_id>/physical-copy/request", methods=["POST"], endpoint="request_physical_copy")
+def request_physical_copy_view(document_id: int):
+    invoice = doc_service.request_physical_copy(document_id)
+    if invoice is None: abort(404)
+    flash("Richiesta copia fisica registrata.", "success")
+    return redirect(url_for("documents.detail_view", document_id=document_id))
+
+@documents_bp.route("/<int:document_id>/physical-copy/received", methods=["POST"], endpoint="mark_physical_copy_received")
+def mark_physical_copy_received_view(document_id: int):
+    invoice = doc_service.mark_physical_copy_received(document_id, file=None)
+    if invoice is None: abort(404)
+    flash("Copia fisica segnata come ricevuta.", "success")
+    return redirect(url_for("documents.detail_view", document_id=document_id))
+
+@documents_bp.route("/<int:document_id>/confirm", methods=["POST"])
+def confirm_invoice(document_id: int):
+    order = request.args.get("order", "desc")
+    invoice = doc_service.confirm_document(document_id)
+    if invoice is None: abort(404)
+    flash("Documento confermato.", "success")
+    next_invoice = doc_service.get_next_document_to_review(order=order, document_type=None)
+    if next_invoice:
+        return redirect(url_for("documents.detail_view", document_id=next_invoice.id, order=order))
+    flash("Nessun altro documento da rivedere.", "info")
+    return redirect(url_for("documents.review_list_view", order=order))
+
+@documents_bp.route("/<int:document_id>/reject", methods=["POST"])
+def reject_invoice(document_id: int):
+    order = request.args.get("order", "desc")
+    invoice = doc_service.reject_document(document_id)
+    if invoice is None: abort(404)
+    flash("Documento scartato.", "success")
+    next_invoice = doc_service.get_next_document_to_review(order=order, document_type=None)
+    if next_invoice:
+        return redirect(url_for("documents.detail_view", document_id=next_invoice.id, order=order))
+    flash("Nessun altro documento da rivedere.", "info")
+    return redirect(url_for("documents.review_list_view", order=order))
+
+@documents_bp.get("/<int:document_id>/attach-scan")
 def attach_scan_view(document_id: int):
     """Mostra il form per caricare una scansione direttamente."""
     document = Document.query.get_or_404(document_id)
-    # Non chiamiamo più list_inbox_files(), non serve per l'upload diretto
     return render_template("documents/attach_scan.html", invoice=document)
 
-
-@documents_bp.route("/<int:document_id>/attach-scan", methods=["POST"])
+@documents_bp.post("/<int:document_id>/attach-scan")
 def attach_scan_process(document_id: int):
     """Gestisce l'upload del file di scansione."""
     document = Document.query.get_or_404(document_id)
@@ -209,8 +196,48 @@ def attach_scan_process(document_id: int):
         flash("Formato file non supportato (usa PDF, JPG, PNG).", "danger")
         return redirect(url_for("documents.attach_scan_view", document_id=document_id))
 
-    # Usiamo la funzione esistente nel service che gestisce già salvataggio e aggiornamento DB
     doc_service.mark_physical_copy_received(document_id, file=file)
     
     flash("Scansione caricata e collegata correttamente.", "success")
+    return redirect(url_for("documents.detail_view", document_id=document_id))
+
+@documents_bp.route("/<int:document_id>/physical-copy/view", methods=["GET"])
+def view_physical_copy(document_id: int):
+    """Serve il file della copia fisica al browser."""
+    document = Document.query.get_or_404(document_id)
+    
+    if not document.physical_copy_file_path:
+        abort(404)
+
+    from app.services.settings_service import get_physical_copy_storage_path
+    base_path = get_physical_copy_storage_path()
+    
+    full_path = os.path.join(base_path, document.physical_copy_file_path)
+    
+    if not os.path.exists(full_path):
+        flash("File fisico non trovato sul disco.", "danger")
+        return redirect(url_for("documents.detail_view", document_id=document_id))
+
+    return send_file(full_path, as_attachment=False)
+
+@documents_bp.route("/<int:document_id>/physical-copy/remove", methods=["POST"])
+def remove_physical_copy(document_id: int):
+    """Rimuove il collegamento alla copia fisica."""
+    document = Document.query.get_or_404(document_id)
+    
+    if not document.physical_copy_file_path:
+        flash("Nessuna copia fisica da rimuovere.", "warning")
+        return redirect(url_for("documents.detail_view", document_id=document_id))
+
+    from app.extensions import db
+    
+    previous_path = document.physical_copy_file_path
+    document.physical_copy_file_path = None
+    document.physical_copy_status = "missing" 
+    document.physical_copy_received_at = None
+    
+    db.session.add(document)
+    db.session.commit()
+    
+    flash(f"Collegamento rimosso. (Il file {os.path.basename(previous_path)} è rimasto in archivio)", "info")
     return redirect(url_for("documents.detail_view", document_id=document_id))
