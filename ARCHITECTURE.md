@@ -44,11 +44,12 @@
     Il codice fiscale è gestito tramite la colonna `fiscal_code`.
 
 - **Documenti di acquisto (SUPERTIPO)**
-  - `Document`  
+  - `Document`
     **Supertipo unificato** per tutti i documenti economici:
     - `document_type`: discriminatore (`'invoice'`, `'f24'`, `'insurance'`, `'mav'`, `'cbill'`, `'receipt'`, `'rent'`, `'tax'`, `'other'`)
     - Colonne comuni: supplier, legal_entity, date, importi, stato
     - Colonne specifiche per tipo (nullable): `invoice_type`, `f24_payment_code`, `insurance_policy_number`, ecc.
+    - **Gestione copie fisiche**: campo `physical_copy_file_path` per il percorso relativo delle scansioni o dei documenti PDF caricati
     - Pattern: **Single Table Inheritance**
   
   - `InvoiceLine`  
@@ -172,16 +173,20 @@ I repository incapsulano le query SQLAlchemy e centralizzano la logica di access
 ### 6. Parsing Layer
 
 - `app/parsers/fatturapa_parser.py`
-  - definisce i DTO (`InvoiceDTO`, `SupplierDTO`, `InvoiceLineDTO`, `PaymentDTO`, `VatSummaryDTO`, ecc.),
-  - effettua il parsing della struttura FatturaPA:
+  - **Implementazione attuale**: parsing manuale tramite **`lxml`** con XPath namespace-agnostic
+  - Definisce i DTO (`InvoiceDTO`, `SupplierDTO`, `InvoiceLineDTO`, `PaymentDTO`, `VatSummaryDTO`, ecc.)
+  - Effettua il parsing della struttura FatturaPA:
     - testata fattura,
     - righe,
     - riepilogo IVA,
     - scadenze principali,
     - riferimenti DDT per fatture differite,
-  - restituisce DTO pronti per l’uso in `import_service`.
+  - Supporta file `.xml` nativi e `.p7m` (firma digitale PKCS#7)
+  - Restituisce DTO pronti per l'uso in `import_service`
 
 Il layer di parsing è isolato dal resto del dominio: legge XML FatturaPA e non si occupa di come i dati vengono poi salvati.
+
+> **Nota sulla roadmap tecnica**: l'implementazione attuale con `lxml` è manuale e copre i campi essenziali del formato FatturaPA. Per la **Versione 2.0** è pianificata la migrazione a **`xsdata`**, che genererà automaticamente i DTO partendo dagli schemi XSD ufficiali dell'Agenzia delle Entrate, garantendo copertura completa delle specifiche e manutenibilità superiore.
 
 ### 7. Web & API Layer
 
@@ -240,3 +245,15 @@ Quando si progettano nuove feature, è importante:
   - **dominio** (fatture, DDT, scadenze),
   - **servizi applicativi**,
   - **presentazione** (UI/API).
+
+### Evoluzione del Parser FatturaPA (Versione 2.0)
+
+È stata presa la decisione architetturale di **migrare il parser FatturaPA** dall'attuale implementazione manuale con `lxml` all'uso di **`xsdata`**.
+
+**Motivazioni strategiche**:
+- **Type Safety**: generazione automatica di dataclass Python tipizzate partendo dagli schemi XSD ufficiali dell'Agenzia delle Entrate
+- **Copertura completa**: supporto garantito al 100% di tutti i campi previsti dalla specifica FatturaPA (inclusi quelli opzionali o poco comuni)
+- **Manutenibilità**: riduzione drastica del codice di parsing custom e semplificazione degli aggiornamenti futuri dello schema
+- **Resilienza**: adattamento automatico ai cambiamenti degli schemi XSD ufficiali tramite rigenerazione dei DTO
+
+Questa migrazione sarà implementata in una iterazione maggiore successiva, mantenendo l'interfaccia dei DTO attuali per garantire retro-compatibilità con i servizi esistenti.
