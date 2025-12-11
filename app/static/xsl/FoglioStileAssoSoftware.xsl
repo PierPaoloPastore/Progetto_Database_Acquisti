@@ -2890,7 +2890,7 @@
           padding-right: 5px;
           border: solid 1px #000000;
           border-bottom: none;
-          background-color: LightCyan;
+          background-color: #ffffff;
           font-size:x-small;
 
           }
