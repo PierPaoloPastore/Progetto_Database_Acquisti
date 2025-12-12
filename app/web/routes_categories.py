@@ -41,7 +41,6 @@ def list_view():
         categories=categories,
     )
 
-
 @categories_bp.route("/save", methods=["POST"])
 def save_view():
     """
@@ -50,15 +49,19 @@ def save_view():
     category_id_str = request.form.get("category_id") or None
     name = request.form.get("name", "").strip()
     description = request.form.get("description", "").strip() or None
-    vat_rate_str= request.form.get("vat_rate", "").strip()
+    
+    # --- NUOVO BLOCCO: Recupero Aliquota IVA ---
+    vat_rate_str = request.form.get("vat_rate", "").strip()
     vat_rate: Optional[float] = None
+    
     if vat_rate_str:
         try:
-            #Sostituisce la virgola con il punto per lo standard internazionale
-            vat_rates = float(vat_rate_str.replace(",", "."))
+            # Gestisce sia virgola che punto (es. "22,0" -> "22.0")
+            vat_rate = float(vat_rate_str.replace(",", "."))
         except ValueError:
-            vat_rate = None    
-
+            # Se l'utente scrive testo, lo ignoriamo o lo impostiamo a None
+            vat_rate = None
+    # -------------------------------------------
 
     if not name:
         flash("Il nome della categoria è obbligatorio.", "warning")
@@ -71,16 +74,16 @@ def save_view():
         except ValueError:
             category_id = None
 
+    # Passiamo il nuovo parametro vat_rate al service
     category = create_or_update_category(
         name=name,
         description=description,
-        vat_rate=vat_rate, # <---- PASSAGGIO AL SERVICE
+        vat_rate=vat_rate,  # <--- FONDAMENTALE: Passare il valore qui
         category_id=category_id,
     )
 
     flash(f"Categoria '{category.name}' salvata con successo.", "success")
     return redirect(url_for("categories.list_view"))
-
 
 # FIX: invoice_id -> document_id
 @categories_bp.route("/bulk-assign/<int:document_id>", methods=["GET", "POST"])

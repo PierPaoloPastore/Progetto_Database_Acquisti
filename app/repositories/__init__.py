@@ -55,14 +55,24 @@ from .payment_repo import (
     list_payments_for_invoice,
     sum_payments_for_invoice,
 )
-from .category_repo import (
-    get_category_by_id,
-    get_category_by_name,
-    list_categories,
-    list_active_categories,
-    create_category,
-    update_category,
-)
+# app/repositories/__init__.py
+
+# RIMUOVI o COMMENTA le vecchie importazioni di categoria:
+# from .category_repo import (
+#     get_category_by_id,
+#     get_category_by_name,
+#     list_categories,
+#     list_active_categories,
+#     create_category,
+#     update_category,
+# )
+
+# AGGIUNGI la nuova classe
+from .category_repo import CategoryRepository
+
+# ... lascia invariati gli altri import (es. invoice_repo, supplier_repo, ecc.) ...
+# Nota: Assicurati che document_line_repo e le altre funzioni che usi
+# in category_service (es. get_document_line_by_id) siano ancora importate/esposte qui.
 from .notes_repo import (
     get_note_by_id,
     list_notes_by_invoice,

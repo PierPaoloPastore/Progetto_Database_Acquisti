@@ -1,95 +1,99 @@
 """
 Servizi per la gestione delle categorie (Category) e assegnazione alle righe documento.
-
-Funzioni principali:
-- list_categories_for_ui()
-- create_or_update_category(...)
-- assign_category_to_line(line_id, category_id)
-- bulk_assign_category_to_invoice_lines(invoice_id, category_id, line_ids=None)
+Rifattorizzato con Pattern Unit of Work.
 """
 
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from app.extensions import db
-from app.models import DocumentLine
+# Importiamo la Unit of Work
+from app.services.unit_of_work import UnitOfWork
+
+# Importiamo funzioni ausiliarie per le Righe Documento (che non sono ancora sotto UoW completa)
+# Nota: In un refactoring completo, anche queste dovrebbero passare per un Repository nel UoW.
 from app.repositories import (
-    list_active_categories,
-    get_category_by_id,
-    get_category_by_name,
-    create_category,
-    update_category,
     get_document_line_by_id,
     list_lines_by_document,
 )
 
-
 def list_categories_for_ui() -> List:
     """
     Restituisce tutte le categorie attive, ordinate per nome.
-
-    Pensata per UI di selezione/combobox.
     """
-    return list_active_categories()
+    with UnitOfWork() as uow:
+        # Nota: usiamo list_active() definito nel nostro nuovo repository
+        return uow.categories.list_active()
 
 
 def create_or_update_category(
     name: str,
     description: Optional[str] = None,
-    vat_rate: Optional[float] = None, # <----- Nuovo Parametro
+    vat_rate: Optional[float] = None,
     category_id: Optional[int] = None,
 ) -> Any:
     """
-    Crea o aggiorna una categoria.
-
-    - se category_id è fornito, aggiorna quella categoria (se esiste)
-    - altrimenti:
-        - se esiste già una categoria con lo stesso nome, la aggiorna
-        - altrimenti ne crea una nuova
-    Esegue commit immediato.
+    Crea o aggiorna una categoria usando UoW.
     """
-    if category_id is not None:
-        category = get_category_by_id(category_id)
-    else:
-        category = get_category_by_name(name)
+    with UnitOfWork() as uow:
+        category = None
+        
+        # 1. Recupero entità esistente (se c'è ID o Nome)
+        if category_id is not None:
+            category = uow.categories.get_by_id(category_id)
+        else:
+            category = uow.categories.get_by_name(name)
 
-    data = {
-        "name": name,
-        "description": description,
-        "vat_rate": vat_rate, #<---- AGGIUNTO AL DIZIONARIO
-        "is_active": True,
-    }
-
-    if category is None:
-        category = create_category(**data)
-    else:
-        update_category(category, **data)
-
-    db.session.commit()
-    return category
-
-
-def assign_category_to_line(line_id: int, category_id: Optional[int]) -> Optional[DocumentLine]:
-    """
-    Assegna (o rimuove se category_id è None) una categoria a una singola riga documento.
-
-    Esegue commit immediato.
-    """
-    line = get_document_line_by_id(line_id)
-    if line is None:
-        return None
-
-    if category_id is None:
-        line.category_id = None
-    else:
-        category = get_category_by_id(category_id)
+        # 2. Logica di creazione o aggiornamento
         if category is None:
-            return None
-        line.category_id = category.id
+            # Creazione
+            # Nota: Istanziamo il modello qui (o potremmo delegarlo al repo, ma meglio qui per chiarezza)
+            from app.models import Category
+            category = Category(
+                name=name,
+                description=description,
+                vat_rate=vat_rate,
+                is_active=True
+            )
+            uow.categories.add(category)
+        else:
+            # Aggiornamento
+            category.name = name
+            category.description = description
+            category.vat_rate = vat_rate
+            # Non serve chiamare 'update', SQLAlchemy traccia le modifiche automaticamente
+            # fintanto che l'oggetto è nella sessione.
 
-    db.session.commit()
-    return line
+        # 3. Commit della transazione
+        uow.commit()
+        
+        # Ritorniamo l'oggetto (che sarà "detached" o "expired" dopo il commit, 
+        # ma i dati base dovrebbero essere leggibili se la sessione non è chiusa aggressivamente,
+        # oppure ritorniamo i dati. Per sicurezza in Flask solitamente va bene ritornare l'oggetto).
+        return category
+
+
+def assign_category_to_line(line_id: int, category_id: Optional[int]) -> Any:
+    """
+    Assegna una categoria a una riga.
+    """
+    with UnitOfWork() as uow:
+        # Recuperiamo la riga (ancora col vecchio metodo, ma usa la stessa db.session sottostante)
+        line = get_document_line_by_id(line_id)
+        if line is None:
+            return None
+
+        if category_id is None:
+            line.category_id = None
+        else:
+            # Verifica esistenza categoria tramite UoW
+            category = uow.categories.get_by_id(category_id)
+            if category is None:
+                return None
+            line.category_id = category.id
+
+        uow.commit()
+        return line
 
 
 def bulk_assign_category_to_invoice_lines(
@@ -98,61 +102,45 @@ def bulk_assign_category_to_invoice_lines(
     line_ids: Optional[List[int]] = None,
 ) -> Dict[str, Any]:
     """
-    Assegna (o rimuove) una categoria a più righe dello stesso documento.
-
-    :param invoice_id: ID del documento
-    :param category_id: categoria da assegnare, oppure None per rimuovere
-    :param line_ids: lista di ID riga da aggiornare; se None, aggiorna tutte le righe
-    :return: riepilogo dell'operazione
+    Assegna massivamente categorie.
     """
-    lines = list_lines_by_document(invoice_id)
-    if line_ids is not None:
-        lines = [l for l in lines if l.id in line_ids]
+    with UnitOfWork() as uow:
+        # Recupero righe (vecchio metodo)
+        lines = list_lines_by_document(invoice_id)
+        
+        # Filtro se necessario
+        if line_ids is not None:
+            lines = [l for l in lines if l.id in line_ids]
 
-    updated_count = 0
+        updated_count = 0
+        target_cat_id = None
 
-    if category_id is None:
-        # Rimuove categoria
+        if category_id is not None:
+            category = uow.categories.get_by_id(category_id)
+            if category is None:
+                return {
+                    "success": False,
+                    "message": "Categoria non trovata",
+                    "updated_count": 0,
+                }
+            target_cat_id = category.id
+
+        # Loop di aggiornamento
         for line in lines:
-            line.category_id = None
-            updated_count += 1
-    else:
-        category = get_category_by_id(category_id)
-        if category is None:
-            return {
-                "success": False,
-                "message": "Categoria non trovata",
-                "updated_count": 0,
-            }
-
-        for line in lines:
-            line.category_id = category.id
+            line.category_id = target_cat_id
             updated_count += 1
 
-    db.session.commit()
+        uow.commit()
 
-    return {
-        "success": True,
-        "message": "Categorie aggiornate con successo",
-        "updated_count": updated_count,
-    }
-
-
-# app/services/category_service.py
-
-# ... import esistenti ...
+        return {
+            "success": True,
+            "message": "Categorie aggiornate con successo",
+            "updated_count": updated_count,
+        }
 
 def predict_category_for_line(description: str) -> Optional[int]:
     """
     PLACEHOLDER per futura implementazione AI/ML.
-    
-    Dato una descrizione (es. riga fattura o causale), tenta di prevedere
-    l'ID della categoria appropriata.
-    
-    Attuale comportamento: Ritorna sempre None (nessuna predizione).
-    
-    :param description: Testo da analizzare
-    :return: ID categoria o None
     """
     # TODO: In futuro, integrare qui logica Fuzzy Matching o ML Model
     return None

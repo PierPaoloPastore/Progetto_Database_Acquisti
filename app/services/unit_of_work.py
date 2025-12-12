@@ -1,49 +1,52 @@
-from __future__ import annotations
-
 """
-Context manager per gestire automaticamente commit e rollback delle operazioni
-sul database.
-
-Utilizzo:
-
-    from app.services.unit_of_work import UnitOfWork
-
-    with UnitOfWork() as session:
-        session.add(obj)
-        ...  # altre operazioni
-
-Al termine del blocco:
-- se non vengono sollevate eccezioni viene eseguito un commit;
-- in caso contrario viene effettuato un rollback automatico e l'eccezione
-  originale viene propagata.
+Unit of Work Pattern.
+Gestisce la transazione del database atomica e l'accesso ai repository.
 """
-
+from typing import Optional
 from app.extensions import db
-
+# Importa i repository specifici
+from app.repositories.category_repo import CategoryRepository
 
 class UnitOfWork:
-    """Context manager per gestire una singola transazione basata su db.session."""
-
-    def __init__(self) -> None:
+    def __init__(self):
         self.session = db.session
+        self._categories: Optional[CategoryRepository] = None
 
     def __enter__(self):
-        return self.session
+        """Inizio del blocco 'with'."""
+        return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
-        # Nessuna eccezione nel blocco with → proviamo il commit
-        if exc_type is None:
-            try:
-                self.session.commit()
-            except Exception:
-                # Errore in fase di commit → rollback e rilanciamo
-                self.session.rollback()
-                raise
-        else:
-            # Eccezione avvenuta dentro il blocco with → rollback e propaghiamo
-            self.session.rollback()
-            return False  # False = non sopprimere l'eccezione originale
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """
+        Fine del blocco 'with'. 
+        Gestisce il rollback in caso di eccezione.
+        """
+        if exc_type:
+            self.rollback()
+            # Lasciamo risalire l'errore
+            return False
+        
+        # FIX: NON chiudere la sessione qui!
+        # Flask-SQLAlchemy gestisce la chiusura della sessione automaticamente
+        # alla fine della richiesta web ("teardown").
+        # Se chiudiamo qui, non possiamo leggere i dati dell'oggetto nel Controller.
+        # self.session.close()  <-- RIMOSSO
 
-        # In assenza di eccezioni nel blocco with non c’è nulla da sopprimere,
-        # ma per chiarezza torniamo comunque False.
-        return False
+    @property
+    def categories(self) -> CategoryRepository:
+        """Accesso al repository Categories inizializzato con la sessione corrente."""
+        if self._categories is None:
+            self._categories = CategoryRepository(self.session)
+        return self._categories
+
+    def commit(self):
+        """Esegue il commit della transazione."""
+        try:
+            self.session.commit()
+        except Exception:
+            self.rollback()
+            raise
+
+    def rollback(self):
+        """Esegue il rollback della transazione."""
+        self.session.rollback()
