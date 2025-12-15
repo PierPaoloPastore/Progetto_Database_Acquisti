@@ -117,7 +117,7 @@ def create_batch_payment(
             file_name=file_name,
             file_path=file_path,
             payment_type=method or "batch",
-            status="processed",
+            status="reconciled",
         )
         uow.session.add(payment_document)
         uow.session.flush()
