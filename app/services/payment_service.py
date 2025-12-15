@@ -6,9 +6,13 @@ from __future__ import annotations
 
 import logging
 from datetime import date
-from typing import List, Optional
+from decimal import Decimal
+from typing import List, Optional, Sequence
 
-from app.models import Payment, Document
+from werkzeug.utils import secure_filename
+
+from app.models import Document, Payment, PaymentDocument
+from app.services import scan_service, settings_service
 from app.services.unit_of_work import UnitOfWork
 
 logger = logging.getLogger(__name__)
@@ -78,6 +82,87 @@ def delete_payment(payment_id: int) -> bool:
         
         logger.info(f"Pagamento {payment_id} cancellato")
         return True
+
+
+def create_batch_payment(
+    file,
+    allocations: Sequence[dict],
+    method: Optional[str],
+    notes: Optional[str],
+) -> PaymentDocument:
+    """Crea un pagamento cumulativo collegato a più scadenze."""
+    if not allocations:
+        raise ValueError("Nessuna allocazione fornita per il pagamento cumulativo.")
+
+    today = date.today()
+
+    with UnitOfWork() as uow:
+        # Gestione file allegato
+        if file:
+            base_path = settings_service.get_payment_files_storage_path()
+            safe_name = secure_filename(file.filename) or f"batch_payment_{today.isoformat()}"
+            relative_path = scan_service.store_payment_document_file(
+                file=file,
+                base_path=base_path,
+                filename=safe_name,
+            )
+            file_name = safe_name
+            file_path = relative_path
+        else:
+            placeholder_name = f"batch_payment_{today.isoformat()}"
+            file_name = placeholder_name
+            file_path = placeholder_name
+
+        payment_document = PaymentDocument(
+            file_name=file_name,
+            file_path=file_path,
+            payment_type=method or "batch",
+            status="processed",
+        )
+        uow.session.add(payment_document)
+        uow.session.flush()
+
+        touched_documents = set()
+
+        for allocation in allocations:
+            payment_id = allocation.get("payment_id")
+            amount = allocation.get("amount")
+            if payment_id is None or amount is None:
+                continue
+
+            payment = uow.payments.get_by_id(int(payment_id))
+            if not payment:
+                raise ValueError(f"Pagamento con id {payment_id} non trovato")
+
+            increment = Decimal(str(amount))
+            current_paid = Decimal(payment.paid_amount or 0)
+            new_paid = current_paid + increment
+
+            expected_amount = Decimal(payment.expected_amount or 0)
+            payment_status = "PARTIAL"
+            if expected_amount and new_paid >= expected_amount:
+                payment_status = "PAID"
+
+            payment.status = payment_status
+            payment.paid_date = today
+            payment.paid_amount = new_paid
+            payment.payment_method = method
+            payment.notes = notes
+            payment.payment_document = payment_document
+
+            touched_documents.add(payment.document_id)
+
+        for document_id in touched_documents:
+            document = uow.session.query(Document).get(document_id)
+            if not document:
+                continue
+
+            related_payments = uow.payments.get_by_document_id(document_id)
+            document.is_paid = all(p.status == "PAID" for p in related_payments)
+
+        uow.commit()
+
+        return payment_document
 
 def _update_document_paid_status(uow: UnitOfWork, document: Document):
     """

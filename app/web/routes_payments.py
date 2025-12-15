@@ -5,27 +5,44 @@ from __future__ import annotations
 from datetime import date, datetime
 from flask import Blueprint, request, redirect, url_for, flash, render_template
 
+from app.models import Document
 from app.services.payment_service import (
-    add_payment, 
-    delete_payment, 
+    add_payment,
+    create_batch_payment,
+    delete_payment,
     list_payments_by_document,
-    list_overdue_payments_for_ui
+    list_overdue_payments_for_ui,
 )
+from app.services.unit_of_work import UnitOfWork
 
 payments_bp = Blueprint("payments", __name__)
 
-@payments_bp.route("/", methods=["GET"])
-def inbox_view():
+@payments_bp.route("/", methods=["GET"], endpoint="payment_index")
+@payments_bp.route("/", methods=["GET"], endpoint="inbox_view")
+def payment_index():
     """
     Mostra la dashboard dei pagamenti (Scadenzario / Inbox).
     """
-    # Recupera le fatture scadute usando il service aggiornato con UoW
-    overdue_invoices = list_overdue_payments_for_ui()
-    
+    today = date.today()
+
+    with UnitOfWork() as uow:
+        overdue_invoices = list_overdue_payments_for_ui()
+
+        all_unpaid_invoices = (
+            uow.session.query(Document)
+            .filter(
+                Document.document_type == "invoice",
+                Document.is_paid == False,
+            )
+            .order_by(Document.due_date.asc())
+            .all()
+        )
+
     return render_template(
         "payments/inbox.html",
         overdue_invoices=overdue_invoices,
-        today=date.today()  # <--- CORREZIONE: Passiamo la data odierna al template
+        all_unpaid_invoices=all_unpaid_invoices,
+        today=today,
     )
 
 @payments_bp.route("/add/<int:document_id>", methods=["POST"])
@@ -71,6 +88,40 @@ def delete_view(payment_id: int):
         flash("Pagamento cancellato.", "success")
     else:
         flash("Errore: pagamento non trovato.", "danger")
-        
+
     # Torna alla pagina da cui sei venuto (solitamente il dettaglio fattura)
     return redirect(request.referrer or url_for("documents.list_view"))
+
+
+@payments_bp.route("/batch", methods=["POST"])
+def batch_payment():
+    """Registra un pagamento cumulativo su più scadenze."""
+    file = request.files.get("file")
+    method = request.form.get("method") or request.form.get("payment_method")
+    notes = request.form.get("notes")
+
+    selected_payments = request.form.getlist("payment_id")
+    allocations = []
+    for payment_id in selected_payments:
+        raw_amount = (request.form.get(f"amount_{payment_id}") or "0").replace(",", ".")
+        try:
+            amount = float(raw_amount)
+        except ValueError:
+            continue
+
+        if amount <= 0:
+            continue
+
+        allocations.append({"payment_id": int(payment_id), "amount": amount})
+
+    if not allocations:
+        flash("Seleziona almeno un pagamento con un importo valido.", "warning")
+        return redirect(url_for("payments.payment_index"))
+
+    try:
+        create_batch_payment(file, allocations, method, notes)
+        flash("Pagamento cumulativo registrato con successo.", "success")
+    except Exception as exc:  # pragma: no cover - logging/flash only
+        flash(f"Errore durante il pagamento cumulativo: {exc}", "danger")
+
+    return redirect(url_for("payments.payment_index"))
