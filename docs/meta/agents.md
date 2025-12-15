@@ -17,6 +17,9 @@ Questo progetto è una webapp Flask monolitica per la gestione delle fatture di 
 - Classi: PascalCase.
 - Evitare side effects nei modelli.
 
+## Coding Guidelines
+- Prima di istanziare un Modello o filtrare, leggi la definizione della classe SQLAlchemy per confermare i nomi dei campi. Non assumere che i parametri della funzione chiamante corrispondano 1:1 alle colonne del DB.
+
 ## Logging
 - Usare sempre logging JSON dell'app (extensions.py).
 - Non cambiare la configurazione DB.
