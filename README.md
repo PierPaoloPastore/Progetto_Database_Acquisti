@@ -51,7 +51,7 @@ Direzioni di sviluppo già definite includono l’estensione a nuovi documenti (
 ### Configurazione database
 1. Aggiorna `config.py` nella classe `DevConfig` con le tue credenziali MySQL:
    ```python
-   SQLALCHEMY_DATABASE_URI = "mysql+pymysql://user:password@localhost/gestion_acquisti"
+   SQLALCHEMY_DATABASE_URI = "mysql+pymysql://root:password@localhost:3306/gestionale_acquisti"
    ```
 2. Assicurati che il database `gestion_acquisti` (o quello scelto) esista in MySQL e che l'utente abbia i permessi.
 
