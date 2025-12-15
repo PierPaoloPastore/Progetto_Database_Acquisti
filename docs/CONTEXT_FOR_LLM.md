@@ -53,6 +53,7 @@ Last updated: 2025-12-15
 - Logging uses JSON with rotating file handler; avoid altering logging setup.
 - Avoid duplicating category assignments; use existing service methods.
 - Ensure supplier/legal entity uniqueness (VAT/fiscal codes) when importing.
+- Payment module: il modello usa `due_date`, `expected_amount`, `notes`; servizi legacy potrebbero inviare `payment_date`, `amount`, `description`. Mappare sempre gli input sui campi corretti del Modello.
 - Clean up temp/import folders cautiously; they drive audit logs.
 
 10) Near-term TODOs
