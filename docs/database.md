@@ -1,3 +1,5 @@
+Last updated: 2025-12-15
+
 # DB_ARCHITECTURE.md
 
 Architettura del database – Gestionale Acquisti  
@@ -1047,3 +1049,4 @@ rent_contracts (1) ──< (N) documents (solo rent)
 - Il dump include anche database `world` e `sys` (demo/system), non pertinenti al gestionale
 - Il database applicativo effettivo è `databaseacquisti`
 - Tutti gli AUTO_INCREMENT values riflettono lo stato di sviluppo/test attuale
+Last updated: 2025-12-15
