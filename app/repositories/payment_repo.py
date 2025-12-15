@@ -15,7 +15,7 @@ class PaymentRepository(SqlAlchemyRepository[Payment]):
         return (
             self.session.query(Payment)
             .filter_by(document_id=document_id)
-            .order_by(Payment.payment_date.asc())
+            .order_by(Payment.due_date.asc())
             .all()
         )
     
@@ -23,6 +23,6 @@ class PaymentRepository(SqlAlchemyRepository[Payment]):
         """Restituisce tutti i pagamenti ordinati per data decrescente."""
         return (
             self.session.query(Payment)
-            .order_by(Payment.payment_date.desc())
+            .order_by(Payment.due_date.desc())
             .all()
         )
