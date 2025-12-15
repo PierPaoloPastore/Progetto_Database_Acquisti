@@ -36,9 +36,9 @@ def add_payment(
         # 2. Crea il pagamento
         payment = Payment(
             document_id=document_id,
-            amount=amount,
-            payment_date=payment_date,
-            description=description,
+            expected_amount=amount,
+            due_date=payment_date,
+            notes=description,
             supplier_id=document.supplier_id # Denormalizzazione utile
         )
         uow.payments.add(payment)
@@ -84,7 +84,7 @@ def _update_document_paid_status(uow: UnitOfWork, document: Document):
     Helper interno: ricalcola se la fattura è pagata totalmente.
     """
     payments = uow.payments.get_by_document_id(document.id)
-    total_paid = sum(p.amount for p in payments)
+    total_paid = sum(p.expected_amount for p in payments)
     
     # Tolleranza per virgola mobile
     if total_paid >= (float(document.total_gross_amount or 0) - 0.01):
