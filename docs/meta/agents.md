@@ -25,11 +25,12 @@ Questo progetto è una webapp Flask monolitica per la gestione delle fatture di 
 - modificare config.py senza esplicita richiesta
 - cambiare nomi tabelle o colonne
 - riscrivere importatori senza conferma
+- cambiare schema/migrazioni del DB senza richiesta esplicita
+- committare `__pycache__/`, `*.pyc`, `logs/*.log`
 
 ## Testing / Verifica
-- Comando per verificare che tutto funzioni:
-  - `python manage.py runserver` deve avviarsi senza errori
-  - nessuna eccezione nei log
+- Usa le istruzioni di esecuzione in README.md (TODO se mancanti).
+- Controlla che non ci siano eccezioni nei log.
 
 ## Pull Request Style
 Ogni modifica proposta dal modello deve includere:
