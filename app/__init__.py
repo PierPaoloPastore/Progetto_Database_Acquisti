@@ -54,7 +54,7 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(import_bp, url_prefix="/import")
     app.register_blueprint(export_bp, url_prefix="/export")
     app.register_blueprint(settings_bp)
-    app.register_blueprint(payments_bp)
+    app.register_blueprint(payments_bp, url_prefix="/payments")
 
     # API
     from .api import api_documents_bp, api_categories_bp

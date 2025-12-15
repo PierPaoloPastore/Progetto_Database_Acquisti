@@ -25,6 +25,7 @@ from .document_service import (
 from .supplier_service import (
     list_suppliers_with_stats,
     get_supplier_detail,
+    list_active_suppliers, # Aggiunto
 )
 from .category_service import (
     list_categories_for_ui,
@@ -32,11 +33,12 @@ from .category_service import (
     assign_category_to_line,
     bulk_assign_category_to_invoice_lines,
 )
+# AGGIORNATO: Importiamo solo le funzioni esistenti nel nuovo payment_service
 from .payment_service import (
     list_overdue_payments_for_ui,
-    generate_payment_schedule,
-    create_payment,
-    update_payment,
+    list_payments_by_document,
+    add_payment,
+    delete_payment,
 )
 from .settings_service import get_setting, set_setting
 
@@ -58,6 +60,7 @@ __all__ = [
     # Suppliers
     "list_suppliers_with_stats",
     "get_supplier_detail",
+    "list_active_suppliers",
     # Categories
     "list_categories_for_ui",
     "create_or_update_category",
@@ -65,9 +68,9 @@ __all__ = [
     "bulk_assign_category_to_invoice_lines",
     # Payments
     "list_overdue_payments_for_ui",
-    "generate_payment_schedule",
-    "create_payment",
-    "update_payment",
+    "list_payments_by_document",
+    "add_payment",
+    "delete_payment",
     # Settings
     "get_setting",
     "set_setting",

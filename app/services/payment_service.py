@@ -1,252 +1,115 @@
 """
-Servizi per la gestione dei pagamenti/scadenze (Payment).
+Servizi per la gestione dei pagamenti (Payment).
+Rifattorizzato con Pattern Unit of Work.
 """
-
 from __future__ import annotations
 
-from datetime import date, datetime
-from decimal import Decimal
-from typing import Any, Dict, List, Optional
+import logging
+from datetime import date
+from typing import List, Optional
 
-from werkzeug.datastructures import FileStorage
-from werkzeug.utils import secure_filename
-
-from app.extensions import db
-from app.models import Document, Payment, PaymentDocument
-from app.repositories import (
-    create_payment as create_payment_repo, # FIX: Alias per evitare conflitti
-    create_payment_document,
-    get_payment_document,
-    list_overdue_payments,
-    list_payment_documents_by_status,
-)
-from app.services import scan_service, settings_service
+from app.models import Payment, Document
 from app.services.unit_of_work import UnitOfWork
 
+logger = logging.getLogger(__name__)
 
-def list_overdue_payments_for_ui(
-    reference_date: Optional[date] = None,
-) -> List[Dict[str, Any]]:
-    """Restituisce i pagamenti scaduti e non pagati."""
-    payments = list_overdue_payments(reference_date=reference_date)
-    results: List[Dict[str, Any]] = []
+def list_payments_by_document(document_id: int) -> List[Payment]:
+    """Restituisce i pagamenti di una specifica fattura."""
+    with UnitOfWork() as uow:
+        return uow.payments.get_by_document_id(document_id)
 
-    for p in payments:
-        document: Document = p.document
-        supplier_name = document.supplier.name if document and document.supplier else "N/A"
-        results.append(
-            {
-                "payment": p,
-                "invoice": document,
-                "supplier_name": supplier_name,
-            }
-        )
+def add_payment(
+    document_id: int,
+    amount: float,
+    payment_date: date,
+    description: Optional[str] = None
+) -> Payment:
+    """
+    Registra un nuovo pagamento e aggiorna lo stato della fattura.
+    """
+    with UnitOfWork() as uow:
+        # 1. Recupera il documento (usando sessione UoW per coerenza)
+        document = uow.session.query(Document).get(document_id)
+        if not document:
+            raise ValueError(f"Documento con id {document_id} non trovato")
 
-    return results
-
-
-def generate_payment_schedule(
-    start_date: date,
-    end_date: date,
-) -> List[Dict[str, Any]]:
-    """Genera uno scadenzario dei pagamenti tra start_date e end_date."""
-    query = (
-        Payment.query.filter(
-            Payment.due_date.isnot(None),
-            Payment.due_date >= start_date,
-            Payment.due_date <= end_date,
-        )
-        .order_by(Payment.due_date.asc(), Payment.id.asc())
-    )
-
-    payments: List[Payment] = query.all()
-    results: List[Dict[str, Any]] = []
-
-    for p in payments:
-        document: Document = p.document
-        supplier_name = document.supplier.name if document and document.supplier else "N/A"
-        results.append(
-            {
-                "payment": p,
-                "invoice": document,
-                "supplier_name": supplier_name,
-            }
-        )
-
-    return results
-
-
-def create_payment(
-    invoice_id: int,
-    due_date: Optional[date] = None,
-    expected_amount: Optional[Any] = None,
-    payment_terms: Optional[str] = None,
-    payment_method: Optional[str] = None,
-    paid_date: Optional[date] = None,
-    paid_amount: Optional[Any] = None,
-    status: Optional[str] = None,
-    notes: Optional[str] = None,
-) -> Optional[Payment]:
-    """Crea un nuovo pagamento associato a un documento."""
-    with UnitOfWork() as session:
-        document = session.get(Document, invoice_id)
-        if document is None:
-            return None
-
+        # 2. Crea il pagamento
         payment = Payment(
-            document_id=document.id,
-            due_date=due_date,
-            expected_amount=expected_amount,
-            payment_terms=payment_terms,
-            payment_method=payment_method,
-            paid_date=paid_date,
-            paid_amount=paid_amount,
-            status=status or "unpaid",
-            notes=notes,
+            document_id=document_id,
+            amount=amount,
+            payment_date=payment_date,
+            description=description,
+            supplier_id=document.supplier_id # Denormalizzazione utile
         )
-        session.add(payment)
-        session.flush()
+        uow.payments.add(payment)
+        
+        # Flush per assicurare che il pagamento sia visibile per i calcoli successivi
+        uow.session.flush()
 
+        # 3. Aggiorna stato pagato del documento
+        _update_document_paid_status(uow, document)
+
+        uow.commit()
+        
+        logger.info(f"Pagamento di {amount} aggiunto al doc {document_id}")
         return payment
 
+def delete_payment(payment_id: int) -> bool:
+    """
+    Cancella un pagamento e ricalcola lo stato della fattura.
+    """
+    with UnitOfWork() as uow:
+        payment = uow.payments.get_by_id(payment_id)
+        if not payment:
+            return False
 
-def update_payment(
-    payment_id: int,
-    **kwargs: Any,
-) -> Optional[Payment]:
-    """Aggiorna i campi di un pagamento esistente."""
-    with UnitOfWork() as session:
-        payment = session.get(Payment, payment_id)
-        if payment is None:
-            return None
+        document_id = payment.document_id
+        
+        # 1. Cancella pagamento
+        uow.payments.delete(payment)
+        uow.session.flush()
 
-        for field, value in kwargs.items():
-            if hasattr(payment, field):
-                setattr(payment, field, value)
+        # 2. Recupera documento e aggiorna stato
+        document = uow.session.query(Document).get(document_id)
+        if document:
+            _update_document_paid_status(uow, document)
 
-        session.flush()
-        return payment
+        uow.commit()
+        
+        logger.info(f"Pagamento {payment_id} cancellato")
+        return True
 
+def _update_document_paid_status(uow: UnitOfWork, document: Document):
+    """
+    Helper interno: ricalcola se la fattura è pagata totalmente.
+    """
+    payments = uow.payments.get_by_document_id(document.id)
+    total_paid = sum(p.amount for p in payments)
+    
+    # Tolleranza per virgola mobile
+    if total_paid >= (float(document.total_gross_amount or 0) - 0.01):
+        document.is_paid = True
+    else:
+        document.is_paid = False
 
-def _detect_payment_type(filename: str) -> str:
-    """Euristica minimale sul tipo di pagamento in base al nome file."""
-    lowered = (filename or "").lower()
-    if "bonifico" in lowered: return "bonifico"
-    if "mav" in lowered: return "mav"
-    if "assegno" in lowered or "cheque" in lowered: return "assegno"
-    return "sconosciuto"
-
-
-def upload_payment_documents(files: List[FileStorage]) -> List[PaymentDocument]:
-    """Carica e registra i PDF di pagamento."""
-    stored_documents: List[PaymentDocument] = []
-    base_path = settings_service.get_payment_files_storage_path()
-
-    for file in files:
-        if file is None or not file.filename:
-            continue
-
-        payment_type = _detect_payment_type(file.filename)
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        cleaned_original = secure_filename(file.filename)
-        stored_name = f"payment_{timestamp}_{cleaned_original}" if cleaned_original else f"payment_{timestamp}.pdf"
-
-        stored_path = scan_service.store_payment_document_file(
-            file=file, base_path=base_path, filename=stored_name
+# --- FUNZIONE REINSERITA PER COMPATIBILITÀ DASHBOARD ---
+def list_overdue_payments_for_ui() -> List[Document]:
+    """
+    Restituisce l'elenco delle fatture scadute e non pagate.
+    Usato nella dashboard.
+    """
+    with UnitOfWork() as uow:
+        today = date.today()
+        # Nota: Interroghiamo Document, non Payment, ma concettualmente è legato ai pagamenti mancanti
+        overdue_invoices = (
+            uow.session.query(Document)
+            .filter(
+                Document.document_type == 'invoice',
+                Document.is_paid == False,
+                Document.due_date != None,
+                Document.due_date < today
+            )
+            .order_by(Document.due_date.asc())
+            .all()
         )
-
-        with UnitOfWork() as session:
-            document = create_payment_document(
-                file_name=file.filename,
-                file_path=stored_path,
-                payment_type=payment_type,
-                status="pending_review",
-                uploaded_at=datetime.utcnow(),
-            )
-            session.flush()
-            stored_documents.append(document)
-
-    return stored_documents
-
-
-def get_payment_inbox(statuses: List[str]) -> List[PaymentDocument]:
-    return list_payment_documents_by_status(statuses)
-
-
-def review_payment_document(document_id: int) -> Dict[str, Any]:
-    """Carica il documento e i documenti candidati per l'associazione."""
-    document = get_payment_document(document_id)
-    if document is None:
-        raise ValueError("Documento di pagamento non trovato")
-
-    candidate_invoices = (
-        Document.query
-        .filter_by(document_type='invoice')
-        .order_by(Document.document_date.desc())
-        .limit(200)
-        .all()
-    )
-
-    return {"document": document, "candidate_invoices": candidate_invoices}
-
-
-def assign_payments_to_invoices(
-    document_id: int, assignments: List[Dict[str, Any]]
-) -> PaymentDocument:
-    """Crea pagamenti collegati al documento e aggiorna gli stati."""
-    with UnitOfWork() as session:
-        doc_payment: Optional[PaymentDocument] = session.get(PaymentDocument, document_id)
-        if doc_payment is None:
-            raise ValueError("Documento di pagamento non trovato")
-
-        total_assigned = Decimal("0")
-
-        for assignment in assignments:
-            invoice_id = assignment.get("invoice_id")
-            raw_amount = assignment.get("amount")
-            if invoice_id is None or raw_amount in (None, ""):
-                continue
-
-            amount = Decimal(str(raw_amount))
-            if amount <= 0:
-                continue
-
-            paid_date_raw = assignment.get("paid_date")
-            paid_date = None
-            if paid_date_raw:
-                try:
-                    paid_date = datetime.strptime(paid_date_raw, "%Y-%m-%d").date()
-                except ValueError:
-                    paid_date = None
-            notes = assignment.get("notes")
-            payment_method = assignment.get("payment_method")
-
-            document: Optional[Document] = session.get(Document, invoice_id)
-            if document is None:
-                continue
-
-            doc_gross = Decimal(document.total_gross_amount or 0)
-
-            # FIX: Usa create_payment_repo e passa 'document' invece di 'invoice'
-            payment = create_payment_repo(
-                document=document,
-                amount=amount,
-                payment_document=doc_payment,
-                paid_date=paid_date,
-                payment_method=payment_method or doc_payment.payment_type,
-                status="paid" if doc_gross and amount >= doc_gross else "partial",
-                notes=notes,
-            )
-            session.add(payment)
-            total_assigned += amount
-
-        # FIX: Usa 'partial' e 'reconciled' come da vincolo DB (invece di partially_assigned/processed)
-        if doc_payment.parsed_amount is not None and total_assigned < Decimal(doc_payment.parsed_amount):
-            doc_payment.status = "partial"
-        elif total_assigned > 0:
-            doc_payment.status = "reconciled"
-        else:
-            doc_payment.status = "pending_review"
-
-        session.flush()
-        return doc_payment
+        return overdue_invoices

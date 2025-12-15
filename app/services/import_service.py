@@ -1,6 +1,6 @@
 """
 Servizio di import delle fatture elettroniche XML (FatturaPA).
-Aggiornato per usare l'architettura Document.
+Aggiornato per usare l'architettura Document e UnitOfWork.
 """
 
 from __future__ import annotations
@@ -13,15 +13,10 @@ from datetime import datetime
 from lxml import etree
 from flask import current_app
 
-from app.extensions import db
-from app.models import Document, LegalEntity
+from app.models import LegalEntity
 from app.parsers.fatturapa_parser import InvoiceDTO, parse_invoice_xml, P7MExtractionError
 from app.repositories.import_log_repo import create_import_log
-from app.repositories.document_repo import (
-    create_document_from_fatturapa,
-    find_existing_document,
-)
-from app.repositories.supplier_repo import get_or_create_supplier_from_dto
+from app.services.unit_of_work import UnitOfWork
 from app.services.logging import log_structured_event
 
 
@@ -53,10 +48,12 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
         file_name = xml_path.name
         summary["processed"] += 1
 
-        existing_doc = find_existing_document(file_name=file_name)
-        if existing_doc is not None:
-            _log_skip(logger, file_name, existing_doc.id, summary, reason="File già importato (nome)")
-            continue
+        # Controllo rapido esistenza
+        with UnitOfWork() as uow_check:
+            existing_doc = uow_check.documents.find_existing(file_name=file_name)
+            if existing_doc:
+                _log_skip(logger, file_name, existing_doc.id, summary, reason="File già importato (nome)")
+                continue
 
         invoice_dto: Optional[InvoiceDTO] = None
         try:
@@ -73,41 +70,42 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
             continue
 
         try:
-            db.session.begin_nested()
+            # Transazione Principale di Scrittura
+            with UnitOfWork() as uow:
+                header_data = _extract_header_data(xml_path)
+                
+                # LegalEntity
+                if legal_entity_id is None:
+                    legal_entity = _get_or_create_legal_entity(header_data, uow.session)
+                    legal_entity_id = legal_entity.id
 
-            header_data = _extract_header_data(xml_path)
-            
-            if legal_entity_id is None:
-                legal_entity = _get_or_create_legal_entity(header_data)
-                legal_entity_id = legal_entity.id
+                # Supplier (Usa il nuovo repo)
+                supplier = uow.suppliers.get_or_create_from_dto(invoice_dto.supplier)
+                supplier_id = supplier.id
 
-            supplier = get_or_create_supplier_from_dto(invoice_dto.supplier)
-            supplier_id = supplier.id
+                # Document (Usa il nuovo repo e il nuovo metodo)
+                document, created = uow.documents.create_from_fatturapa(
+                    invoice_dto=invoice_dto,
+                    supplier_id=supplier_id,
+                    legal_entity_id=legal_entity_id,
+                    import_source=str(import_folder),
+                )
+                
+                if not created:
+                    _log_skip(logger, file_name, document.id, summary, reason="Duplicato per file_name/file_hash")
+                    continue
 
-            # Crea Document (invoice)
-            document, created = _create_document_wrapper(
-                invoice_dto=invoice_dto,
-                supplier_id=supplier_id,
-                legal_entity_id=legal_entity_id,
-                import_source=str(import_folder),
-            )
-            
-            if not created:
-                _log_skip(logger, file_name, document.id, summary, reason="Duplicato per file_name/file_hash")
-                continue
+                uow.commit()
 
-            db.session.commit()
-
-            _log_success(
-                logger,
-                file_name,
-                document.id,
-                supplier_id,
-                summary,
-            )
+                _log_success(
+                    logger,
+                    file_name,
+                    document.id,
+                    supplier_id,
+                    summary,
+                )
 
         except Exception as exc:
-            db.session.rollback()
             _log_error_db(logger, file_name, exc, summary)
 
     log_structured_event(
@@ -120,20 +118,6 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
     )
 
     return summary
-
-
-def _create_document_wrapper(
-    invoice_dto: InvoiceDTO,
-    supplier_id: int,
-    legal_entity_id: int,
-    import_source: str,
-) -> tuple[Document, bool]:
-    return create_document_from_fatturapa(
-        invoice_dto=invoice_dto,
-        supplier_id=supplier_id,
-        legal_entity_id=legal_entity_id,
-        import_source=import_source,
-    )
 
 
 def _extract_header_data(xml_path: Path) -> Dict:
@@ -200,20 +184,15 @@ def _extract_header_data(xml_path: Path) -> Dict:
     return header_data
 
 
-def _get_or_create_legal_entity(header_data: Dict) -> LegalEntity:
+def _get_or_create_legal_entity(header_data: Dict, session) -> LegalEntity:
     cessionario = (header_data or {}).get("cessionario_committente") or {}
     vat_number = cessionario.get("vat_number") or cessionario.get("fiscal_code")
 
-    if not vat_number:
-        raise ValueError("legal_entity_id è obbligatorio e non è stato trovato nell'XML")
-
     existing = None
     if cessionario.get("vat_number"):
-        existing = LegalEntity.query.filter_by(vat_number=cessionario["vat_number"]).first()
+        existing = session.query(LegalEntity).filter_by(vat_number=cessionario["vat_number"]).first()
     elif cessionario.get("fiscal_code"):
-        existing = LegalEntity.query.filter_by(
-            fiscal_code=cessionario["fiscal_code"]
-        ).first()
+        existing = session.query(LegalEntity).filter_by(fiscal_code=cessionario["fiscal_code"]).first()
 
     if existing:
         return existing
@@ -227,8 +206,8 @@ def _get_or_create_legal_entity(header_data: Dict) -> LegalEntity:
         country=cessionario.get("country") or "IT",
         created_at=datetime.utcnow(),
     )
-    db.session.add(legal_entity)
-    db.session.flush()
+    session.add(legal_entity)
+    session.flush()
     return legal_entity
 
 

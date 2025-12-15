@@ -1,69 +1,61 @@
 {% extends "base.html" %}
 
-{% block title %}Inbox Pagamenti - Gestionale Acquisti{% endblock %}
+{% block title %}Scadenzario Pagamenti - Gestionale Acquisti{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h1>Inbox Documenti Bancari</h1>
-        <form method="post" enctype="multipart/form-data" action="{{ url_for('payments.upload_documents') }}" class="d-flex align-items-center">
-            <input type="file" name="files" multiple class="form-control me-2" required>
-            <button type="submit" class="btn btn-primary text-nowrap">
-                <i class="bi bi-upload"></i> Carica PDF
-            </button>
-        </form>
+        <h1><i class="bi bi-calendar-check"></i> Scadenzario Pagamenti</h1>
     </div>
 
     <div class="card shadow-sm">
         <div class="card-header bg-white">
-            <h5 class="mb-0">Documenti da processare</h5>
+            <h5 class="mb-0">Fatture in Scadenza / Non Pagate</h5>
         </div>
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table table-hover table-striped mb-0 align-middle">
                     <thead class="table-light">
                     <tr>
-                        <th>Nome File</th>
-                        <th>Tipo</th>
-                        <th>Data Caricamento</th>
-                        <th>Stato</th>
+                        <th>Scadenza</th>
+                        <th>Fornitore</th>
+                        <th>N. Doc</th>
+                        <th class="text-end">Importo Totale</th>
                         <th class="text-end">Azioni</th>
                     </tr>
                     </thead>
                     <tbody>
-                    {% for doc in documents %}
-                      <tr>
+                    {% for doc in overdue_invoices %}
+                      <tr class="{{ 'table-danger' if doc.due_date and doc.due_date < today else '' }}">
                           <td>
-                              <i class="bi bi-file-earmark-pdf text-danger me-2"></i>
-                              <span class="fw-bold">{{ doc.file_name }}</span>
-                          </td>
-                          <td>
-                              <span class="badge bg-secondary">{{ doc.payment_type|default('N/D') }}</span>
-                          </td>
-                          <td>{{ doc.uploaded_at.strftime('%d/%m/%Y %H:%M') }}</td>
-                          <td>
-                              {% if doc.status == 'pending_review' %}
-                                <span class="badge bg-warning text-dark">Da Revisionare</span>
-                              {% elif doc.status == 'reconciled' %}
-                                <span class="badge bg-success">Completato</span>
-                              {% elif doc.status == 'partial' %}
-                                <span class="badge bg-info text-dark">Parziale</span>
+                              {% if doc.due_date %}
+                                {{ doc.due_date.strftime('%d/%m/%Y') }}
+                                {% if doc.due_date < today %}
+                                    <span class="badge bg-danger ms-1">Scaduta</span>
+                                {% endif %}
                               {% else %}
-                                <span class="badge bg-light text-dark border">{{ doc.status }}</span>
+                                <span class="text-muted">-</span>
                               {% endif %}
                           </td>
+                          <td>
+                              <a href="{{ url_for('suppliers.detail_view', supplier_id=doc.supplier_id) }}" class="text-decoration-none fw-bold">
+                                  {{ doc.supplier.name }}
+                              </a>
+                          </td>
+                          <td>{{ doc.document_number }}</td>
+                          <td class="text-end">{{ "%.2f"|format(doc.total_gross_amount) }} €</td>
                           <td class="text-end">
-                              <a href="{{ url_for('payments.review_view', document_id=doc.id) }}" 
+                              <a href="{{ url_for('documents.detail_view', document_id=doc.id) }}" 
                                  class="btn btn-sm btn-primary">
-                                  <i class="bi bi-pencil-square"></i> Gestisci
+                                  <i class="bi bi-cash-coin"></i> Registra Pagamento
                               </a>
                           </td>
                       </tr>
                     {% else %}
                       <tr>
                           <td colspan="5" class="text-center py-5 text-muted">
-                              <i class="bi bi-inbox fs-1 d-block mb-3"></i>
-                              Nessun documento di pagamento da revisionare.
+                              <i class="bi bi-check-circle fs-1 d-block mb-3 text-success"></i>
+                              Ottimo! Non ci sono fatture in sospeso.
                           </td>
                       </tr>
                     {% endfor %}

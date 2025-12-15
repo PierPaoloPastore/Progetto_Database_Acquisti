@@ -3,33 +3,12 @@ Modello Document (tabella: documents).
 
 Single Table Inheritance per tutti i documenti economici:
 fatture, F24, assicurazioni, MAV, CBILL, scontrini, affitti, tributi.
-
-Il campo document_type discrimina il tipo di documento.
-
-Valori ammessi per document_type:
-- invoice: Fattura
-- f24: Modello F24
-- insurance: Polizza assicurativa
-- mav: Bollettino MAV
-- cbill: Bollettino CBILL
-- receipt: Scontrino
-- rent: Affitto
-- tax: Tributo
-- other: Altro documento
-
-Valori ammessi per doc_status:
-- imported: documento appena importato, in attesa di verifica
-- pending_physical_copy: in attesa di ricevere la copia cartacea
-- verified: controlli completati e documento pronto per l'uso operativo
-- rejected: documento scartato dopo verifica o controlli interni
-- archived: documento archiviato perché completato o fuori uso corrente
 """
 
 from datetime import datetime
 from typing import Optional
 
 from app.extensions import db
-
 
 class Document(db.Model):
     """
@@ -74,17 +53,18 @@ class Document(db.Model):
     # Stato documento (colonne comuni)
     doc_status = db.Column(db.String(32), nullable=False, default="imported", index=True)
 
+    # --- CAMPO NUOVO (per gestione pagamenti) ---
+    is_paid = db.Column(db.Boolean, nullable=False, default=False, index=True)
+    # --------------------------------------------
+
     # Informazioni sul file sorgente
     import_source = db.Column(db.String(255), nullable=True)
     file_name = db.Column(db.String(255), nullable=True)
-    # ... (altre colonne esistenti come file_path, imported_at)
     file_path = db.Column(db.String(500), nullable=True) 
     imported_at = db.Column(db.DateTime, nullable=True, index=True)
 
-    # --- AGGIUNTA FONDAMENTALE ---
     # Path relativo per la copia fisica scansionata/caricata
     physical_copy_file_path = db.Column(db.String(500), nullable=True)
-    # -----------------------------
 
     # Stato copia fisica
     physical_copy_status = db.Column(
@@ -146,12 +126,11 @@ class Document(db.Model):
     legal_entity = db.relationship("LegalEntity", backref="documents")
 
     invoice_lines = db.relationship(
-        "DocumentLine",  # Assicurati che sia "DocumentLine", NON "InvoiceLine"
+        "DocumentLine",
         back_populates="document",
         lazy="dynamic",
         cascade="all, delete-orphan",
-        # IL PROBLEMA È QUI SOTTO:
-        foreign_keys="DocumentLine.document_id",  # Deve essere "DocumentLine.document_id"
+        foreign_keys="DocumentLine.document_id",
     )
 
     vat_summaries = db.relationship(
@@ -206,42 +185,34 @@ class Document(db.Model):
     # Helper properties per identificare il tipo di documento
     @property
     def is_invoice(self) -> bool:
-        """Verifica se il documento è una fattura."""
         return self.document_type == "invoice"
 
     @property
     def is_f24(self) -> bool:
-        """Verifica se il documento è un modello F24."""
         return self.document_type == "f24"
 
     @property
     def is_insurance(self) -> bool:
-        """Verifica se il documento è una polizza assicurativa."""
         return self.document_type == "insurance"
 
     @property
     def is_mav(self) -> bool:
-        """Verifica se il documento è un bollettino MAV."""
         return self.document_type == "mav"
 
     @property
     def is_cbill(self) -> bool:
-        """Verifica se il documento è un bollettino CBILL."""
         return self.document_type == "cbill"
 
     @property
     def is_receipt(self) -> bool:
-        """Verifica se il documento è uno scontrino."""
         return self.document_type == "receipt"
 
     @property
     def is_rent(self) -> bool:
-        """Verifica se il documento è un affitto."""
         return self.document_type == "rent"
 
     @property
     def is_tax(self) -> bool:
-        """Verifica se il documento è un tributo."""
         return self.document_type == "tax"
 
     def __repr__(self) -> str:

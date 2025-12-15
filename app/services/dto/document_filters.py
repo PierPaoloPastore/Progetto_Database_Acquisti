@@ -14,7 +14,7 @@ class DocumentSearchFilters:
     date_to: Optional[date] = None
     supplier_id: Optional[int] = None
     legal_entity_id: Optional[int] = None
-    year: Optional[int] = None
+    accounting_year: Optional[int] = None  # <--- RINOMINATO (era 'year')
     doc_status: Optional[str] = None
     physical_copy_status: Optional[str] = None
     payment_status: Optional[str] = None
@@ -55,7 +55,7 @@ class DocumentSearchFilters:
             date_to=cls._parse_date(args.get("date_to", "")),
             supplier_id=cls._parse_int(args.get("supplier_id")),
             legal_entity_id=cls._parse_int(args.get("legal_entity_id")),
-            year=cls._parse_int(args.get("year")),
+            accounting_year=cls._parse_int(args.get("year")), # Mappiamo il parametro URL 'year' sull'attributo 'accounting_year'
             doc_status=(args.get("doc_status") or None),
             physical_copy_status=(args.get("physical_copy_status") or None),
             payment_status=(args.get("payment_status") or None),
