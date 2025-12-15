@@ -20,6 +20,10 @@ Questo progetto è una webapp Flask monolitica per la gestione delle fatture di 
 ## Coding Guidelines
 - Prima di istanziare un Modello o filtrare, leggi la definizione della classe SQLAlchemy per confermare i nomi dei campi. Non assumere che i parametri della funzione chiamante corrispondano 1:1 alle colonne del DB.
 
+## Refactoring Guidelines
+- Quando modifichi una vista, controlla `routes_*.py` per vedere quale file HTML viene chiamato.
+- Se rinomini un template, usa `grep` per assicurarti che tutti i `render_template` siano aggiornati.
+
 ## Logging
 - Usare sempre logging JSON dell'app (extensions.py).
 - Non cambiare la configurazione DB.
