@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block title %}Pagamenti{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/payments.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0"><i class="bi bi-cash-coin me-2"></i>Pagamenti</h1>
+    </div>
+
+    <ul class="nav nav-tabs" id="paymentsTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="scad-tab" data-bs-toggle="tab" data-bs-target="#scad" type="button" role="tab">Scadenziario</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="new-tab" data-bs-toggle="tab" data-bs-target="#new-pay" type="button" role="tab">Nuovo Pagamento</button>
+        </li>
+    </ul>
+
+    <div class="tab-content mt-3">
+        <div class="tab-pane fade show active" id="scad" role="tabpanel" aria-labelledby="scad-tab">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Pagamenti Scaduti</h5>
+                </div>
+                <div class="card-body p-0 table-responsive table-responsive-scad">
+                    <table class="table table-striped align-middle mb-0 sticky-header">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Data Scadenza</th>
+                                <th>Fornitore</th>
+                                <th>Documento</th>
+                                <th class="text-end">Importo Atteso</th>
+                                <th class="text-end">Stato</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in overdue %}
+                            <tr class="invoice-row">
+                                <td>{{ p.due_date.strftime('%d/%m/%Y') if p.due_date else '-' }}</td>
+                                <td>{{ p.document.supplier.name if p.document and p.document.supplier else '-' }}</td>
+                                <td>{{ p.document.document_number if p.document else '-' }}</td>
+                                <td class="text-end">{{ '%.2f'|format(p.expected_amount or 0) }} €</td>
+                                <td class="text-end"><span class="badge bg-danger">Scaduto</span></td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="5" class="text-center py-4 text-muted">Nessun pagamento scaduto.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="new-pay" role="tabpanel" aria-labelledby="new-tab">
+            <div class="split-container mt-2">
+                <div class="split-left">
+                    <form method="POST" action="{{ url_for('payments.batch_payment') }}" enctype="multipart/form-data" class="h-100 d-flex flex-column gap-3">
+                        <div class="card shadow-sm">
+                            <div class="card-body row g-3">
+                                <div class="col-12">
+                                    <label for="file-upload" class="form-label">Documento di pagamento (PDF)</label>
+                                    <input type="file" class="form-control" id="file-upload" name="file" accept="application/pdf">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="method" class="form-label">Metodo</label>
+                                    <select class="form-select" id="method" name="method">
+                                        <option value="bonifico">Bonifico</option>
+                                        <option value="assegno">Assegno</option>
+                                        <option value="contanti">Contanti</option>
+                                        <option value="altro">Altro</option>
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <label for="notes" class="form-label">Note</label>
+                                    <textarea class="form-control" id="notes" name="notes" rows="2" placeholder="Aggiungi dettagli"></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card shadow-sm flex-fill d-flex flex-column">
+                            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">Pagamenti da associare</h5>
+                                <div class="input-group" style="max-width: 320px;">
+                                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                    <input type="search" class="form-control" id="invoice-search" placeholder="Cerca fattura o fornitore">
+                                </div>
+                            </div>
+                            <div class="card-body p-0 table-responsive table-responsive-scad">
+                                <table class="table table-hover align-middle mb-0 sticky-header">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th style="width: 45px;"></th>
+                                            <th>Scadenza</th>
+                                            <th>Fornitore</th>
+                                            <th>Documento</th>
+                                            <th class="text-end" style="width: 150px;">Importo</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for p in unpaid %}
+                                        <tr class="invoice-row">
+                                            <td><input class="form-check-input" type="checkbox" name="payment_ids" value="{{ p.id }}"></td>
+                                            <td>{{ p.due_date.strftime('%d/%m/%Y') if p.due_date else '-' }}</td>
+                                            <td>{{ p.document.supplier.name if p.document and p.document.supplier else '-' }}</td>
+                                            <td>{{ p.document.document_number if p.document else '-' }}</td>
+                                            <td class="text-end">
+                                                <div class="input-group input-group-sm">
+                                                    <span class="input-group-text">€</span>
+                                                    <input type="number" step="0.01" class="form-control text-end" name="amounts" value="{{ p.expected_amount or 0 }}">
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% else %}
+                                        <tr>
+                                            <td colspan="5" class="text-center py-4 text-muted">Nessun pagamento in sospeso.</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-end">
+                            <button type="submit" class="btn btn-success"><i class="bi bi-cash-stack me-2"></i>Conferma Pagamento Multiplo</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="split-right card shadow-sm">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0">Anteprima PDF</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <iframe id="pdf-preview-frame" class="pdf-preview" title="Anteprima PDF"></iframe>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/payments.js') }}"></script>
+{% endblock %}
