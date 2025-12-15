@@ -1,3 +1,5 @@
+Last updated: 2025-12-15
+
 # Architecture
 
 ## Stack
@@ -9,6 +11,9 @@
 - Jinja2 templates
 - lxml per parsing XML FatturaPA
 - Logging JSON con RotatingFileHandler
+
+> **Pattern Repository + Unit of Work**
+> La combinazione di repository e unit of work (formalizzata con il commit eadb076) è il metodo ufficiale per l’accesso ai dati e la gestione transazionale: i repository incapsulano le query e la UoW coordina commit/rollback tra più servizi per mantenere la coerenza applicativa.
 
 ---
 

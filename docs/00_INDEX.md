@@ -1,0 +1,18 @@
+Last updated: 2025-12-15
+
+# Documentazione - Indice
+
+Benvenuto nel centro documentazione del Gestionale Acquisti. Usa questo indice come entrypoint alle sezioni principali:
+
+- [Architettura applicativa](architecture.md)
+- [Architettura database](database.md)
+- Guide
+  - [Troubleshooting import P7M](guides/p7m_troubleshooting.md)
+- Roadmap
+  - [Future document types](roadmap/future_types.md)
+- Meta
+  - [Istruzioni per gli agenti](meta/agents.md)
+  - [Contesto progetto (Claude)](meta/context.md)
+- Archivio
+  - [Documenti storici 2025-12](./_archive/2025-12/)
+

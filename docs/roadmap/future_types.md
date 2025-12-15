@@ -1,4 +1,5 @@
----
+Last updated: 2025-12-15
+
 # Future Document Types – Implementation Guide
 
 Questo file descrive come estendere il sistema per gestire nuovi tipi di documento oltre a quelli già supportati.
@@ -167,8 +168,8 @@ Questo file va aggiornato man mano che si implementano nuovi tipi documento.
 
 ### File Aggiornati
 
-1. ✅ **DB_ARCHITECTURE.md** – completamente riscritto per riflettere supertipo `documents`
-2. ✅ **ARCHITECTURE.md** – sezione "Domain Model" aggiornata
+1. ✅ **docs/database.md** – completamente riscritto per riflettere supertipo `documents`
+2. ✅ **docs/architecture.md** – sezione "Domain Model" aggiornata
 3. ✅ **PROJECT_OVERVIEW.md** – sezione "Funzioni principali" aggiornata
 4. ✅ **FUTURE_DOCUMENT_TYPES.md** – riscritto come implementation guide
 
