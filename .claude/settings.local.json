@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__plugin_compound-engineering_context7__resolve-library-id",
+      "WebSearch",
+      "mcp__plugin_compound-engineering_context7__get-library-docs",
+      "SlashCommand(/compound-engineering:\\workflows:work:*)",
+      "Bash(git checkout:*)",
+      "Bash(where:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

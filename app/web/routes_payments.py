@@ -6,6 +6,7 @@ from datetime import date, datetime
 from flask import Blueprint, request, redirect, url_for, flash, render_template
 
 from app.models import Document
+from app.services import payment_service
 from app.services.payment_service import (
     add_payment,
     create_batch_payment,
@@ -95,32 +96,56 @@ def delete_view(payment_id: int):
 
 @payments_bp.route("/batch", methods=["POST"])
 def batch_payment():
-    """Registra un pagamento cumulativo su più scadenze."""
+    """Registra un pagamento cumulativo su più documenti (invoices)."""
     file = request.files.get("file")
     method = request.form.get("method") or request.form.get("payment_method")
     notes = request.form.get("notes")
 
-    selected_payments = request.form.getlist("payment_id")
-    allocations = []
-    for payment_id in selected_payments:
-        raw_amount = (request.form.get(f"amount_{payment_id}") or "0").replace(",", ".")
+    # Get selected DOCUMENT IDs (the form sends doc.id as payment_id)
+    selected_doc_ids = request.form.getlist("payment_id")
+
+    # Validate input
+    if not selected_doc_ids:
+        flash("Seleziona almeno un documento da pagare.", "warning")
+        return redirect(url_for("payments.payment_index"))
+
+    # Build document allocations from amounts
+    doc_allocations = []
+    for doc_id in selected_doc_ids:
+        raw_amount = (request.form.get(f"amount_{doc_id}") or "0").replace(",", ".")
         try:
             amount = float(raw_amount)
         except ValueError:
-            continue
+            flash(f"Importo non valido per documento {doc_id}", "warning")
+            return redirect(url_for("payments.payment_index"))
 
         if amount <= 0:
             continue
 
-        allocations.append({"payment_id": int(payment_id), "amount": amount})
+        doc_allocations.append({"document_id": int(doc_id), "amount": amount})
 
-    if not allocations:
-        flash("Seleziona almeno un pagamento con un importo valido.", "warning")
+    if not doc_allocations:
+        flash("Inserisci almeno un importo > 0.", "warning")
         return redirect(url_for("payments.payment_index"))
 
+    # Process batch payment (service layer handles Document → Payment mapping)
     try:
-        create_batch_payment(file, allocations, method, notes)
-        flash("Pagamento cumulativo registrato con successo.", "success")
+        result = payment_service.create_batch_payment_from_documents(
+            file=file,
+            document_allocations=doc_allocations,
+            method=method,
+            notes=notes
+        )
+
+        # Display results
+        if result['success_count'] > 0:
+            flash(f"{result['success_count']} pagamenti registrati con successo.", "success")
+
+        if result['error_count'] > 0:
+            for res in result['results']:
+                if not res['success']:
+                    flash(f"Errore per documento {res['document_id']}: {res['error']}", "danger")
+
     except Exception as exc:  # pragma: no cover - logging/flash only
         flash(f"Errore durante il pagamento cumulativo: {exc}", "danger")
 

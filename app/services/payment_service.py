@@ -139,9 +139,9 @@ def create_batch_payment(
             new_paid = current_paid + increment
 
             expected_amount = Decimal(payment.expected_amount or 0)
-            payment_status = "PARTIAL"
+            payment_status = "partial"
             if expected_amount and new_paid >= expected_amount:
-                payment_status = "PAID"
+                payment_status = "paid"
 
             payment.status = payment_status
             payment.paid_date = today
@@ -158,11 +158,161 @@ def create_batch_payment(
                 continue
 
             related_payments = uow.payments.get_by_document_id(document_id)
-            document.is_paid = all(p.status == "PAID" for p in related_payments)
+            document.is_paid = all(p.status == "paid" for p in related_payments)
 
         uow.commit()
 
         return payment_document
+
+def create_batch_payment_from_documents(
+    file,
+    document_allocations: List[dict],
+    method: Optional[str],
+    notes: Optional[str],
+) -> dict:
+    """
+    Process batch payment for multiple documents.
+    Auto-creates Payment records if they don't exist.
+
+    Args:
+        file: Uploaded PDF file (or None)
+        document_allocations: List of dicts with document_id and amount
+        method: Payment method
+        notes: Optional notes
+
+    Returns:
+        Dict with success_count, error_count, and results list
+    """
+    if not document_allocations:
+        raise ValueError("Nessuna allocazione fornita per il pagamento cumulativo.")
+
+    today = date.today()
+    results = []
+
+    with UnitOfWork() as uow:
+        # Step 1: Create PaymentDocument if file provided
+        payment_document = None
+        if file and file.filename:
+            base_path = settings_service.get_payment_files_storage_path()
+            safe_name = secure_filename(file.filename) or f"batch_payment_{today.isoformat()}"
+            relative_path = scan_service.store_payment_document_file(
+                file=file,
+                base_path=base_path,
+                filename=safe_name,
+            )
+            payment_document = PaymentDocument(
+                file_name=safe_name,
+                file_path=relative_path,
+                payment_type=method or "batch",
+                status="reconciled",
+            )
+        else:
+            placeholder_name = f"batch_payment_{today.isoformat()}"
+            payment_document = PaymentDocument(
+                file_name=placeholder_name,
+                file_path=placeholder_name,
+                payment_type=method or "batch",
+                status="reconciled",
+            )
+
+        uow.session.add(payment_document)
+        uow.session.flush()
+
+        # Step 2: Get all Document IDs
+        doc_ids = [alloc["document_id"] for alloc in document_allocations]
+
+        # Step 3: Fetch all Payment records for these Documents
+        payment_map = {}  # {document_id: [Payment, ...]}
+        payments = uow.payments.get_unpaid_by_document_ids(doc_ids)
+        for payment in payments:
+            if payment.document_id not in payment_map:
+                payment_map[payment.document_id] = []
+            payment_map[payment.document_id].append(payment)
+
+        touched_documents = set()
+
+        # Step 4: Process each document allocation
+        for alloc in document_allocations:
+            doc_id = alloc["document_id"]
+            amount = alloc["amount"]
+
+            try:
+                # Get or create Payment record
+                if doc_id not in payment_map or len(payment_map[doc_id]) == 0:
+                    # Auto-create Payment record (edge case handling)
+                    document = uow.session.query(Document).get(doc_id)
+                    if not document:
+                        results.append({
+                            "document_id": doc_id,
+                            "success": False,
+                            "error": "Documento non trovato"
+                        })
+                        continue
+
+                    payment = Payment(
+                        document_id=doc_id,
+                        due_date=document.due_date or today,
+                        expected_amount=Decimal(str(amount)),
+                        status='unpaid',
+                        supplier_id=document.supplier_id
+                    )
+                    uow.payments.add(payment)
+                    uow.session.flush()
+                else:
+                    # Use first unpaid/partial Payment
+                    payment = payment_map[doc_id][0]
+
+                # Update Payment record
+                increment = Decimal(str(amount))
+                current_paid = Decimal(payment.paid_amount or 0)
+                new_paid = current_paid + increment
+
+                payment.paid_date = today
+                payment.paid_amount = new_paid
+                payment.payment_method = method
+                payment.notes = notes
+                payment.payment_document = payment_document
+
+                # Set status
+                expected_amount = Decimal(payment.expected_amount or 0)
+                if expected_amount and new_paid >= expected_amount:
+                    payment.status = 'paid'
+                else:
+                    payment.status = 'partial'
+
+                touched_documents.add(doc_id)
+
+                results.append({
+                    "document_id": doc_id,
+                    "success": True,
+                    "payment_id": payment.id
+                })
+
+            except Exception as e:
+                logger.error(f"Failed to process payment for doc {doc_id}: {e}")
+                results.append({
+                    "document_id": doc_id,
+                    "success": False,
+                    "error": str(e)
+                })
+
+        # Step 5: Update Document.is_paid flags
+        for document_id in touched_documents:
+            document = uow.session.query(Document).get(document_id)
+            if document:
+                related_payments = uow.payments.get_by_document_id(document_id)
+                document.is_paid = all(p.status == 'paid' for p in related_payments)
+
+        uow.commit()
+
+    success_count = len([r for r in results if r['success']])
+    error_count = len([r for r in results if not r['success']])
+
+    return {
+        "success_count": success_count,
+        "error_count": error_count,
+        "results": results
+    }
 
 def _update_document_paid_status(uow: UnitOfWork, document: Document):
     """
@@ -170,7 +320,7 @@ def _update_document_paid_status(uow: UnitOfWork, document: Document):
     """
     payments = uow.payments.get_by_document_id(document.id)
     total_paid = sum(p.expected_amount for p in payments)
-    
+
     # Tolleranza per virgola mobile
     if total_paid >= (float(document.total_gross_amount or 0) - 0.01):
         document.is_paid = True
