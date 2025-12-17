@@ -12,6 +12,7 @@ from typing import Any, Mapping, Optional
 class DocumentSearchFilters:
     date_from: Optional[date] = None
     date_to: Optional[date] = None
+    document_number: Optional[str] = None
     supplier_id: Optional[int] = None
     legal_entity_id: Optional[int] = None
     accounting_year: Optional[int] = None  # <--- RINOMINATO (era 'year')
@@ -50,12 +51,14 @@ class DocumentSearchFilters:
 
     @classmethod
     def from_query_args(cls, args: Mapping[str, Any]) -> "DocumentSearchFilters":
+        document_number_raw = (args.get("document_number") or "").strip()
         return cls(
             date_from=cls._parse_date(args.get("date_from", "")),
             date_to=cls._parse_date(args.get("date_to", "")),
+            document_number=document_number_raw or None,
             supplier_id=cls._parse_int(args.get("supplier_id")),
             legal_entity_id=cls._parse_int(args.get("legal_entity_id")),
-            accounting_year=cls._parse_int(args.get("year")), # Mappiamo il parametro URL 'year' sull'attributo 'accounting_year'
+            accounting_year=cls._parse_int(args.get("accounting_year") or args.get("year")), # Mappiamo il parametro URL 'year' sull'attributo 'accounting_year'
             doc_status=(args.get("doc_status") or None),
             physical_copy_status=(args.get("physical_copy_status") or None),
             payment_status=(args.get("payment_status") or None),

@@ -17,12 +17,27 @@
     <div class="card mb-3">
         <div class="card-body py-2">
             <form class="row g-2 align-items-center" method="GET">
+                <div class="col-md-2 col-sm-6 col-12">
+                    <label class="form-label mb-0 small text-muted">Numero</label>
+                    <input type="text" name="document_number" class="form-control form-control-sm"
+                           value="{{ filters.document_number or '' }}" placeholder="Es. 123/2025">
+                </div>
+                <div class="col-md-2 col-sm-6 col-12">
+                    <label class="form-label mb-0 small text-muted">Data da</label>
+                    <input type="date" name="date_from" class="form-control form-control-sm"
+                           value="{{ filters.date_from.isoformat() if filters.date_from else '' }}">
+                </div>
+                <div class="col-md-2 col-sm-6 col-12">
+                    <label class="form-label mb-0 small text-muted">Data a</label>
+                    <input type="date" name="date_to" class="form-control form-control-sm"
+                           value="{{ filters.date_to.isoformat() if filters.date_to else '' }}">
+                </div>
                 <div class="col-auto">
                     <label class="visually-hidden">Anno</label>
                     <select name="year" class="form-select form-select-sm">
                         <option value="">Tutti gli anni</option>
                         {% for y in accounting_years %}
-                        <option value="{{ y }}" {% if filters.year == y %}selected{% endif %}>{{ y }}</option>
+                        <option value="{{ y }}" {% if filters.accounting_year == y %}selected{% endif %}>{{ y }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -34,6 +49,57 @@
                         <option value="{{ s.id }}" {% if filters.supplier_id == s.id %}selected{% endif %}>{{ s.name }}</option>
                         {% endfor %}
                     </select>
+                </div>
+                <div class="col-auto">
+                    <label class="visually-hidden">Intestatario</label>
+                    <select name="legal_entity_id" class="form-select form-select-sm">
+                        <option value="">Tutte le Società</option>
+                        {% for le in legal_entities %}
+                        <option value="{{ le.id }}" {% if filters.legal_entity_id == le.id %}selected{% endif %}>{{ le.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <label class="visually-hidden">Stato Doc</label>
+                    <select name="doc_status" class="form-select form-select-sm">
+                        <option value="">Stato documento</option>
+                        <option value="imported" {% if filters.doc_status == 'imported' %}selected{% endif %}>Da rivedere</option>
+                        <option value="pending_physical_copy" {% if filters.doc_status == 'pending_physical_copy' %}selected{% endif %}>In attesa copia</option>
+                        <option value="verified" {% if filters.doc_status == 'verified' %}selected{% endif %}>Verificato</option>
+                        <option value="rejected" {% if filters.doc_status == 'rejected' %}selected{% endif %}>Scartato</option>
+                        <option value="archived" {% if filters.doc_status == 'archived' %}selected{% endif %}>Archiviato</option>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <label class="visually-hidden">Stato Pagamento</label>
+                    <select name="payment_status" class="form-select form-select-sm">
+                        <option value="">Stato pagamento</option>
+                        <option value="unpaid" {% if filters.payment_status == 'unpaid' %}selected{% endif %}>Non pagato</option>
+                        <option value="planned" {% if filters.payment_status == 'planned' %}selected{% endif %}>Pianificato</option>
+                        <option value="pending" {% if filters.payment_status == 'pending' %}selected{% endif %}>In attesa</option>
+                        <option value="partial" {% if filters.payment_status == 'partial' %}selected{% endif %}>Parziale</option>
+                        <option value="paid" {% if filters.payment_status == 'paid' %}selected{% endif %}>Pagato</option>
+                        <option value="overdue" {% if filters.payment_status == 'overdue' %}selected{% endif %}>Scaduto</option>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <label class="visually-hidden">Copia fisica</label>
+                    <select name="physical_copy_status" class="form-select form-select-sm">
+                        <option value="">Copia fisica</option>
+                        <option value="missing" {% if filters.physical_copy_status == 'missing' %}selected{% endif %}>Mancante</option>
+                        <option value="requested" {% if filters.physical_copy_status == 'requested' %}selected{% endif %}>Richiesta</option>
+                        <option value="received" {% if filters.physical_copy_status == 'received' %}selected{% endif %}>Ricevuta</option>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <label class="visually-hidden">Importo min</label>
+                    <input type="number" step="0.01" name="min_total" class="form-control form-control-sm" placeholder="Importo ≥"
+                           value="{{ filters.min_total if filters.min_total is not none else '' }}">
+                </div>
+                <div class="col-auto">
+                    <label class="visually-hidden">Importo max</label>
+                    <input type="number" step="0.01" name="max_total" class="form-control form-control-sm" placeholder="Importo ≤"
+                           value="{{ filters.max_total if filters.max_total is not none else '' }}">
                 </div>
                 <div class="col-auto">
                     <button type="submit" class="btn btn-sm btn-primary">Filtra</button>

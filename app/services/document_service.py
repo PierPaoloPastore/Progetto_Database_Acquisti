@@ -64,6 +64,7 @@ def search_documents(
             document_type=document_type,
             date_from=filters.date_from,
             date_to=filters.date_to,
+            document_number=filters.document_number,
             supplier_id=filters.supplier_id,
             doc_status=filters.doc_status,
             payment_status=filters.payment_status,

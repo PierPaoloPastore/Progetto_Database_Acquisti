@@ -65,6 +65,7 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
         document_type: Optional[str] = None,
         date_from: Optional[date] = None,
         date_to: Optional[date] = None,
+        document_number: Optional[str] = None,
         supplier_id: Optional[int] = None,
         doc_status: Optional[str] = None,
         payment_status: Optional[str] = None,
@@ -80,6 +81,9 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
 
         if document_type:
             query = query.filter(Document.document_type == document_type)
+
+        if document_number:
+            query = query.filter(Document.document_number.ilike(f"%{document_number}%"))
 
         if payment_status is not None:
             query = query.join(Payment, Payment.document_id == Document.id).filter(
