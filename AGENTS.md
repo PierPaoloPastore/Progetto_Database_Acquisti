@@ -31,3 +31,43 @@ This guide helps contributors work on the Gestionale Acquisti Flask monolith saf
 ## Security & Configuration Tips
 - Never commit secrets or real invoices; rely on `.env`/local env vars for credentials and use sample data under `data/` for tests.
 - Keep `logs/` and other generated artifacts out of version control; respect `.gitignore`.
+
+## Mandatory Compound Workflow
+
+For any task that is not a trivial change, you MUST follow this compound loop and present the sections explicitly in this order:
+
+### 1) SPEC — Intent & Constraints
+- Restate the goal clearly.
+- List constraints derived from this repo (layers, DB safety, logging, naming).
+- State which documentation files will be consulted (start from `docs/00_INDEX.md`).
+
+### 2) PLAN — Step-by-step approach
+- Provide a concise, ordered plan.
+- List all files that will be modified (full paths).
+- Highlight risks (DB schema, data migration, regressions) and mitigations.
+
+### 3) IMPLEMENT — Code changes
+- Apply the plan with minimal, coherent changes.
+- Do not duplicate logic; refactor or reuse existing code.
+- Keep business logic in `services/`, persistence in `repositories/`.
+
+### 4) VERIFY — Validation
+- Describe how to verify the change (commands, manual steps, SQL checks).
+- If automated tests are missing, provide a manual verification checklist.
+
+### Definition of trivial change
+A change is considered trivial only if:
+- it affects a single file,
+- does not change cross-layer behavior,
+- does not touch DB schema or business rules,
+- and is ≤ ~20 lines.
+
+Trivial changes may skip SPEC and PLAN but MUST include VERIFY.
+
+### Safety stop
+If the task requires:
+- DB schema changes,
+- data migrations,
+- wide refactors across layers,
+
+STOP after SPEC + PLAN and ask for confirmation before implementing.
