@@ -26,3 +26,27 @@ class PaymentRepository(SqlAlchemyRepository[Payment]):
             .order_by(Payment.due_date.desc())
             .all()
         )
+
+    def get_unpaid_by_document_ids(self, document_ids: List[int]) -> List[Payment]:
+        """
+        Fetch all unpaid/partial Payment records for given Document IDs.
+
+        Args:
+            document_ids: List of Document IDs to query
+
+        Returns:
+            List of Payment objects with status IN ('unpaid', 'partial')
+
+        Example:
+            >>> repo.get_unpaid_by_document_ids([123, 124, 125])
+            [Payment(id=456, document_id=123, status='unpaid'), ...]
+        """
+        return (
+            self.session.query(Payment)
+            .filter(
+                Payment.document_id.in_(document_ids),
+                Payment.status.in_(['unpaid', 'partial'])
+            )
+            .order_by(Payment.document_id.asc(), Payment.due_date.asc())
+            .all()
+        )

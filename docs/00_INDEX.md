@@ -11,6 +11,7 @@ Benvenuto nel centro documentazione del Gestionale Acquisti. Usa questo indice c
 - Roadmap
   - [Future document types](roadmap/future_types.md)
 - Meta
+  - [Repository Guidelines (AGENTS.md)](../AGENTS.md)
   - [Istruzioni per gli agenti](meta/agents.md)
   - [Contesto progetto (LLM) - canonico](CONTEXT_FOR_LLM.md)
   - [Contesto progetto (LLM) - redirect](meta/context.md)

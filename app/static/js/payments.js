@@ -47,16 +47,72 @@ function setupInvoiceFilter() {
 function setupPdfPreview() {
     const fileInput = document.getElementById("pdf-file");
     const previewFrame = document.getElementById("pdf-preview");
+    const placeholderDiv = document.getElementById("pdf-placeholder");
 
-    if (!fileInput || !previewFrame) return;
+    if (!fileInput || !previewFrame || !placeholderDiv) {
+        console.warn("PDF preview elements not found");
+        return;
+    }
 
     fileInput.addEventListener("change", () => {
         const file = fileInput.files[0];
-        if (file) {
-            const url = URL.createObjectURL(file);
-            previewFrame.src = url;
-        } else {
+
+        // Validate file
+        if (!file) {
+            // No file selected - show placeholder
             previewFrame.removeAttribute("src");
+            placeholderDiv.classList.remove("d-none");
+            return;
         }
+
+        // Validate file type
+        if (file.type !== 'application/pdf') {
+            alert('Solo file PDF sono consentiti.');
+            fileInput.value = '';
+            return;
+        }
+
+        // Validate file size (10MB limit)
+        const maxSize = 10 * 1024 * 1024;
+        if (file.size > maxSize) {
+            alert('File troppo grande. Massimo 10MB consentito.');
+            fileInput.value = '';
+            return;
+        }
+
+        // Create blob URL and display
+        const url = URL.createObjectURL(file);
+        previewFrame.src = url;
+        placeholderDiv.classList.add("d-none");
+
+        // Clean up old blob URL when new file selected
+        previewFrame.addEventListener('load', () => {
+            URL.revokeObjectURL(url);
+        }, { once: true });
+
+        // Fallback if PDF blocked by browser
+        setTimeout(() => {
+            try {
+                // Check if PDF loaded successfully
+                const doc = previewFrame.contentDocument;
+                if (!doc || doc.body.innerHTML === '') {
+                    // Browser blocked PDF rendering
+                    placeholderDiv.innerHTML = `
+                        <p class="text-center text-muted">
+                            <i class="bi bi-exclamation-triangle"></i><br>
+                            Anteprima non disponibile nel browser.<br>
+                            <a href="${url}" download="${file.name}" class="btn btn-sm btn-primary mt-2">
+                                Scarica PDF
+                            </a>
+                        </p>
+                    `;
+                    placeholderDiv.classList.remove("d-none");
+                }
+            } catch (e) {
+                // Cross-origin error (expected for blob URLs)
+                // PDF likely loaded successfully
+                console.debug('PDF preview loaded (cross-origin check blocked)');
+            }
+        }, 500);
     });
 }
