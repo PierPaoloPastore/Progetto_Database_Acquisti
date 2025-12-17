@@ -74,7 +74,8 @@ Puoi cambiare host/port con le variabili `FLASK_RUN_HOST` e `FLASK_RUN_PORT`.
 - **OperationalError** su MySQL: verifica che il server sia avviato, le credenziali in `config.py` siano corrette e che il DB esista.
 
 ## Documentazione
-Consulta l’indice completo in [`docs/00_INDEX.md`](docs/00_INDEX.md) per architettura, database, guide, roadmap e note meta.
+Consulta l'indice completo in [`docs/00_INDEX.md`](docs/00_INDEX.md) per architettura, database, guide, roadmap e note meta.
+Linee guida per i contributi: vedi `AGENTS.md`.
 
 ## Direzioni di sviluppo
 - Generalizzazione del modello da "fattura" a **documento/movimento di acquisto**, mantenendo `invoices` come primo caso concreto.

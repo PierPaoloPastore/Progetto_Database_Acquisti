@@ -7,7 +7,10 @@
       "SlashCommand(/compound-engineering:\\workflows:work:*)",
       "Bash(git checkout:*)",
       "Bash(where:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(gh pr create:*)"
     ],
     "deny": [],
     "ask": []
