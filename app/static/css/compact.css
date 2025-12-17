@@ -3,6 +3,10 @@
    Layout moderno con grid, card e spacing ottimizzato
    ============================================== */
 
+:root {
+    --list-max-height: 70vh;
+}
+
 /* -------------------- UTILITY CLASSES -------------------- */
 .text-right { text-align: right !important; }
 .text-center { text-align: center !important; }
@@ -218,6 +222,17 @@
     overflow-x: auto;
 }
 
+.scrollable-list {
+    max-height: var(--list-max-height, 70vh);
+    overflow-y: auto;
+    overflow-x: auto;
+    padding: 0.75rem;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
 .table-compact {
     width: 100%;
     border-collapse: collapse;
@@ -226,6 +241,13 @@
 
 .table-compact thead {
     background: #f8f9fa;
+}
+
+.table-compact.sticky-header thead th {
+    position: sticky;
+    top: 0;
+    background: #f8f9fa;
+    z-index: 1;
 }
 
 .table-compact th,
