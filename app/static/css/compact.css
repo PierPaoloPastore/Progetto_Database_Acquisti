@@ -251,6 +251,22 @@
     transition: background 0.15s ease;
 }
 
+.scrollable-list {
+    overflow: auto;
+    max-height: 70vh;
+    scrollbar-gutter: stable;
+}
+
+.scrollable-list table {
+    margin-bottom: 0;
+}
+
+.split-container .scrollable-list {
+    height: 100%;
+    max-height: none;
+    min-height: 0;
+}
+
 /* -------------------- STATUS BADGES -------------------- */
 .status-badge {
     display: inline-flex;

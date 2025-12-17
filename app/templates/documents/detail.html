@@ -185,7 +185,7 @@
         <a href="{{ url_for('categories.bulk_assign_view', document_id=invoice.id) }}"
            class="btn-secondary btn-sm">Assegna categorie</a>
     </div>
-    <div class="table-wrapper">
+    <div class="table-wrapper scrollable-list">
         <table class="table-compact">
             <thead>
             <tr>
@@ -231,28 +231,30 @@
             <h3>📊 Riepilogo IVA</h3>
         </div>
         <div class="card-body">
-            <table class="table-compact">
-                <thead>
-                <tr>
-                    <th>Aliquota</th>
-                    <th class="text-right">Imponibile</th>
-                    <th class="text-right">Imposta</th>
-                </tr>
-                </thead>
-                <tbody>
-                {% for vs in vat_summaries %}
-                  <tr>
-                      <td>{{ vs.vat_rate }}%</td>
-                      <td class="text-right">€ {{ vs.taxable_amount }}</td>
-                      <td class="text-right">€ {{ vs.vat_amount }}</td>
-                  </tr>
-                {% else %}
-                  <tr>
-                      <td colspan="3" class="text-center text-muted">Nessun riepilogo</td>
-                  </tr>
-                {% endfor %}
-                </tbody>
-            </table>
+            <div class="table-wrapper scrollable-list">
+                <table class="table-compact">
+                    <thead>
+                    <tr>
+                        <th>Aliquota</th>
+                        <th class="text-right">Imponibile</th>
+                        <th class="text-right">Imposta</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for vs in vat_summaries %}
+                      <tr>
+                          <td>{{ vs.vat_rate }}%</td>
+                          <td class="text-right">€ {{ vs.taxable_amount }}</td>
+                          <td class="text-right">€ {{ vs.vat_amount }}</td>
+                      </tr>
+                    {% else %}
+                      <tr>
+                          <td colspan="3" class="text-center text-muted">Nessun riepilogo</td>
+                      </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
@@ -262,32 +264,34 @@
             <a href="{{ url_for('payments.inbox_view') }}" class="btn-link btn-sm">Inbox pagamenti →</a>
         </div>
         <div class="card-body">
-            <table class="table-compact">
-                <thead>
-                <tr>
-                    <th>Scadenza</th>
-                    <th class="text-right">Previsto</th>
-                    <th class="text-right">Pagato</th>
-                    <th>Stato</th>
-                </tr>
-                </thead>
-                <tbody>
-                {% for p in payments %}
-                  <tr>
-                      <td>{{ p.due_date.strftime('%d/%m/%Y') if p.due_date else '-' }}</td>
-                      <td class="text-right">€ {{ p.expected_amount }}</td>
-                      <td class="text-right">€ {{ p.paid_amount or 0 }}</td>
-                      <td>
-                          <span class="status-badge status-{{ p.status }}">{{ p.status }}</span>
-                      </td>
-                  </tr>
-                {% else %}
-                  <tr>
-                      <td colspan="4" class="text-center text-muted">Nessun pagamento</td>
-                  </tr>
-                {% endfor %}
-                </tbody>
-            </table>
+            <div class="table-wrapper scrollable-list">
+                <table class="table-compact">
+                    <thead>
+                    <tr>
+                        <th>Scadenza</th>
+                        <th class="text-right">Previsto</th>
+                        <th class="text-right">Pagato</th>
+                        <th>Stato</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for p in payments %}
+                      <tr>
+                          <td>{{ p.due_date.strftime('%d/%m/%Y') if p.due_date else '-' }}</td>
+                          <td class="text-right">€ {{ p.expected_amount }}</td>
+                          <td class="text-right">€ {{ p.paid_amount or 0 }}</td>
+                          <td>
+                              <span class="status-badge status-{{ p.status }}">{{ p.status }}</span>
+                          </td>
+                      </tr>
+                    {% else %}
+                      <tr>
+                          <td colspan="4" class="text-center text-muted">Nessun pagamento</td>
+                      </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 </div>

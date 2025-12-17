@@ -31,7 +31,7 @@
         <section class="panel">
             <h2>Collega alle fatture</h2>
             <form method="post" action="{{ url_for('payments.assign_payment', document_id=document.id) }}">
-                <div class="table-wrapper">
+                <div class="table-wrapper scrollable-list">
                     <table class="table table-compact table-striped">
                         <thead>
                         <tr>
