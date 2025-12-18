@@ -46,8 +46,8 @@ def main():
         print(f"classification={classification}")
         print(f"used_fallback={used_fallback}")
         # Prova parse completo (senza commit DB)
-        parse_invoice_xml(path)
-        print("parse_invoice_xml: OK")
+        invoices = parse_invoice_xml(path)
+        print(f"parse_invoice_xml: OK ({len(invoices)} body)")
     except FatturaPASkipFile as exc:
         print(f"SKIPPED (metadata/other XML): {exc}")
     except FatturaPAParseError as exc:

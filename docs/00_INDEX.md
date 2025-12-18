@@ -16,6 +16,7 @@ Benvenuto nel centro documentazione del Gestionale Acquisti. Usa questo indice c
   - [Istruzioni per gli agenti](meta/agents.md)
   - [Contesto progetto (LLM) - canonico](CONTEXT_FOR_LLM.md)
   - [Contesto progetto (LLM) - redirect](meta/context.md)
+  - [FatturaPA – Parsing Reference](fatturapa/PARSING_REFERENCE.md)
 - Archivio
   - [Documenti storici 2025-12](./_archive/2025-12/)
 

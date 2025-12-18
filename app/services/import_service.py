@@ -23,6 +23,7 @@ from app.services.logging import log_structured_event
 def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = None) -> Dict:
     app = current_app._get_current_object()
     logger = app.logger
+    validate_xsd = bool(app.config.get("FATTURAPA_VALIDATE_XSD_WARN", False))
 
     import_folder = Path(folder or app.config.get("IMPORT_XML_FOLDER"))
     if not import_folder.exists():
@@ -48,20 +49,9 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
         file_name = xml_path.name
         summary["processed"] += 1
 
-        # Controllo rapido esistenza
-        with UnitOfWork() as uow_check:
-            existing_doc = uow_check.documents.find_existing(file_name=file_name)
-            if existing_doc:
-                _log_skip(logger, file_name, existing_doc.id, summary, reason="File già importato (nome)")
-                continue
-
-        invoice_dto: Optional[InvoiceDTO] = None
+        invoice_dtos: List[InvoiceDTO] = []
         try:
-            invoice_dto = parse_invoice_xml(xml_path)
-            if not invoice_dto.file_name:
-                invoice_dto.file_name = file_name
-            if not invoice_dto.file_hash:
-                invoice_dto.file_hash = _compute_file_hash(xml_path)
+            invoice_dtos = parse_invoice_xml(xml_path, validate_xsd=validate_xsd, logger=logger)
         except FatturaPASkipFile as exc:
             _log_skip(logger, file_name, None, summary, reason=str(exc))
             continue
@@ -72,41 +62,64 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
             _log_error_parsing(logger, file_name, exc, summary, str(import_folder))
             continue
 
+        file_hash = _compute_file_hash(xml_path) if len(invoice_dtos) == 1 else None
+        header_data = _extract_header_data(xml_path)
+        current_legal_entity_id = legal_entity_id
+
+        for idx, invoice_dto in enumerate(invoice_dtos, start=1):
+            # Nomina univoca per body multipli
+            base_name = invoice_dto.file_name or file_name
+            if len(invoice_dtos) > 1:
+                invoice_dto.file_name = f"{base_name}#body{idx}"
+            else:
+                invoice_dto.file_name = base_name
+            if file_hash is not None and not invoice_dto.file_hash:
+                invoice_dto.file_hash = file_hash
+
         try:
             # Transazione Principale di Scrittura
-            with UnitOfWork() as uow:
-                header_data = _extract_header_data(xml_path)
-                
-                # LegalEntity
-                if legal_entity_id is None:
-                    legal_entity = _get_or_create_legal_entity(header_data, uow.session)
-                    legal_entity_id = legal_entity.id
+            for invoice_dto in invoice_dtos:
+                with UnitOfWork() as uow:
+                    # LegalEntity
+                    if current_legal_entity_id is None:
+                        legal_entity = _get_or_create_legal_entity(header_data, uow.session)
+                        current_legal_entity_id = legal_entity.id
+                        legal_entity_id = current_legal_entity_id
 
-                # Supplier (Usa il nuovo repo)
-                supplier = uow.suppliers.get_or_create_from_dto(invoice_dto.supplier)
-                supplier_id = supplier.id
+                    # Duplicati per file_name/hash
+                    existing_doc = uow.documents.find_existing(
+                        file_name=invoice_dto.file_name,
+                        file_hash=getattr(invoice_dto, "file_hash", None),
+                    )
+                    if existing_doc:
+                        _log_skip(logger, invoice_dto.file_name, existing_doc.id, summary, reason="Duplicato per file_name/file_hash")
+                        continue
 
-                # Document (Usa il nuovo repo e il nuovo metodo)
-                document, created = uow.documents.create_from_fatturapa(
-                    invoice_dto=invoice_dto,
-                    supplier_id=supplier_id,
-                    legal_entity_id=legal_entity_id,
-                    import_source=str(import_folder),
-                )
-                
-                if not created:
-                    _log_skip(logger, file_name, document.id, summary, reason="Duplicato per file_name/file_hash")
-                    continue
+                    # Supplier
+                    supplier = uow.suppliers.get_or_create_from_dto(invoice_dto.supplier)
+                    supplier_id = supplier.id
 
-                uow.commit()
+                    # Document
+                    document, created = uow.documents.create_from_fatturapa(
+                        invoice_dto=invoice_dto,
+                        supplier_id=supplier_id,
+                        legal_entity_id=current_legal_entity_id,
+                        import_source=str(import_folder),
+                    )
+                    
+                    if not created:
+                        _log_skip(logger, invoice_dto.file_name, document.id, summary, reason="Duplicato per file_name/file_hash")
+                        continue
 
-                _log_success(
-                    logger,
-                    file_name,
-                    document.id,
-                    supplier_id,
-                    summary,
-                )
+                    uow.commit()
+
+                    _log_success(
+                        logger,
+                        invoice_dto.file_name,
+                        document.id,
+                        supplier_id,
+                        summary,
+                    )
 
         except Exception as exc:
             _log_error_db(logger, file_name, exc, summary)

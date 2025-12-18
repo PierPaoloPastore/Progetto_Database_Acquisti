@@ -134,6 +134,7 @@ class InvoiceDTO:
     lines: List[InvoiceLineDTO] = field(default_factory=list)
     vat_summaries: List[VatSummaryDTO] = field(default_factory=list)
     payments: List[PaymentDTO] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
 
 
 # =========================
@@ -158,9 +159,9 @@ class FatturaPASkipFile(FatturaPAParseError):
 # =========================
 
 
-def parse_invoice_xml(path: str | Path) -> InvoiceDTO:
+def parse_invoice_xml(path: str | Path, *, validate_xsd: bool = False, logger: Optional[logging.Logger] = None) -> List[InvoiceDTO]:
     """
-    Parsea un file XML FatturaPA e restituisce un InvoiceDTO.
+    Parsea un file XML FatturaPA e restituisce una lista di InvoiceDTO (1 per ogni Body).
     
     Supporta:
     - File .xml nativi
@@ -186,13 +187,13 @@ def parse_invoice_xml(path: str | Path) -> InvoiceDTO:
             tmp_path = tmp.name
         
         try:
-            return _parse_xml_file(Path(tmp_path), original_file_name=file_path.name)
+            return _parse_xml_file(Path(tmp_path), original_file_name=file_path.name, validate_xsd=validate_xsd, logger=logger)
         finally:
             # Cleanup file temporaneo
             Path(tmp_path).unlink(missing_ok=True)
     
     # File XML normale
-    return _parse_xml_file(file_path, original_file_name=file_path.name)
+    return _parse_xml_file(file_path, original_file_name=file_path.name, validate_xsd=validate_xsd, logger=logger)
 
 
 def _localname(tag: str | None) -> str:
@@ -214,9 +215,26 @@ def _is_metadata_file(original_file_name: str, root) -> bool:
     name_lower = (original_file_name or "").lower()
     root_local = _localname(getattr(root, "tag", None)).lower()
 
-    # Se il root è FatturaElettronica o FatturaElettronicaBody, consideriamo fattura
-    if root_local in {"fatturaelettronica", "fatturaelettronicabody"}:
+    invoice_roots = {"fatturaelettronica", "fatturaelettronicabody"}
+    metadata_roots = {"metadatifattura", "metadatinotifica", "metadato", "metadati"}
+    notification_roots = {
+        "ricevutaconsegna",
+        "notificadecorrenzatermini",
+        "notificaesitocommittente",
+        "notificamancataconsegna",
+        "notificascarico",
+        "notificafileacv",
+        "notificafiledecorrenza",
+        "attestazionetrasmissionefattura",
+        "notificafile",
+    }
+
+    # Se il root è FatturaElettronica, è fattura
+    if root_local in invoice_roots:
         return False
+    # Se il root è metadati/notifica, skip
+    if root_local in metadata_roots or root_local in notification_roots:
+        return True
 
     # Se il nome file suggerisce metadati e il root NON è fattura, skip
     if "metadato" in name_lower or "metadata" in name_lower:
@@ -249,6 +267,57 @@ def _read_file_diagnostics(path: Path) -> dict:
         "head_bytes": head_bytes,
         "encoding": encoding,
     }
+
+
+def _validate_xsd(root, original_file_name: str, logger: Optional[logging.Logger] = None):
+    """
+    Valida il documento contro XSD ufficiale in modalità WARN (non blocca il parsing).
+    """
+    base_dir = Path(__file__).resolve().parents[2]  # repo root
+    xsd_dir = base_dir / "resources" / "xsd"
+
+    format_code = _get_text(root, ".//*[local-name()='FormatoTrasmissione']")
+    schema_map = {
+        "FPA12": "Schema_VFPA12_V1.2.3.xsd",
+        "FPR12": "Schema_VFPR12_v1.2.3.xsd",
+    }
+    xsd_name = schema_map.get(format_code or "")
+    if not xsd_name:
+        return
+
+    schema_path = xsd_dir / xsd_name
+    if not schema_path.is_file():
+        if logger:
+            logger.warning(
+                "XSD non trovato, skip validazione",
+                extra={"file": original_file_name, "xsd": str(schema_path)},
+            )
+        return
+
+    try:
+        with open(schema_path, "rb") as fh:
+            xmlschema_doc = etree.parse(fh)
+        xmlschema = etree.XMLSchema(xmlschema_doc)
+        if not xmlschema.validate(root):
+            if logger:
+                logger.warning(
+                    "Validazione XSD fallita (WARN, non bloccante)",
+                    extra={
+                        "file": original_file_name,
+                        "xsd": str(schema_path),
+                        "errors": [str(e) for e in xmlschema.error_log[:5]],
+                    },
+                )
+    except Exception as exc:
+        if logger:
+            logger.warning(
+                "Errore durante validazione XSD (WARN, non bloccante)",
+                extra={
+                    "file": original_file_name,
+                    "xsd": str(schema_path),
+                    "error": str(exc),
+                },
+            )
 
 
 def _load_xml_root(xml_path: Path, original_file_name: str):
@@ -298,7 +367,7 @@ def _load_xml_root(xml_path: Path, original_file_name: str):
             ) from fallback_exc
 
 
-def _parse_xml_file(xml_path: Path, original_file_name: str) -> InvoiceDTO:
+def _parse_xml_file(xml_path: Path, original_file_name: str, *, validate_xsd: bool = False, logger: Optional[logging.Logger] = None) -> List[InvoiceDTO]:
     """
     Parsing effettivo del file XML.
     
@@ -314,63 +383,73 @@ def _parse_xml_file(xml_path: Path, original_file_name: str) -> InvoiceDTO:
             f"file={original_file_name}, root={getattr(root, 'tag', None)}"
         )
 
-    # Prendiamo il primo FatturaElettronicaBody disponibile
-    body = _first(
-        root,
-        ".//*[local-name()='FatturaElettronicaBody']",
-    )
-    if body is None:
-        # In alcune versioni, il body può coincidere con root o avere nomi leggermente diversi,
-        # ma almeno un DatiGeneraliDocumento deve essere presente.
-        body = root
+    # Validazione XSD opzionale (WARN)
+    if validate_xsd:
+        _validate_xsd(root, original_file_name, logger=logger)
 
-    # Supplier
-    supplier_dto = _parse_supplier(root)
+    # Prendiamo tutti i FatturaElettronicaBody disponibili
+    bodies = root.xpath(".//*[local-name()='FatturaElettronicaBody']")
+    if not bodies:
+        bodies = [root]
 
-    # Testata fattura
-    (
-        invoice_number,
-        invoice_series,
-        invoice_date,
-        currency,
-        total_gross_amount,
-    ) = _parse_invoice_header(body)
+    base_warnings: List[str] = []
+    supplier_dto = _parse_supplier(root, base_warnings)
+    invoices: List[InvoiceDTO] = []
 
-    # Righe fattura
-    lines_dto = _parse_invoice_lines(body)
+    for idx, body in enumerate(bodies, start=1):
+        warnings: List[str] = list(base_warnings)
 
-    # Riepilogo IVA
-    vat_summaries_dto, total_taxable, total_vat = _parse_vat_summaries(body)
+        (
+            invoice_number,
+            invoice_series,
+            invoice_date,
+            currency,
+            total_gross_amount,
+            general_rounding,
+        ) = _parse_invoice_header(body, original_file_name)
 
-    # Dati pagamento
-    payments_dto, main_due_date = _parse_payments(body)
+        lines_dto = _parse_invoice_lines(body)
+        vat_summaries_dto, total_taxable, total_vat = _parse_vat_summaries(body)
+        payments_dto, main_due_date = _parse_payments(body)
 
-    # Costruzione DTO principale
-    invoice_dto = InvoiceDTO(
-        supplier=supplier_dto,
-        invoice_number=invoice_number,
-        invoice_series=invoice_series,
-        invoice_date=invoice_date,
-        registration_date=None,  # per ora non presente nell'XML standard
-        currency=currency or "EUR",
-        total_taxable_amount=total_taxable,
-        total_vat_amount=total_vat,
-        total_gross_amount=total_gross_amount or (
-            (total_taxable or Decimal("0")) + (total_vat or Decimal("0"))
-            if (total_taxable is not None and total_vat is not None)
-            else None
-        ),
-        due_date=main_due_date,
-        file_name=original_file_name,
-        file_hash=None,  # opzionale: può essere calcolato dal servizio di import
-        doc_status="imported",
-        payment_status="unpaid",
-        lines=lines_dto,
-        vat_summaries=vat_summaries_dto,
-        payments=payments_dto,
-    )
+        # Calcolo totale con fallback
+        computed_total = total_gross_amount
+        if computed_total is None and total_taxable is not None and total_vat is not None:
+            computed_total = total_taxable + total_vat + (general_rounding or Decimal("0"))
+        if computed_total is None:
+            # fallback emergenza da linee
+            sum_lines = sum((ln.total_line_amount or Decimal("0")) for ln in lines_dto)
+            computed_total = sum_lines
+            warnings.append("ImportoTotaleDocumento assente: ricostruito da linee (non conforme)")
 
-    return invoice_dto
+        # Warning se body multipli in unico file (per tracciabilità)
+        if len(bodies) > 1:
+            warnings.append(f"Body multipli nel file: body_index={idx}/{len(bodies)}")
+
+        invoice_dto = InvoiceDTO(
+            supplier=supplier_dto,
+            invoice_number=invoice_number,
+            invoice_series=invoice_series,
+            invoice_date=invoice_date,
+            registration_date=None,
+            currency=currency or "EUR",
+            total_taxable_amount=total_taxable,
+            total_vat_amount=total_vat,
+            total_gross_amount=computed_total,
+            due_date=main_due_date,
+            file_name=original_file_name,
+            file_hash=None,
+            doc_status="imported",
+            payment_status="unpaid",
+            lines=lines_dto,
+            vat_summaries=vat_summaries_dto,
+            payments=payments_dto,
+            warnings=warnings,
+        )
+
+        invoices.append(invoice_dto)
+
+    return invoices
 
 
 # =========================
@@ -599,7 +678,7 @@ def _to_date(value: Optional[str]) -> Optional[date]:
 # ---------- Supplier ----------
 
 
-def _parse_supplier(root) -> SupplierDTO:
+def _parse_supplier(root, warnings: Optional[List[str]] = None) -> SupplierDTO:
     """
     Estrae i dati del fornitore (CedentePrestatore).
 
@@ -613,13 +692,16 @@ def _parse_supplier(root) -> SupplierDTO:
         return SupplierDTO(name="Fornitore sconosciuto")
 
     # Dati anagrafici
-    name = _get_text(
-        supplier_node, ".//*[local-name()='Denominazione']"
-    ) or _get_text(
-        supplier_node,
-        ".//*[local-name()='Nome']"
-        "|.//*[local-name()='Cognome']",
-    )
+    denominazione = _get_text(supplier_node, ".//*[local-name()='Denominazione']")
+    nome = _get_text(supplier_node, ".//*[local-name()='Nome']")
+    cognome = _get_text(supplier_node, ".//*[local-name()='Cognome']")
+
+    if denominazione:
+        name = denominazione
+    elif nome or cognome:
+        name = " ".join(filter(None, [nome, cognome])).strip()
+    else:
+        name = None
 
     # IVA e CF
     vat_number = _get_text(
@@ -663,6 +745,8 @@ def _parse_supplier(root) -> SupplierDTO:
             name = f"CF {fiscal_code}"
         else:
             name = "Fornitore sconosciuto"
+        if warnings is not None:
+            warnings.append("Anagrafica fornitore incompleta: usato fallback identificativo")
 
     return SupplierDTO(
         name=name,
@@ -681,8 +765,8 @@ def _parse_supplier(root) -> SupplierDTO:
 # ---------- Testata fattura ----------
 
 
-def _parse_invoice_header(body) -> tuple[
-    Optional[str], Optional[str], Optional[date], Optional[str], Optional[Decimal]
+def _parse_invoice_header(body, original_file_name: str) -> tuple[
+    Optional[str], Optional[str], Optional[date], Optional[str], Optional[Decimal], Optional[Decimal]
 ]:
     """
     Estrae i dati principali del documento (DatiGeneraliDocumento):
@@ -691,6 +775,7 @@ def _parse_invoice_header(body) -> tuple[
     - Divisa
     - Data
     - ImportoTotaleDocumento
+    - Arrotondamento
     """
     dg_node = _first(body, ".//*[local-name()='DatiGeneraliDocumento']")
 
@@ -710,11 +795,12 @@ def _parse_invoice_header(body) -> tuple[
         dg_node, ".//*[local-name()='ImportoTotaleDocumento']"
     )
     total_gross = _to_decimal(total_gross_str)
+    general_rounding = _to_decimal(_get_text(dg_node, ".//*[local-name()='Arrotondamento']"))
 
     # Serie (non sempre presente esplicita; talvolta è incorporata nel Numero)
     invoice_series = None  # Manteniamo questo campo per possibili estensioni future
 
-    return invoice_number, invoice_series, invoice_date, currency, total_gross
+    return invoice_number, invoice_series, invoice_date, currency, total_gross, general_rounding
 
 
 # ---------- DettaglioLinee ----------

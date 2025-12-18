@@ -1,6 +1,10 @@
 # PARSING_REFERENCE.md
 ## FatturaPA — Parsing Reference Operativa (Ordinaria v1.4)
 
+## Asset ufficiali
+Gli XSD/XSL ufficiali FatturaPA sono versionati in `resources/fatturapa/`.
+
+
 ### Scopo
 Questo documento definisce la **specifica operativa interna** per il parsing delle FatturePA (XML),
 derivata dalle Specifiche Tecniche ufficiali.
