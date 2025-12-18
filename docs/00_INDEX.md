@@ -8,6 +8,7 @@ Benvenuto nel centro documentazione del Gestionale Acquisti. Usa questo indice c
 - [Architettura database](database.md)
 - Guide
   - [Troubleshooting import P7M](guides/p7m_troubleshooting.md)
+  - [UI Pagamenti (scroll/compattazione)](guides/payments_ui.md)
 - Roadmap
   - [Future document types](roadmap/future_types.md)
 - Meta

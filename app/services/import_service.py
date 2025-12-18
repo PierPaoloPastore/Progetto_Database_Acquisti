@@ -14,7 +14,7 @@ from lxml import etree
 from flask import current_app
 
 from app.models import LegalEntity
-from app.parsers.fatturapa_parser import InvoiceDTO, parse_invoice_xml, P7MExtractionError
+from app.parsers.fatturapa_parser import InvoiceDTO, parse_invoice_xml, P7MExtractionError, FatturaPASkipFile
 from app.repositories.import_log_repo import create_import_log
 from app.services.unit_of_work import UnitOfWork
 from app.services.logging import log_structured_event
@@ -62,6 +62,9 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
                 invoice_dto.file_name = file_name
             if not invoice_dto.file_hash:
                 invoice_dto.file_hash = _compute_file_hash(xml_path)
+        except FatturaPASkipFile as exc:
+            _log_skip(logger, file_name, None, summary, reason=str(exc))
+            continue
         except P7MExtractionError as exc:
             _log_error_p7m(logger, file_name, exc, summary, str(import_folder))
             continue

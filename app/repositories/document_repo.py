@@ -197,6 +197,22 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
         if existing:
             return existing, False
 
+        # Fallback robusti per i totali: alcuni XML arrivano senza riepiloghi completi
+        # e il DB richiede total_gross_amount valorizzato.
+        gross = invoice_dto.total_gross_amount
+        taxable = invoice_dto.total_taxable_amount
+        vat = invoice_dto.total_vat_amount
+
+        # Calcola gross se mancante usando taxable + vat; se ancora None, usa 0
+        if gross is None:
+            gross = (taxable or Decimal("0")) + (vat or Decimal("0"))
+        if gross is None:
+            gross = Decimal("0")
+
+        # Normalizza taxable/vat a 0 se None per coerenza
+        taxable = taxable if taxable is not None else Decimal("0")
+        vat = vat if vat is not None else Decimal("0")
+
         doc = Document(
             supplier_id=supplier_id,
             legal_entity_id=legal_entity_id,
@@ -204,9 +220,9 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
             document_number=invoice_dto.invoice_number,
             document_date=invoice_dto.invoice_date,
             registration_date=invoice_dto.registration_date,
-            total_taxable_amount=invoice_dto.total_taxable_amount,
-            total_vat_amount=invoice_dto.total_vat_amount,
-            total_gross_amount=invoice_dto.total_gross_amount,
+            total_taxable_amount=taxable,
+            total_vat_amount=vat,
+            total_gross_amount=gross,
             doc_status=invoice_dto.doc_status,
             due_date=invoice_dto.due_date,
             file_name=invoice_dto.file_name,

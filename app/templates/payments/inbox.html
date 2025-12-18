@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
 {% block title %}Pagamenti | Split View{% endblock %}
 
@@ -58,7 +58,7 @@
                                         </a>
                                     </td>
                                     <td>{{ doc.document_number }}</td>
-                                    <td class="text-end">{{ "%.2f"|format(doc.total_gross_amount) }} €</td>
+                                    <td class="text-end">{{ "%.2f"|format(doc.total_gross_amount) }} &euro;</td>
                                     <td class="text-end">
                                         <a href="{{ url_for('documents.detail_view', document_id=doc.id) }}" class="btn btn-sm btn-primary">
                                             <i class="bi bi-cash-coin"></i> Registra Pagamento
@@ -92,7 +92,7 @@
                             <div class="col-lg-6">
                                 <label for="pdf-file" class="form-label">Allega PDF di pagamento</label>
                                 <input type="file" name="file" id="pdf-file" accept="application/pdf" class="form-control">
-                                <div class="form-text">Il PDF verrà visualizzato nell'anteprima a destra.</div>
+                                <div class="form-text">Il PDF verra visualizzato nell'anteprima a destra.</div>
                             </div>
                             <div class="col-lg-6">
                                 <label for="payment_method" class="form-label">Metodo di pagamento</label>
@@ -110,60 +110,68 @@
                         </div>
 
                         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                            <div class="input-group w-auto flex-grow-1" style="min-width: 280px;">
-                                <span class="input-group-text"><i class="bi bi-search"></i></span>
-                                <input type="search" id="invoice-search" class="form-control" placeholder="Filtra per fornitore o numero documento">
+                            <div class="d-flex flex-wrap gap-2 flex-grow-1">
+                                <div class="input-group w-auto flex-grow-1" style="min-width: 280px;">
+                                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                    <input type="search" id="invoice-search" class="form-control" placeholder="Filtra per fornitore o numero documento">
+                                </div>
+                                <div class="input-group date-filter">
+                                    <span class="input-group-text"><i class="bi bi-calendar-event"></i></span>
+                                    <input type="date" id="invoice-date" class="form-control" placeholder="Data scadenza">
+                                </div>
                             </div>
                             <button type="submit" class="btn btn-success">
                                 <i class="bi bi-check2-circle"></i> Registra Pagamento Multiplo
                             </button>
                         </div>
 
-                        <div class="table-responsive scrollable-list flex-grow-1 h-100">
-                            <table class="table table-hover align-middle sticky-header">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th style="width: 40px;">
-                                            <i class="bi bi-check2-square"></i>
-                                        </th>
-                                        <th>Scadenza</th>
-                                        <th>Fornitore</th>
-                                        <th>Documento</th>
-                                        <th class="text-end" style="width: 160px;">Importo</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for doc in all_unpaid_invoices %}
-                                        <tr class="invoice-row" data-search="{{ doc.supplier.name }} {{ doc.document_number }}">
-                                            <td>
-                                                <input class="form-check-input" type="checkbox" name="payment_id" value="{{ doc.id }}" aria-label="Seleziona pagamento">
-                                            </td>
-                                            <td>
-                                                {% if doc.due_date %}
-                                                    {{ doc.due_date.strftime('%d/%m/%Y') }}
-                                                {% else %}
-                                                    <span class="text-muted">-</span>
-                                                {% endif %}
-                                            </td>
-                                            <td>{{ doc.supplier.name }}</td>
-                                            <td>{{ doc.document_number }}</td>
-                                            <td class="text-end">
-                                                <div class="input-group input-group-sm">
-                                                    <span class="input-group-text">€</span>
-                                                    <input type="number" step="0.01" min="0" class="form-control text-end" name="amount_{{ doc.id }}" placeholder="0,00">
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    {% else %}
-                                        <tr>
-                                            <td colspan="5" class="text-center py-4 text-muted">
-                                                <i class="bi bi-inbox d-block fs-3 mb-2"></i>
-                                                Nessuna fattura da pagare.
-                                            </td>
-                                        </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
+                        <div class="invoice-list scrollable-list flex-grow-1 h-100">
+                            <div class="invoice-header">
+                                <span class="invoice-col checkbox-col">
+                                    <i class="bi bi-check2-square"></i>
+                                </span>
+                                <span class="invoice-col date-col">Scadenza</span>
+                                <span class="invoice-col supplier-col">Fornitore</span>
+                                <span class="invoice-col doc-col">Documento</span>
+                                <span class="invoice-col due-col text-end">Dovuto</span>
+                                <span class="invoice-col amount-col text-end">Importo pagato</span>
+                            </div>
+                            <div class="invoice-body">
+                                {% for doc in all_unpaid_invoices %}
+                                    <div class="invoice-row align-items-center" data-search="{{ doc.supplier.name }} {{ doc.document_number }}" data-date="{{ doc.due_date.strftime('%Y-%m-%d') if doc.due_date else '' }}">
+                                        <div class="invoice-col checkbox-col">
+                                            <input class="form-check-input" type="checkbox" name="payment_id" value="{{ doc.id }}" aria-label="Seleziona pagamento">
+                                        </div>
+                                        <div class="invoice-col date-col">
+                                            {% if doc.due_date %}
+                                                {{ doc.due_date.strftime('%d/%m/%Y') }}
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="invoice-col supplier-col">{{ doc.supplier.name }}</div>
+                                        <div class="invoice-col doc-col">{{ doc.document_number }}</div>
+                                        <div class="invoice-col due-col text-end">
+                                            <small class="text-muted d-block">Importo dovuto</small>
+                                            {% set paid_val = (doc.paid_amount if doc.paid_amount is defined else 0) %}
+                                            {% set remaining_val = (doc.remaining_amount if doc.remaining_amount is defined else (doc.total_gross_amount - paid_val)) %}
+                                            {% set due_val = remaining_val if remaining_val is not none else doc.total_gross_amount %}
+                                            <strong>{{ "%.2f"|format(due_val) }} &euro;</strong>
+                                        </div>
+                                        <div class="invoice-col amount-col text-end">
+                                            <div class="input-group input-group-sm">
+                                                <span class="input-group-text">&euro;</span>
+                                                <input type="number" step="0.01" min="0" class="form-control text-end" name="amount_{{ doc.id }}" placeholder="0,00">
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% else %}
+                                    <div class="invoice-empty text-center text-muted py-4">
+                                        <i class="bi bi-inbox d-block fs-3 mb-2"></i>
+                                        Nessuna fattura da pagare.
+                                    </div>
+                                {% endfor %}
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -193,3 +201,4 @@
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/payments.js') }}"></script>
 {% endblock %}
+

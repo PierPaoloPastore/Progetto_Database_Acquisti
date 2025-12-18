@@ -29,19 +29,28 @@ function setupTabSwitching() {
 
 function setupInvoiceFilter() {
     const searchInput = document.getElementById("invoice-search");
+    const dateInput = document.getElementById("invoice-date");
     const rows = document.querySelectorAll(".invoice-row");
 
-    if (!searchInput) return;
+    if (!searchInput && !dateInput) return;
 
-    searchInput.addEventListener("keyup", () => {
-        const query = searchInput.value.toLowerCase();
+    const applyFilter = () => {
+        const query = (searchInput?.value || "").toLowerCase();
+        const dateValue = (dateInput?.value || "").trim();
 
         rows.forEach((row) => {
-            const text = row.getAttribute("data-search") || row.textContent;
-            const match = text.toLowerCase().includes(query);
-            row.classList.toggle("d-none", !match);
+            const text = (row.getAttribute("data-search") || row.textContent || "").toLowerCase();
+            const matchText = !query || text.includes(query);
+            const rowDate = row.getAttribute("data-date") || "";
+            const matchDate = !dateValue || rowDate === dateValue;
+
+            row.classList.toggle("d-none", !(matchText && matchDate));
         });
-    });
+    };
+
+    searchInput?.addEventListener("keyup", applyFilter);
+    dateInput?.addEventListener("change", applyFilter);
+    dateInput?.addEventListener("keyup", applyFilter);
 }
 
 function setupPdfPreview() {

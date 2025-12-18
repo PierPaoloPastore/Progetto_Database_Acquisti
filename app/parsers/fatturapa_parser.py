@@ -29,6 +29,9 @@ from pathlib import Path
 from typing import List, Optional
 
 from lxml import etree
+import os
+import re
+import logging
 
 
 # =========================
@@ -146,6 +149,10 @@ class P7MExtractionError(FatturaPAParseError):
     """Errore durante l'estrazione dell'XML da un file P7M."""
 
 
+class FatturaPASkipFile(FatturaPAParseError):
+    """File riconosciuto come non-fattura/metadato: da skippare senza errore DB."""
+
+
 # =========================
 #  Funzione principale di parsing
 # =========================
@@ -188,6 +195,109 @@ def parse_invoice_xml(path: str | Path) -> InvoiceDTO:
     return _parse_xml_file(file_path, original_file_name=file_path.name)
 
 
+def _localname(tag: str | None) -> str:
+    """Restituisce il local-name di un tag con/without namespace."""
+    if not tag:
+        return ""
+    if "}" in tag:
+        return tag.split("}", 1)[1]
+    if ":" in tag:
+        return tag.split(":", 1)[1]
+    return tag
+
+
+def _is_metadata_file(original_file_name: str, root) -> bool:
+    """
+    Riconosce file di metadati (non fatture) per evitare insert vuoti.
+    Usa local-name del root per identificare FatturaElettronica.
+    """
+    name_lower = (original_file_name or "").lower()
+    root_local = _localname(getattr(root, "tag", None)).lower()
+
+    # Se il root è FatturaElettronica o FatturaElettronicaBody, consideriamo fattura
+    if root_local in {"fatturaelettronica", "fatturaelettronicabody"}:
+        return False
+
+    # Se il nome file suggerisce metadati e il root NON è fattura, skip
+    if "metadato" in name_lower or "metadata" in name_lower:
+        return True
+
+    # Default: se non è riconosciuto come fattura, trattiamo come non-fattura/metadato
+    return True
+
+
+def _read_file_diagnostics(path: Path) -> dict:
+    size = os.path.getsize(path)
+    head_bytes = b""
+    try:
+        with open(path, "rb") as fh:
+            head_bytes = fh.read(256)
+    except Exception:
+        head_bytes = b""
+
+    encoding = None
+    try:
+        head_text = head_bytes.decode("latin-1", errors="replace")
+        match = re.search(r'encoding=["\\\']([^"\\\']+)["\\\']', head_text, flags=re.IGNORECASE)
+        if match:
+            encoding = match.group(1)
+    except Exception:
+        encoding = None
+
+    return {
+        "size": size,
+        "head_bytes": head_bytes,
+        "encoding": encoding,
+    }
+
+
+def _load_xml_root(xml_path: Path, original_file_name: str):
+    """
+    Carica il root XML con diagnostica robusta.
+    - Non silenzia gli errori di parsing.
+    - Prova fallback rimuovendo control char non ammessi.
+    Restituisce (root, used_fallback: bool).
+    """
+    diagnostics = _read_file_diagnostics(xml_path)
+    head_repr = repr(diagnostics["head_bytes"])
+
+    parser = etree.XMLParser(recover=False)
+    try:
+        tree = etree.parse(str(xml_path), parser)
+        return tree.getroot(), False
+    except Exception as exc:
+        # Tentativo di fallback ripulendo i control char
+        try:
+            data = xml_path.read_bytes()
+            clean = bytes(b for b in data if b in (9, 10, 13) or b >= 32)
+            removed = len(data) - len(clean)
+        except Exception as read_exc:
+            raise FatturaPAParseError(
+                f"XML non parsabile: file={original_file_name} size={diagnostics['size']} "
+                f"parse_error={exc} head_bytes={head_repr} encoding={diagnostics['encoding']} "
+                f"(lettura fallita per fallback: {read_exc})"
+            ) from exc
+
+        try:
+            root = etree.fromstring(clean)
+            # Log minimale sul fallback per debug (logger opzionale se configurato)
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                "XML ripulito da control chars",
+                extra={
+                    "file": original_file_name,
+                    "removed_bytes": removed,
+                },
+            )
+            return root, True
+        except Exception as fallback_exc:
+            raise FatturaPAParseError(
+                f"XML non parsabile: file={original_file_name} size={diagnostics['size']} "
+                f"parse_error={exc} head_bytes={head_repr} encoding={diagnostics['encoding']} "
+                f"fallback_error={fallback_exc} removed_bytes={removed}"
+            ) from fallback_exc
+
+
 def _parse_xml_file(xml_path: Path, original_file_name: str) -> InvoiceDTO:
     """
     Parsing effettivo del file XML.
@@ -195,14 +305,14 @@ def _parse_xml_file(xml_path: Path, original_file_name: str) -> InvoiceDTO:
     :param xml_path: percorso del file XML da parsare
     :param original_file_name: nome originale del file (usato nel DTO)
     """
-    try:
-        # Usa parser con recover=True per gestire XML malformati
-        parser = etree.XMLParser(recover=True, encoding='utf-8')
-        tree = etree.parse(str(xml_path), parser)
-    except (OSError, etree.XMLSyntaxError) as exc:
-        raise FatturaPAParseError(f"Errore nel parsing XML: {exc}") from exc
+    root, used_fallback = _load_xml_root(xml_path, original_file_name)
 
-    root = tree.getroot()
+    # Skip file di metadati o non-fatture
+    if root is None or _is_metadata_file(original_file_name, root):
+        raise FatturaPASkipFile(
+            f"File non riconosciuto come fattura (metadati/altro XML): "
+            f"file={original_file_name}, root={getattr(root, 'tag', None)}"
+        )
 
     # Prendiamo il primo FatturaElettronicaBody disponibile
     body = _first(
@@ -585,9 +695,11 @@ def _parse_invoice_header(body) -> tuple[
     dg_node = _first(body, ".//*[local-name()='DatiGeneraliDocumento']")
 
     if dg_node is None:
-        # Questo caso non dovrebbe verificarsi in FatturaPA valida,
-        # ma evitiamo di esplodere.
-        return None, None, None, None, None
+        # Mancano i dati generali: consideriamo il file non valido come fattura
+        raise FatturaPAParseError(
+            f"DatiGeneraliDocumento assente: file non valido come fattura. "
+            f"file={original_file_name}, root={getattr(body, 'tag', None)}"
+        )
 
     invoice_number = _get_text(dg_node, ".//*[local-name()='Numero']")
     invoice_date_str = _get_text(dg_node, ".//*[local-name()='Data']")
@@ -615,6 +727,9 @@ def _parse_invoice_lines(body) -> List[InvoiceLineDTO]:
     Restituisce una lista di InvoiceLineDTO.
     """
     lines: List[InvoiceLineDTO] = []
+
+    if body is None:
+        return lines
 
     line_nodes = body.xpath(".//*[local-name()='DettaglioLinee']")
 

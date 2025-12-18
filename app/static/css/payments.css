@@ -1,7 +1,7 @@
 /* Layout for the split view in Payments */
 .split-container {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1.6fr 1fr; /* il pannello form è più largo, viewer ~25% più stretto */
     gap: 1.25rem;
     align-items: stretch;
     min-height: 70vh;
@@ -56,4 +56,109 @@
 
 .invoice-row.d-none {
     display: none !important;
+}
+
+.date-filter {
+    min-width: 190px;
+}
+
+.invoice-list {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    background: #fff;
+    min-height: 0;
+    max-height: 70vh; /* permette allo scroll verticale di attivarsi */
+    overflow: hidden; /* nasconde scroll orizzontale, la verticale vive nel body */
+}
+
+.invoice-header {
+    display: grid;
+    grid-template-columns: 42px 120px minmax(140px, 1fr) 140px 110px 150px;
+    gap: 0.35rem;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    background: #f8f9fa;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    font-weight: 600;
+}
+
+.invoice-body {
+    flex: 1 1 auto;
+    max-height: 70vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0;
+}
+
+.invoice-row {
+    display: grid;
+    grid-template-columns: 42px 120px minmax(140px, 1fr) 140px 110px 150px;
+    gap: 0.35rem;
+    align-items: center;
+    padding: 0.55rem 0.75rem;
+    border-bottom: 1px solid #f1f3f5;
+}
+
+.invoice-row:hover {
+    background: #f8f9fa;
+}
+
+.invoice-row:last-child {
+    border-bottom: none;
+}
+
+.invoice-col.checkbox-col {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.invoice-col {
+    min-width: 0; /* permette all'1fr di comprimersi senza andare a capo lettera per lettera */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.invoice-empty {
+    padding: 2rem 1rem;
+}
+
+@media (max-width: 1199px) {
+    .invoice-header,
+    .invoice-row {
+        grid-template-columns: 42px 110px minmax(130px, 1fr) 130px 100px 140px;
+        gap: 0.3rem;
+    }
+}
+
+@media (max-width: 991px) {
+    .invoice-header,
+    .invoice-row {
+        grid-template-columns: 38px 100px minmax(120px, 1fr) 120px 95px 130px;
+        gap: 0.3rem;
+    }
+}
+
+/* --- Riduzione campi form per farli stare in orizzontale --- */
+#tab-new .form-control,
+#tab-new .form-select,
+#tab-new .input-group-text {
+    font-size: 0.85rem;
+    padding: 0.4rem 0.55rem;
+}
+
+#tab-new .input-group-sm .form-control,
+#tab-new .input-group-sm .input-group-text {
+    font-size: 0.8rem;
+    padding: 0.3rem 0.45rem;
+}
+
+#tab-new label,
+#tab-new .form-text {
+    font-size: 0.85rem;
 }
