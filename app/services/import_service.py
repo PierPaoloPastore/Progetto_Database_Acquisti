@@ -29,11 +29,15 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
     if not import_folder.exists():
         import_folder.mkdir(parents=True, exist_ok=True)
 
-    xml_files: List[Path] = sorted(
-        list(import_folder.glob("*.xml")) + 
-        list(import_folder.glob("*.p7m")) +
-        list(import_folder.glob("*.P7M"))
-    )
+    xml_files_set = {
+        p.resolve()
+        for p in (
+            list(import_folder.glob("*.xml"))
+            + list(import_folder.glob("*.p7m"))
+            + list(import_folder.glob("*.P7M"))
+        )
+    }
+    xml_files: List[Path] = sorted(xml_files_set)
 
     summary = {
         "folder": str(import_folder),

@@ -32,6 +32,7 @@ from lxml import etree
 import os
 import re
 import logging
+import time
 
 
 # =========================
@@ -188,8 +189,10 @@ def parse_invoice_xml(path: str | Path, *, validate_xsd: bool = False, logger: O
         
         try:
             return _parse_xml_file(Path(tmp_path), original_file_name=file_path.name, validate_xsd=validate_xsd, logger=logger)
+        except Exception as exc:
+            _dump_debug_xml(xml_content, file_path.name, logger=logger)
+            raise
         finally:
-            # Cleanup file temporaneo
             Path(tmp_path).unlink(missing_ok=True)
     
     # File XML normale
@@ -267,6 +270,41 @@ def _read_file_diagnostics(path: Path) -> dict:
         "head_bytes": head_bytes,
         "encoding": encoding,
     }
+
+
+def _dump_debug_xml(xml_bytes: bytes, original_file_name: str, logger: Optional[logging.Logger] = None):
+    """
+    Salva il blob XML problematico per debug manuale.
+    """
+    try:
+        base_dir = Path(__file__).resolve().parents[2]
+        out_dir = base_dir / "import_debug" / "p7m_failed"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        ts = int(time.time())
+        safe_name = original_file_name.replace(os.sep, "_")
+        out_path = out_dir / f"{safe_name}.{ts}.xml"
+        out_path.write_bytes(xml_bytes)
+        if logger:
+            logger.error("Dump XML estratto per debug P7M", extra={"file": original_file_name, "dump_path": str(out_path)})
+    except Exception:
+        if logger:
+            logger.warning("Impossibile scrivere dump XML di debug", extra={"file": original_file_name})
+
+
+def _dump_encoding_failure(xml_bytes: bytes, original_file_name: str):
+    """
+    Salva XML che ha fallito i fallback di encoding.
+    """
+    try:
+        base_dir = Path(__file__).resolve().parents[2]
+        out_dir = base_dir / "import_debug" / "xml_encoding_failed"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        ts = int(time.time())
+        safe_name = original_file_name.replace(os.sep, "_")
+        out_path = out_dir / f"{safe_name}.{ts}.xml"
+        out_path.write_bytes(xml_bytes)
+    except Exception:
+        pass
 
 
 def _validate_xsd(root, original_file_name: str, logger: Optional[logging.Logger] = None):
@@ -347,6 +385,34 @@ def _load_xml_root(xml_path: Path, original_file_name: str):
                 f"(lettura fallita per fallback: {read_exc})"
             ) from exc
 
+        # Fallback per errori UTF-8 dichiarato ma bytes cp1252/latin-1
+        from lxml.etree import XMLSyntaxError
+        if isinstance(exc, XMLSyntaxError) and "not proper UTF-8" in str(exc):
+            enc_attempts = [("cp1252", "strict"), ("latin-1", "strict")]
+            for enc, mode in enc_attempts:
+                try:
+                    text = clean.decode(enc, errors=mode)
+                    utf8_bytes = _clean_xml_bytes(text.encode("utf-8", errors="strict"))
+                    root = etree.fromstring(utf8_bytes)
+                    logger = logging.getLogger(__name__)
+                    logger.warning(
+                        "XML encoding fallback applied",
+                        extra={
+                            "file": original_file_name,
+                            "fallback_encoding": enc,
+                            "removed_bytes": removed,
+                        },
+                    )
+                    return root, True
+                except Exception:
+                    continue
+            # Se fallisce, dump e errore
+            _dump_encoding_failure(clean, original_file_name)
+            raise FatturaPAParseError(
+                f"XML non parsabile (encoding fallback fallito): file={original_file_name} size={diagnostics['size']} "
+                f"parse_error={exc} head_bytes={head_repr} encoding={diagnostics['encoding']} removed_bytes={removed}"
+            ) from exc
+
         try:
             root = etree.fromstring(clean)
             # Log minimale sul fallback per debug (logger opzionale se configurato)
@@ -360,11 +426,23 @@ def _load_xml_root(xml_path: Path, original_file_name: str):
             )
             return root, True
         except Exception as fallback_exc:
-            raise FatturaPAParseError(
-                f"XML non parsabile: file={original_file_name} size={diagnostics['size']} "
-                f"parse_error={exc} head_bytes={head_repr} encoding={diagnostics['encoding']} "
-                f"fallback_error={fallback_exc} removed_bytes={removed}"
-            ) from fallback_exc
+            # Ultimo tentativo: recover=True
+            try:
+                parser_recover = etree.XMLParser(recover=True)
+                root = etree.fromstring(clean, parser=parser_recover)
+                logger = logging.getLogger(__name__)
+                logger.warning(
+                    "XML parsed with recover=True (ultima spiaggia)",
+                    extra={"file": original_file_name, "removed_bytes": removed},
+                )
+                return root, True
+            except Exception:
+                _dump_encoding_failure(clean, original_file_name)
+                raise FatturaPAParseError(
+                    f"XML non parsabile: file={original_file_name} size={diagnostics['size']} "
+                    f"parse_error={exc} head_bytes={head_repr} encoding={diagnostics['encoding']} "
+                    f"fallback_error={fallback_exc} removed_bytes={removed}"
+                ) from fallback_exc
 
 
 def _parse_xml_file(xml_path: Path, original_file_name: str, *, validate_xsd: bool = False, logger: Optional[logging.Logger] = None) -> List[InvoiceDTO]:
@@ -476,45 +554,41 @@ def _extract_xml_from_p7m(p7m_path: Path) -> bytes:
     :raises P7MExtractionError: se l'estrazione fallisce
     """
     try:
-        # Leggi il contenuto Base64 del P7M
-        with open(p7m_path, 'r', encoding='utf-8', errors='ignore') as f:
-            b64_data = f.read()
-        
-        # Rimuovi spazi e newline
-        b64_clean = ''.join(b64_data.split())
-        
-        # Aggiungi padding se necessario
-        missing_padding = len(b64_clean) % 4
-        if missing_padding:
-            b64_clean += '=' * (4 - missing_padding)
-        
-        # Decodifica Base64
-        decoded = base64.b64decode(b64_clean)
-        
-        # Cerca l'inizio dell'XML nel binario decodificato
+        data = p7m_path.read_bytes()
+
+        def _is_base64ish(buf: bytes) -> bool:
+            allowed = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\r\n"
+            return all(b in allowed for b in buf)
+
+        path_used = "base64" if _is_base64ish(data) else "der"
+
+        if path_used == "base64":
+            cleaned = b"".join(data.split())
+            missing_padding = len(cleaned) % 4
+            if missing_padding:
+                cleaned += b"=" * (4 - missing_padding)
+            decoded = base64.b64decode(cleaned, validate=False)
+        else:
+            decoded = data
+
         xml_start = _find_xml_start(decoded)
-        
         if xml_start < 0:
+            head = repr(decoded[:200])
             raise P7MExtractionError(
-                f"Contenuto XML non trovato nel file P7M: {p7m_path}"
+                f"Contenuto XML non trovato nel file P7M: file={p7m_path.name} size={len(data)} head_bytes={head} path={path_used}"
             )
-        
-        # Cerca la fine dell'XML
+
         xml_end = _find_xml_end(decoded, xml_start)
-        
         if xml_end <= xml_start:
+            head = repr(decoded[xml_start:xml_start+200])
             raise P7MExtractionError(
-                f"Fine XML non trovata nel file P7M: {p7m_path}"
+                f"Fine XML non trovata nel file P7M: file={p7m_path.name} size={len(data)} head_xml={head} path={path_used}"
             )
-        
-        # Estrai il contenuto XML
+
         xml_content = decoded[xml_start:xml_end]
-        
-        # Pulisci caratteri invalidi XML
         xml_content = _clean_xml_bytes(xml_content)
-        
         return xml_content
-        
+
     except base64.binascii.Error as exc:
         raise P7MExtractionError(
             f"Errore decodifica Base64 del file P7M: {exc}"
@@ -529,49 +603,18 @@ def _clean_xml_bytes(data: bytes) -> bytes:
     """
     Rimuove caratteri invalidi XML dal contenuto binario.
     
-    XML valido consente solo:
-    - caratteri ASCII stampabili
-    - tab, newline, carriage return
-    - caratteri Unicode validi
-    
-    Rimuove bytes che causano errori di parsing, inclusi bytes corrotti
-    all'interno dei tag XML.
+    Rimuove solo byte NUL e control < 0x20 esclusi \t, \n, \r.
+    Non decodifica/re-encoda il contenuto.
     """
-    # Decodifica con encoding windows-1252 (usato in molti XML FatturaPA)
-    try:
-        text = data.decode('windows-1252', errors='ignore')
-    except:
-        text = data.decode('utf-8', errors='ignore')
-    
-    # Rimuovi caratteri di controllo non validi per XML
-    # XML valido: #x9 | #xA | #xD | [#x20-#xD7FF] | [#xE000-#xFFFD] | [#x10000-#x10FFFF]
-    cleaned = []
-    in_tag = False
-    
-    for char in text:
-        code = ord(char)
-        
-        # Traccia se siamo dentro un tag
-        if char == '<':
-            in_tag = True
-            cleaned.append(char)
-        elif char == '>':
-            in_tag = False
-            cleaned.append(char)
-        # Se siamo dentro un tag, sii più restrittivo: accetta solo ASCII stampabili + spazi
-        elif in_tag:
-            if (0x20 <= code <= 0x7E) or code == 0x9:  # ASCII stampabile + tab
-                cleaned.append(char)
-            # Skip tutti gli altri caratteri dentro i tag
-        # Fuori dai tag, accetta caratteri XML validi
-        elif (code == 0x9 or code == 0xA or code == 0xD or 
-              (0x20 <= code <= 0xD7FF) or 
-              (0xE000 <= code <= 0xFFFD) or
-              (0x10000 <= code <= 0x10FFFF)):
-            cleaned.append(char)
-    
-    # Ricodifica in bytes
-    return ''.join(cleaned).encode('utf-8')
+    allowed_ctrl = {9, 10, 13}
+    cleaned = bytearray()
+    for b in data:
+        if b == 0:
+            continue
+        if b < 0x20 and b not in allowed_ctrl:
+            continue
+        cleaned.append(b)
+    return bytes(cleaned)
 
 
 def _find_xml_start(data: bytes) -> int:

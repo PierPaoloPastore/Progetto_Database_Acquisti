@@ -89,7 +89,8 @@ def get_document_detail(document_id: int) -> Optional[dict]:
             "lines": doc.lines,
             "vat_summaries": doc.vat_summaries,
             "payments": payments,
-            "import_logs": doc.import_logs
+            "import_logs": doc.import_logs,
+            "supplier": doc.supplier,
         }
 
 def update_document_status(document_id: int, doc_status: str, due_date: Optional[date] = None):
