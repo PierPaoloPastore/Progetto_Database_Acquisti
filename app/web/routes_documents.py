@@ -89,6 +89,14 @@ def review_loop_invoice_view(document_id: int):
     if document is None: abort(404)
     return render_template('documents/review.html', invoice=document)
 
+@documents_bp.route("/review/<int:document_id>/delete", methods=["POST"])
+def delete_document(document_id: int):
+    ok = DocumentService.delete_document(document_id)
+    if not ok:
+        abort(404)
+    flash("Documento scartato ed eliminato. Potrai reimportarlo.", "info")
+    return redirect(url_for("documents.review_loop_redirect_view"))
+
     
 @documents_bp.route("/preview/<int:document_id>", methods=["GET"], endpoint="preview_visual")
 def preview_visual(document_id: int):
@@ -117,7 +125,19 @@ def preview_visual(document_id: int):
     else:
         return "<h1>Errore</h1><p>Nessun percorso file presente nel database.</p>", 404
 
-    xsl_full_path = os.path.join(current_app.root_path, "static", "xsl", "FoglioStileAssoSoftware.xsl")
+    # Seleziona XSL da querystring (fogli di stile AE)
+    # Tre opzioni esposte: Asso (custom), Ordinaria (AE) e Semplificata VFSM10 (AE)
+    style_map = {
+        "asso": "FoglioStileAssoSoftware.xsl",
+        # scegliamo l'ordinaria come foglio AE predefinito
+        "ordinaria": "Foglio_di_stile_fattura_ordinaria_ver1.2.3.xsl",
+        "vfsm10": "Foglio_di_stile_VFSM10_v1.0.2.xsl",
+    }
+    style_key = request.args.get("style", "ordinaria")
+    xsl_name = style_map.get(style_key, style_map["ordinaria"])
+    # resources/ vive alla radice del progetto (un livello sopra current_app.root_path)
+    base_dir = os.path.abspath(os.path.join(current_app.root_path, os.pardir))
+    xsl_full_path = os.path.join(base_dir, "resources", "xsl", xsl_name)
 
     try:
         html_content = render_invoice_html(xml_full_path, xsl_full_path)

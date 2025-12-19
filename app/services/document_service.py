@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import os
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Optional, List, Any
 
 from flask import current_app
@@ -35,17 +36,33 @@ class DocumentService:
 
             # Aggiornamento campi base
             doc.document_number = form_data.get("document_number")
-            
-            # Gestione date
-            doc_date_str = form_data.get("document_date")
-            if doc_date_str:
-                doc.document_date = _parse_date(doc_date_str)
-            
-            # Cambio stato
-            doc.doc_status = "verified"
+            doc.document_date = _parse_date(form_data.get("document_date"))
+            doc.registration_date = _parse_date(form_data.get("registration_date"))
+            doc.due_date = _parse_date(form_data.get("due_date"))
+
+            # Importi
+            doc.total_taxable_amount = _parse_decimal(form_data.get("total_taxable_amount"))
+            doc.total_vat_amount = _parse_decimal(form_data.get("total_vat_amount"))
+            doc.total_gross_amount = _parse_decimal(form_data.get("total_gross_amount"))
+
+            # Cambio stato: conferma => verified di default, ignora "imported" se non modificato
+            chosen_status = form_data.get("doc_status") or None
+            if not chosen_status or chosen_status == "imported":
+                chosen_status = "verified"
+            doc.doc_status = chosen_status
             
             uow.commit()
             return True, "Documento confermato"
+
+    @staticmethod
+    def delete_document(document_id: int) -> bool:
+        with UnitOfWork() as uow:
+            doc = uow.documents.get_by_id(document_id)
+            if not doc:
+                return False
+            uow.documents.delete(doc)
+            uow.commit()
+            return True
 
 # --- Funzioni Helper ---
 
@@ -118,7 +135,10 @@ def reject_document(document_id: int):
         if doc:
             doc.doc_status = "rejected"
             uow.commit()
-        return doc
+    return doc
+
+def delete_document(document_id: int) -> bool:
+    return DocumentService.delete_document(document_id)
 
 def list_documents_to_review(order: str = "desc", document_type: Optional[str] = None):
     with UnitOfWork() as uow:
@@ -185,4 +205,13 @@ def _parse_date(value: str) -> Optional[date]:
     try:
         return datetime.strptime(value, "%Y-%m-%d").date()
     except (ValueError, TypeError):
+        return None
+
+
+def _parse_decimal(value: Optional[str]) -> Optional[Decimal]:
+    if value is None or value == "":
+        return None
+    try:
+        return Decimal(value)
+    except Exception:
         return None

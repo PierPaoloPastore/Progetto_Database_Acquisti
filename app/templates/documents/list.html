@@ -15,24 +15,24 @@
     </div>
 
     <div class="card mb-3">
-        <div class="card-body py-2">
-            <form class="row g-2 align-items-center" method="GET">
-                <div class="col-md-2 col-sm-6 col-12">
+        <div class="card-body py-3">
+            <form class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-3" method="GET">
+                <div class="col">
                     <label class="form-label mb-0 small text-muted">Numero</label>
                     <input type="text" name="document_number" class="form-control form-control-sm"
                            value="{{ filters.document_number or '' }}" placeholder="Es. 123/2025">
                 </div>
-                <div class="col-md-2 col-sm-6 col-12">
+                <div class="col">
                     <label class="form-label mb-0 small text-muted">Data da</label>
                     <input type="date" name="date_from" class="form-control form-control-sm"
                            value="{{ filters.date_from.isoformat() if filters.date_from else '' }}">
                 </div>
-                <div class="col-md-2 col-sm-6 col-12">
+                <div class="col">
                     <label class="form-label mb-0 small text-muted">Data a</label>
                     <input type="date" name="date_to" class="form-control form-control-sm"
                            value="{{ filters.date_to.isoformat() if filters.date_to else '' }}">
                 </div>
-                <div class="col-auto">
+                <div class="col">
                     <label class="visually-hidden">Anno</label>
                     <select name="year" class="form-select form-select-sm">
                         <option value="">Tutti gli anni</option>
@@ -41,7 +41,7 @@
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-auto">
+                <div class="col">
                     <label class="visually-hidden">Fornitore</label>
                     <select name="supplier_id" class="form-select form-select-sm">
                         <option value="">Tutti i Fornitori</option>
@@ -50,7 +50,7 @@
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-auto">
+                <div class="col">
                     <label class="visually-hidden">Intestatario</label>
                     <select name="legal_entity_id" class="form-select form-select-sm">
                         <option value="">Tutte le Società</option>
@@ -59,7 +59,7 @@
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-auto">
+                <div class="col">
                     <label class="visually-hidden">Stato Doc</label>
                     <select name="doc_status" class="form-select form-select-sm">
                         <option value="">Stato documento</option>
@@ -70,7 +70,7 @@
                         <option value="archived" {% if filters.doc_status == 'archived' %}selected{% endif %}>Archiviato</option>
                     </select>
                 </div>
-                <div class="col-auto">
+                <div class="col">
                     <label class="visually-hidden">Stato Pagamento</label>
                     <select name="payment_status" class="form-select form-select-sm">
                         <option value="">Stato pagamento</option>
@@ -82,7 +82,7 @@
                         <option value="overdue" {% if filters.payment_status == 'overdue' %}selected{% endif %}>Scaduto</option>
                     </select>
                 </div>
-                <div class="col-auto">
+                <div class="col">
                     <label class="visually-hidden">Copia fisica</label>
                     <select name="physical_copy_status" class="form-select form-select-sm">
                         <option value="">Copia fisica</option>
@@ -91,17 +91,17 @@
                         <option value="received" {% if filters.physical_copy_status == 'received' %}selected{% endif %}>Ricevuta</option>
                     </select>
                 </div>
-                <div class="col-auto">
+                <div class="col">
                     <label class="visually-hidden">Importo min</label>
                     <input type="number" step="0.01" name="min_total" class="form-control form-control-sm" placeholder="Importo ≥"
                            value="{{ filters.min_total if filters.min_total is not none else '' }}">
                 </div>
-                <div class="col-auto">
+                <div class="col">
                     <label class="visually-hidden">Importo max</label>
                     <input type="number" step="0.01" name="max_total" class="form-control form-control-sm" placeholder="Importo ≤"
                            value="{{ filters.max_total if filters.max_total is not none else '' }}">
                 </div>
-                <div class="col-auto">
+                <div class="col d-flex align-items-end gap-2">
                     <button type="submit" class="btn btn-sm btn-primary">Filtra</button>
                     <a href="{{ url_for('documents.list_view') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
                 </div>

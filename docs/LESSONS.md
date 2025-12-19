@@ -18,3 +18,8 @@
 - **Encoding sporchi**: se lxml segnala “not proper UTF-8” ma il prolog è UTF-8, provare decode `cp1252` → UTF-8 (fallback `latin-1`), poi riparsare. Loggare warning con encoding usato; se fallisce salvare il blob in `import_debug/xml_encoding_failed/`.
 - **Non mascherare errori**: non usare `recover=True` se non come ultimissima spiaggia loggata. Conservare head_bytes/size nei messaggi di errore e dumpare XML problematici in `import_debug/p7m_failed/` per diagnosi.
 - **Skip consapevole**: classificare metadati/notifiche SDI per lo skip, ma non confondere XML illeggibile con metadati. ParseError (non parsabile) ≠ Skip (non fattura).
+
+## Revisione documenti (UI/Service)
+- **Endpoint e metodi devono esistere nella classe**: se un route chiama `DocumentService.delete_document`, assicurarsi che il metodo sia davvero definito come `@staticmethod` nella classe e, se esposto a livello modulo, che il wrapper punti lì. Evita definizioni annidate o fuori scope che rompono l’import al restart.
+- **Conferma deve cambiare stato**: nel flusso di review, non lasciare `doc_status` a `imported` quando l’utente conferma; se il select è vuoto o “imported”, forzare a `verified` così il documento esce dalla coda di revisione.
+- **Banner di revisione**: nel dettaglio documento, per stato `imported` mostra un solo pulsante “Vai alla revisione” invece di azioni di conferma/scarta duplicate; l’azione vera va eseguita nella pagina di review.

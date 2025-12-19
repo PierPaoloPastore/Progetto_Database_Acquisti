@@ -1,11 +1,10 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
 {% block content %}
 <div class="container-fluid vh-100 d-flex flex-column p-0">
-    
     <div class="bg-dark text-white p-2 d-flex justify-content-between align-items-center" style="height: 50px;">
         <h6 class="m-0 ps-3">
-            🔍 Revisione: {{ invoice.supplier.name if invoice.supplier else 'N/D' }} 
+            Revisione: {{ invoice.supplier.name if invoice.supplier else 'N/D' }}
             <span class="badge bg-light text-dark ms-2">{{ invoice.document_type|upper }}</span>
         </h6>
         <div class="pe-3">
@@ -14,39 +13,69 @@
     </div>
 
     <div class="row flex-grow-1 m-0 overflow-hidden">
-        
         <div class="col-md-5 bg-white border-end overflow-auto p-4" style="height: calc(100vh - 50px);">
             <form method="POST" action="{{ url_for('documents.review_loop_invoice_view', document_id=invoice.id) }}">
-                
                 <h5 class="text-primary border-bottom pb-2 mb-4">Modifica Dati Documento</h5>
-                
                 <input type="hidden" name="invoice_id" value="{{ invoice.id }}">
 
-                <div class="mb-3">
-                    <label class="form-label fw-bold">Numero Documento</label>
-                    <input type="text" name="number" class="form-control" value="{{ invoice.document_number }}" required>
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label fw-bold">Data Documento</label>
-                    <input type="date" name="date" class="form-control" value="{{ invoice.document_date }}" required>
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label fw-bold">Importo Totale (€)</label>
-                    <div class="input-group">
-                        <span class="input-group-text">€</span>
-                        <input type="number" step="0.01" name="total_amount" class="form-control fw-bold fs-5 text-end" value="{{ invoice.total_gross_amount }}" required>
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label fw-bold">Numero Documento</label>
+                        <input type="text" name="document_number" class="form-control" value="{{ invoice.document_number or '' }}" required>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label fw-bold">Data Documento</label>
+                        <input type="date" name="document_date" class="form-control" value="{{ invoice.document_date }}">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label fw-bold">Registrazione</label>
+                        <input type="date" name="registration_date" class="form-control" value="{{ invoice.registration_date }}">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label fw-bold">Scadenza</label>
+                        <input type="date" name="due_date" class="form-control" value="{{ invoice.due_date }}">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label fw-bold">Stato documento</label>
+                        <select name="doc_status" class="form-select">
+                            <option value="" selected>Imposta come verificato</option>
+                            <option value="pending_physical_copy">In attesa copia</option>
+                            <option value="verified">Verificata</option>
+                            <option value="rejected">Scartata</option>
+                            <option value="archived">Archiviata</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label fw-bold">Imponibile (€)</label>
+                        <input type="number" step="0.01" name="total_taxable_amount" class="form-control text-end" value="{{ invoice.total_taxable_amount }}">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label fw-bold">IVA (€)</label>
+                        <input type="number" step="0.01" name="total_vat_amount" class="form-control text-end" value="{{ invoice.total_vat_amount }}">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-bold">Importo Totale (€)</label>
+                        <div class="input-group">
+                            <span class="input-group-text">€</span>
+                            <input type="number" step="0.01" name="total_gross_amount" class="form-control fw-bold fs-6 text-end" value="{{ invoice.total_gross_amount }}" required>
+                        </div>
                     </div>
                 </div>
 
                 <div class="alert alert-warning mt-4 py-2">
-                    <small><i class="bi bi-exclamation-triangle"></i> Verifica che il totale corrisponda al documento a destra.</small>
+                    <small><i class="bi bi-exclamation-triangle"></i> Verifica che i dati corrispondano al documento a destra.</small>
                 </div>
 
-                <div class="d-grid gap-2 mt-5">
+                <div class="d-grid gap-2 mt-4">
                     <button type="submit" class="btn btn-success btn-lg shadow-sm">
                         <i class="bi bi-check-circle-fill"></i> Conferma & Prossima
+                    </button>
+                    <button type="submit"
+                            class="btn btn-danger btn-sm w-100"
+                            formmethod="post"
+                            formaction="{{ url_for('documents.delete_document', document_id=invoice.id) }}"
+                            onclick="return confirm('Scartare ed eliminare questo documento?');">
+                        <i class="bi bi-trash"></i> Scarta (elimina)
                     </button>
                     <a href="{{ url_for('documents.review_loop_redirect_view') }}" class="btn btn-outline-secondary btn-sm mt-2">
                         Salta questo documento
@@ -55,13 +84,39 @@
             </form>
         </div>
 
-        <div class="col-md-7 p-0 bg-white d-flex align-items-center justify-content-center">
-            <iframe src="{{ url_for('documents.preview_visual', document_id=invoice.id) }}" 
-                    class="w-100 h-100 border-0" 
+        <div class="col-md-7 p-0 bg-white d-flex flex-column" style="height: calc(100vh - 50px);">
+            <div class="p-2 border-bottom d-flex align-items-center gap-2">
+                <label class="form-label mb-0 small text-muted">Foglio di stile AE</label>
+                <select id="xsl-style-selector" class="form-select form-select-sm" style="max-width: 240px;">
+                    <option value="asso">Foglio AssoSoftware</option>
+                    <option value="ordinaria" selected>Fattura Ordinaria (AE)</option>
+                    <option value="vfsm10">Fattura Semplificata VFSM10 (AE)</option>
+                </select>
+            </div>
+            <iframe id="xsl-preview-frame"
+                    src="{{ url_for('documents.preview_visual', document_id=invoice.id) }}"
+                    class="w-100 flex-grow-1 border-0"
                     style="display: block;"
                     title="Anteprima Documento">
             </iframe>
         </div>
     </div>
 </div>
+
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const selector = document.getElementById("xsl-style-selector");
+    const frame = document.getElementById("xsl-preview-frame");
+    if (!selector || !frame) return;
+
+    selector.addEventListener("change", () => {
+        const style = selector.value || "ordinaria";
+        const url = new URL(frame.src, window.location.origin);
+        url.searchParams.set("style", style);
+        frame.src = url.toString();
+    });
+});
+</script>
+{% endblock %}
 {% endblock %}

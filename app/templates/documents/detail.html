@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
 {% block title %}Documento #{{ invoice.id }} - Gestionale Acquisti{% endblock %}
 
@@ -11,20 +11,14 @@
 </div>
 
 {% if invoice.doc_status == 'imported' %}
-<div class="alert alert-warning">
-    <strong>⚠️ Revisione richiesta</strong>
-    <p>Questo documento è stato importato ma non ancora confermato.</p>
-    <div class="alert-actions">
-        <form method="post" style="display:inline;"
-              action="{{ url_for('documents.confirm_invoice', document_id=invoice.id) }}">
-            <button type="submit" class="btn-primary btn-sm">✓ Conferma</button>
-        </form>
-        <form method="post" style="display:inline;"
-              action="{{ url_for('documents.reject_invoice', document_id=invoice.id) }}"
-              onsubmit="return confirm('Scartare questo documento?');">
-            <button type="submit" class="btn-secondary btn-sm">✗ Scarta</button>
-        </form>
+<div class="alert alert-warning d-flex justify-content-between align-items-center">
+    <div>
+        <strong>⚠️ Revisione richiesta</strong>
+        <p class="mb-0">Questo documento è stato importato ma non ancora confermato.</p>
     </div>
+    <a class="btn btn-primary btn-sm" href="{{ url_for('documents.review_loop_invoice_view', document_id=invoice.id) }}">
+        Vai alla revisione
+    </a>
 </div>
 {% endif %}
 
@@ -44,7 +38,17 @@
                     <div class="mb-3">
                         <label for="doc_status" class="form-label small fw-bold">Stato Attuale</label>
                         <select id="doc_status" name="doc_status" class="form-select">
-                            <option value="imported"{% if invoice.doc_status == 'imported' %} selected{% endif %}>Importata</option>
+                            <option value="imported"{% if invoice.doc_status == 'imported' %}
+<div class="alert alert-warning d-flex justify-content-between align-items-center">
+    <div>
+        <strong>⚠️ Revisione richiesta</strong>
+        <p class="mb-0">Questo documento è stato importato ma non ancora confermato.</p>
+    </div>
+    <a class="btn btn-primary btn-sm" href="{{ url_for('documents.review_loop_invoice_view', document_id=invoice.id) }}">
+        Vai alla revisione
+    </a>
+</div>
+{% endif %}>Importata</option>
                             <option value="pending_physical_copy"{% if invoice.doc_status == 'pending_physical_copy' %} selected{% endif %}>In attesa copia</option>
                             <option value="verified"{% if invoice.doc_status == 'verified' %} selected{% endif %}>Verificata</option>
                             <option value="rejected"{% if invoice.doc_status == 'rejected' %} selected{% endif %}>Scartata</option>
@@ -297,3 +301,4 @@
 </div>
 
 {% endblock %}
+
