@@ -8,6 +8,7 @@ Gestisce sia DDT attesi da XML (fatture differite) sia DDT reali importati da PD
 from datetime import datetime
 
 from app.extensions import db
+from app.models.delivery_note_line import DeliveryNoteLine
 
 
 class DeliveryNote(db.Model):
@@ -67,6 +68,12 @@ class DeliveryNote(db.Model):
     document = db.relationship("Document", back_populates="delivery_notes")
     supplier = db.relationship("Supplier", backref="delivery_notes")
     legal_entity = db.relationship("LegalEntity", backref="delivery_notes")
+    delivery_note_lines = db.relationship(
+        "DeliveryNoteLine",
+        back_populates="delivery_note",
+        cascade="all, delete-orphan",
+        order_by=DeliveryNoteLine.line_number,
+    )
 
     def __repr__(self) -> str:
         return (

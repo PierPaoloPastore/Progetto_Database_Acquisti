@@ -51,3 +51,22 @@ def get_payment_files_storage_path() -> str:
 
     os.makedirs(target_path, exist_ok=True)
     return target_path
+
+
+def get_delivery_note_storage_path() -> str:
+    """Restituisce il percorso assoluto per lo storage dei PDF DDT."""
+    configured_path = current_app.config.get("DELIVERY_NOTE_STORAGE_PATH")
+    if configured_path:
+        target_path = os.path.abspath(configured_path)
+    else:
+        base_dir = os.getcwd()
+        target_path = os.path.join(base_dir, "storage", "delivery_notes")
+    os.makedirs(target_path, exist_ok=True)
+    return target_path
+
+
+def resolve_storage_path(base_path: str, relative_path: str) -> str:
+    """
+    Costruisce un percorso assoluto a partire dalla base storage e un path relativo salvato nel DB.
+    """
+    return os.path.abspath(os.path.join(base_path, relative_path))

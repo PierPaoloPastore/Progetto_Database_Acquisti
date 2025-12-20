@@ -12,6 +12,7 @@ from .document_line import DocumentLine
 from .vat_summary import VatSummary
 from .payment import Payment, PaymentDocument
 from .delivery_note import DeliveryNote
+from .delivery_note_line import DeliveryNoteLine
 from .rent_contract import RentContract
 from .category import Category
 from .note import Note
@@ -28,6 +29,7 @@ __all__ = [
     "Payment",
     "PaymentDocument",
     "DeliveryNote",
+    "DeliveryNoteLine",
     "RentContract",
     "Category",
     "Note",

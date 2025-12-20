@@ -10,6 +10,8 @@ from app.repositories.category_repo import CategoryRepository
 from app.repositories.supplier_repo import SupplierRepository
 from app.repositories.payment_repo import PaymentRepository
 from app.repositories.document_repo import DocumentRepository
+from app.repositories.delivery_note_repo import DeliveryNoteRepository
+from app.repositories.delivery_note_line_repo import DeliveryNoteLineRepository
 
 class UnitOfWork:
     def __init__(self):
@@ -18,6 +20,8 @@ class UnitOfWork:
         self._suppliers: Optional[SupplierRepository] = None
         self._payments: Optional[PaymentRepository] = None
         self._documents: Optional[DocumentRepository] = None
+        self._delivery_notes: Optional[DeliveryNoteRepository] = None
+        self._delivery_note_lines: Optional[DeliveryNoteLineRepository] = None
 
     def __enter__(self):
         return self
@@ -45,6 +49,18 @@ class UnitOfWork:
         if self._payments is None:
             self._payments = PaymentRepository(self.session)
         return self._payments
+    
+    @property
+    def delivery_notes(self) -> DeliveryNoteRepository:
+        if self._delivery_notes is None:
+            self._delivery_notes = DeliveryNoteRepository(self.session)
+        return self._delivery_notes
+
+    @property
+    def delivery_note_lines(self) -> DeliveryNoteLineRepository:
+        if self._delivery_note_lines is None:
+            self._delivery_note_lines = DeliveryNoteLineRepository(self.session)
+        return self._delivery_note_lines
 
     @property
     def documents(self) -> DocumentRepository:

@@ -43,6 +43,17 @@ from .payment_service import (
     delete_payment,
 )
 from .settings_service import get_setting, set_setting
+from .delivery_note_service import (
+    list_delivery_notes,
+    get_delivery_note,
+    get_delivery_note_with_lines,
+    list_delivery_notes_by_document,
+    create_delivery_note,
+    get_delivery_note_file_path,
+    upsert_delivery_note_lines,
+    find_delivery_note_candidates,
+    link_delivery_note_to_document,
+)
 
 __all__ = [
     # Import
@@ -78,4 +89,14 @@ __all__ = [
     # Settings
     "get_setting",
     "set_setting",
+    # Delivery Notes
+    "list_delivery_notes",
+    "get_delivery_note",
+    "get_delivery_note_with_lines",
+    "list_delivery_notes_by_document",
+    "create_delivery_note",
+    "get_delivery_note_file_path",
+    "upsert_delivery_note_lines",
+    "find_delivery_note_candidates",
+    "link_delivery_note_to_document",
 ]

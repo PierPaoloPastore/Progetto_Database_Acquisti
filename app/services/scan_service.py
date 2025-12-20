@@ -94,3 +94,18 @@ def store_payment_document_file(file: FileStorage, base_path: str, filename: str
     file.save(dest_path)
 
     return os.path.join(year_str, month_str, filename)
+
+
+def store_delivery_note_file(file: FileStorage, base_path: str, filename: str) -> str:
+    """Salva un PDF di DDT sotto la cartella base, organizzato per anno/mese."""
+    now = datetime.now()
+    year_str = str(now.year)
+    month_str = f"{now.month:02d}"
+
+    dest_dir = os.path.join(base_path, year_str, month_str)
+    os.makedirs(dest_dir, exist_ok=True)
+
+    dest_path = os.path.join(dest_dir, filename)
+    file.save(dest_path)
+
+    return os.path.join(year_str, month_str, filename)
