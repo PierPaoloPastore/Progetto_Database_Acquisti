@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}Abbina DDT - Documento #{{ invoice.id }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="mb-0">Abbina DDT a Documento #{{ invoice.id }}</h1>
+        <a class="btn btn-outline-secondary" href="{{ url_for('documents.detail_view', document_id=invoice.id) }}">← Torna al dettaglio</a>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <div>
+                <div class="fw-bold">{{ invoice.document_number }} ({{ invoice.document_date.strftime('%d/%m/%Y') if invoice.document_date else '-' }})</div>
+                <small class="text-muted">Fornitore: {{ invoice.supplier.name if invoice.supplier else 'N/D' }}</small>
+                <div class="text-muted small">Candidati filtrati per fornitore (stati: unmatched/linked). Numero/data non obbligatori.</div>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive scrollable-list">
+                <table class="table table-hover table-striped mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th></th>
+                            <th>Data</th>
+                            <th>Numero</th>
+                            <th>Fornitore</th>
+                            <th>Stato</th>
+                            <th>PDF</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ddt in candidates %}
+                        <tr>
+                            <td>
+                                <input type="radio" name="delivery_note_id" value="{{ ddt.id }}" form="match-form" required>
+                            </td>
+                            <td>{{ ddt.ddt_date.strftime('%d/%m/%Y') if ddt.ddt_date else '-' }}</td>
+                            <td class="fw-bold">{{ ddt.ddt_number }}</td>
+                            <td>{{ ddt.supplier.name if ddt.supplier else 'N/D' }}</td>
+                            <td><span class="status-badge status-{{ ddt.status }}">{{ ddt.status }}</span></td>
+                            <td>
+                                {% if ddt.file_path %}
+                                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('delivery_notes.file_view', delivery_note_id=ddt.id) }}" target="_blank">
+                                        <i class="bi bi-file-earmark-pdf"></i>
+                                    </a>
+                                {% else %}
+                                    <span class="text-muted small">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-4">
+                                Nessun DDT candidato trovato per questo fornitore/numero/data.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+            <form id="match-form" method="post" class="d-flex gap-2 align-items-center">
+                <input type="hidden" name="document_id" value="{{ invoice.id }}">
+                <select name="status" class="form-select form-select-sm" style="max-width: 200px;">
+                            <option value="matched" selected>Imposta stato: matched</option>
+                            <option value="linked">Imposta stato: linked</option>
+                            <option value="unmatched">Imposta stato: unmatched</option>
+                </select>
+                <button type="submit" class="btn btn-success">
+                    <i class="bi bi-link-45deg"></i> Abbina DDT selezionato
+                </button>
+            </form>
+            <div class="text-muted small">Candidati filtrati per fornitore; puoi abbinare anche se numero/data differiscono.</div>
+        </div>
+    </div>
+</div>
+{% endblock %}

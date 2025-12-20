@@ -2,9 +2,43 @@
 
 {% block title %}Elenco Documenti - Progetto Acquisti{% endblock %}
 
+{% block extra_css %}
+<style>
+.documents-table-wrapper {
+    padding: 0; /* elimina il piccolo gap tra header e bordo/shadow */
+}
+.documents-table thead th {
+    position: sticky;
+    top: 0;
+    background: #f8f9fa;
+    z-index: 2;
+}
+.documents-table .sort-link {
+    color: #0d6efd;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-weight: 600;
+}
+.documents-table .sort-link:hover {
+    text-decoration: underline;
+}
+.documents-table .sort-link.inactive {
+    color: inherit;
+    text-decoration: none;
+}
+.documents-table .sort-link.inactive .bi {
+    opacity: 0.3;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}{% endblock %}
+
 {% block content %}
 <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-2">
         <h1>Elenco Documenti</h1>
         <div>
             <a href="{{ url_for('import.run_view') }}" class="btn btn-success">
@@ -14,7 +48,7 @@
         </div>
     </div>
 
-    <div class="card mb-3">
+    <div class="card mb-2">
         <div class="card-body py-3">
             <form class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-3" method="GET">
                 <div class="col">
@@ -111,13 +145,39 @@
 
     <div class="card shadow-sm">
         <div class="card-body p-0">
-            <div class="table-responsive scrollable-list">
-                <table class="table table-hover table-striped mb-0 align-middle">
+            <div class="table-responsive scrollable-list documents-table-wrapper">
+                <table class="table table-hover table-striped mb-0 align-middle documents-table">
                     <thead class="table-light">
                     <tr>
                         <th class="text-center" style="width: 80px;">Tipo</th>
-                        <th>Data</th>
-                        <th>Numero</th>
+                        <th>
+                            <a class="sort-link {% if sort_field != 'date' %}inactive{% endif %}" href="{{ date_url }}">
+                                Data
+                                {% if sort_field == 'date' %}
+                                    {% if sort_dir == 'asc' %}
+                                        <i class="bi bi-caret-up-fill"></i>
+                                    {% else %}
+                                        <i class="bi bi-caret-down-fill"></i>
+                                    {% endif %}
+                                {% else %}
+                                    <i class="bi bi-caret-up-fill"></i>
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a class="sort-link {% if sort_field != 'number' %}inactive{% endif %}" href="{{ number_url }}">
+                                Numero
+                                {% if sort_field == 'number' %}
+                                    {% if sort_dir == 'asc' %}
+                                        <i class="bi bi-caret-up-fill"></i>
+                                    {% else %}
+                                        <i class="bi bi-caret-down-fill"></i>
+                                    {% endif %}
+                                {% else %}
+                                    <i class="bi bi-caret-up-fill"></i>
+                                {% endif %}
+                            </a>
+                        </th>
                         <th>Fornitore / Controparte</th>
                         <th>Intestatario</th>
                         <th class="text-end">Importo</th>

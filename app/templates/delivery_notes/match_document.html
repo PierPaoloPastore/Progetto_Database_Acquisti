@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Abbina fattura - DDT #{{ note.id }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="mb-0">Abbina fattura a DDT #{{ note.id }}</h1>
+        <a class="btn btn-outline-secondary" href="{{ url_for('delivery_notes.detail_view', delivery_note_id=note.id) }}">← Torna al dettaglio DDT</a>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <div>
+                <div class="fw-bold">DDT {{ note.ddt_number }} ({{ note.ddt_date.strftime('%d/%m/%Y') if note.ddt_date else '-' }})</div>
+                <small class="text-muted">Fornitore: {{ note.supplier.name if note.supplier else 'N/D' }}</small>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive scrollable-list">
+                <table class="table table-hover table-striped mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th></th>
+                            <th>Numero</th>
+                            <th>Data</th>
+                            <th>Stato</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for doc in documents %}
+                        <tr>
+                            <td><input type="radio" name="document_id" value="{{ doc.id }}" form="match-doc-form" required></td>
+                            <td class="fw-bold">{{ doc.document_number }}</td>
+                            <td>{{ doc.document_date.strftime('%d/%m/%Y') if doc.document_date else '-' }}</td>
+                            <td><span class="status-badge status-{{ doc.doc_status }}">{{ doc.doc_status }}</span></td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="4" class="text-center text-muted py-4">Nessun documento candidato trovato per questo fornitore.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+            <form id="match-doc-form" method="post" class="d-flex gap-2 align-items-center">
+                <select name="status" class="form-select form-select-sm" style="max-width: 200px;">
+                    <option value="matched" selected>Imposta stato DDT: matched</option>
+                    <option value="linked">Imposta stato DDT: linked</option>
+                </select>
+                <button type="submit" class="btn btn-success">
+                    <i class="bi bi-link-45deg"></i> Abbina fattura selezionata
+                </button>
+            </form>
+            <div class="text-muted small">Candidati filtrati per fornitore del DDT (limite 200).</div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -18,6 +18,11 @@ from app.services.dto import DocumentSearchFilters
 # FIX: Import dai service invece che dai repo diretti dove possibile
 from app.services.supplier_service import list_active_suppliers
 from app.repositories.legal_entity_repo import list_legal_entities
+from app.services.delivery_note_service import (
+    find_delivery_note_candidates,
+    list_delivery_notes_by_document,
+    link_delivery_note_to_document,
+)
 
 documents_bp = Blueprint("documents", __name__)
 
@@ -35,14 +40,35 @@ def _parse_date(value: str) -> Optional[datetime.date]:
 @documents_bp.route("/", methods=["GET"])
 def list_view():
     filters = DocumentSearchFilters.from_query_args(request.args)
+    sort_field = request.args.get("sort") or None
+    sort_dir = request.args.get("dir") or "desc"
     
     documents = doc_service.search_documents(filters=filters, limit=300, document_type=None)
+    if sort_field in {"date", "number"}:
+        reverse = (sort_dir == "desc")
+        if sort_field == "date":
+            documents = sorted(
+                documents,
+                key=lambda d: d.document_date or date.min,
+                reverse=reverse,
+            )
+        elif sort_field == "number":
+            documents = sorted(
+                documents,
+                key=lambda d: (d.document_number or "").lower(),
+                reverse=reverse,
+            )
 
     suppliers = list_active_suppliers()
     legal_entities = list_legal_entities(include_inactive=False)
     
     # FIX: Chiamata al service invece che al repo
     accounting_years = doc_service.get_accounting_years()
+    base_query_args = {k: v for k, v in request.args.to_dict().items() if k not in {"sort", "dir"}}
+    date_dir = "asc" if sort_field != "date" or sort_dir == "desc" else "desc"
+    number_dir = "asc" if sort_field != "number" or sort_dir == "desc" else "desc"
+    date_url = url_for("documents.list_view", **base_query_args, sort="date", dir=date_dir)
+    number_url = url_for("documents.list_view", **base_query_args, sort="number", dir=number_dir)
 
     return render_template(
         "documents/list.html",
@@ -51,6 +77,11 @@ def list_view():
         legal_entities=legal_entities,
         accounting_years=accounting_years,
         filters=filters,
+        sort_field=sort_field,
+        sort_dir=sort_dir,
+        base_query_args=base_query_args,
+        date_url=date_url,
+        number_url=number_url,
     )
 
 @documents_bp.route("/review/list", methods=["GET"])
@@ -99,19 +130,63 @@ def review_loop_redirect_view():
 @documents_bp.route("/review/<int:document_id>", methods=["GET", "POST"])
 def review_loop_invoice_view(document_id: int):
     if request.method == "POST":
-        success, message = DocumentService.review_and_confirm(document_id, request.form.to_dict())
-        if not success:
-            if message == "Documento non trovato": abort(404)
-            flash(message, "danger")
-        else:
-            flash("Documento confermato e passato al successivo.", "success")
-            return redirect(url_for("documents.review_loop_redirect_view"))
+        action = request.form.get("action") or "review"
+        if action == "review":
+            success, message = DocumentService.review_and_confirm(document_id, request.form.to_dict())
+            if not success:
+                if message == "Documento non trovato": abort(404)
+                flash(message, "danger")
+            else:
+                flash("Documento confermato e passato al successivo.", "success")
+                return redirect(url_for("documents.review_loop_redirect_view"))
+        elif action == "match_ddt":
+            delivery_note_id = request.form.get("delivery_note_id")
+            status = request.form.get("ddt_status") or "matched"
+            if not delivery_note_id:
+                flash("Seleziona un DDT da abbinare.", "warning")
+            else:
+                try:
+                    link_delivery_note_to_document(int(delivery_note_id), document_id, status=status)
+                    flash("DDT abbinato con successo.", "success")
+                except Exception as exc:
+                    flash(f"Errore in abbinamento DDT: {exc}", "danger")
+        elif action == "upload_physical_copy":
+            file = request.files.get("physical_copy_file")
+            if file is None or not file.filename:
+                flash("Seleziona un file PDF da caricare.", "warning")
+            else:
+                doc = doc_service.mark_physical_copy_received(document_id, file=file)
+                if doc is None:
+                    flash("Documento non trovato.", "warning")
+                else:
+                    flash("Copia fisica caricata e collegata.", "success")
 
     document = DocumentService.get_document_by_id(document_id)
     if document is None: abort(404)
     from app.services.settings_service import get_setting
     default_xsl = get_setting("DEFAULT_XSL_STYLE", "ordinaria")
-    return render_template('documents/review.html', invoice=document, today=date.today(), default_xsl=default_xsl)
+
+    # DDT candidati e collegati
+    ddt_candidates = []
+    if document.supplier_id:
+        ddt_candidates = find_delivery_note_candidates(
+            supplier_id=document.supplier_id,
+            ddt_number=request.args.get("ddt_number") or None,
+            ddt_date=None,  # lasciamo filtro data libero per ora
+            allowed_statuses=["unmatched", "linked"],
+            limit=200,
+            exclude_document_ids=[document_id],
+        )
+    linked_ddt = list_delivery_notes_by_document(document_id) if document else []
+
+    return render_template(
+        'documents/review.html',
+        invoice=document,
+        today=date.today(),
+        default_xsl=default_xsl,
+        ddt_candidates=ddt_candidates,
+        linked_ddt=linked_ddt,
+    )
 
 @documents_bp.route("/review/<int:document_id>/delete", methods=["POST"])
 def delete_document(document_id: int):
@@ -177,7 +252,50 @@ def detail_view(document_id: int):
     if detail is None:
         flash("Documento non trovato.", "warning")
         return redirect(url_for("documents.list_view"))
+
+    # DDT collegati a questa fattura (match manuale)
+    from app.services.delivery_note_service import (
+        list_delivery_notes_by_document,
+    )
+    detail["linked_delivery_notes"] = list_delivery_notes_by_document(document_id)
+
     return render_template("documents/detail.html", **detail)
+
+
+@documents_bp.route("/<int:document_id>/match-ddt", methods=["GET", "POST"])
+def match_delivery_notes_view(document_id: int):
+    invoice = DocumentService.get_document_by_id(document_id)
+    if invoice is None:
+        flash("Documento non trovato.", "warning")
+        return redirect(url_for("documents.list_view"))
+
+    if request.method == "POST":
+        delivery_note_id = request.form.get("delivery_note_id")
+        status = request.form.get("status") or "matched"
+        if not delivery_note_id:
+            flash("Seleziona un DDT.", "warning")
+            return redirect(url_for("documents.match_delivery_notes_view", document_id=document_id))
+        try:
+            link_delivery_note_to_document(int(delivery_note_id), document_id, status=status)
+            flash("DDT abbinato con successo.", "success")
+        except Exception as exc:
+            flash(f"Errore in abbinamento: {exc}", "danger")
+        return redirect(url_for("documents.detail_view", document_id=document_id))
+
+    supplier_id = invoice.supplier_id
+    candidates = []
+    if supplier_id:
+        candidates = find_delivery_note_candidates(
+            supplier_id=supplier_id,
+            allowed_statuses=["unmatched", "linked"],
+            limit=200,
+        )
+
+    return render_template(
+        "documents/match_delivery_notes.html",
+        invoice=invoice,
+        candidates=candidates,
+    )
 
 @documents_bp.route("/<int:document_id>/status", methods=["POST"])
 def update_status_view(document_id: int):

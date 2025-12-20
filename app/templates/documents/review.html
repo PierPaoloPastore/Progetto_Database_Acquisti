@@ -15,6 +15,7 @@
     <div class="row flex-grow-1 m-0 overflow-hidden">
         <div class="col-md-5 bg-white border-end overflow-auto p-4" style="height: calc(100vh - 50px);">
             <form method="POST" action="{{ url_for('documents.review_loop_invoice_view', document_id=invoice.id) }}">
+                <input type="hidden" name="action" value="review">
                 <h5 class="text-primary border-bottom pb-2 mb-4">Modifica Dati Documento</h5>
                 <input type="hidden" name="invoice_id" value="{{ invoice.id }}">
 
@@ -85,20 +86,89 @@
         </div>
 
         <div class="col-md-7 p-0 bg-white d-flex flex-column" style="height: calc(100vh - 50px);">
-            <div class="p-2 border-bottom d-flex align-items-center gap-2">
+            <div class="p-2 border-bottom d-flex align-items-center gap-2 flex-wrap">
                 <label class="form-label mb-0 small text-muted">Foglio di stile AE</label>
                 <select id="xsl-style-selector" class="form-select form-select-sm" style="max-width: 240px;">
                     <option value="asso" {% if default_xsl == 'asso' %}selected{% endif %}>Foglio AssoSoftware</option>
                     <option value="ordinaria" {% if default_xsl == 'ordinaria' %}selected{% endif %}>Fattura Ordinaria (AE)</option>
                     <option value="vfsm10" {% if default_xsl == 'vfsm10' %}selected{% endif %}>Fattura Semplificata VFSM10 (AE)</option>
                 </select>
+                <div class="ms-auto d-flex gap-2">
+                    {% if invoice.physical_copy_file_path %}
+                        <a class="btn btn-outline-primary btn-sm" href="{{ url_for('documents.view_physical_copy', document_id=invoice.id) }}" target="_blank">
+                            <i class="bi bi-file-earmark-pdf"></i> Copia fisica
+                        </a>
+                    {% endif %}
+                    <form method="POST" action="{{ url_for('documents.review_loop_invoice_view', document_id=invoice.id) }}" enctype="multipart/form-data" class="d-flex gap-2 align-items-center">
+                        <input type="hidden" name="action" value="upload_physical_copy">
+                        <input type="file" name="physical_copy_file" accept="application/pdf" class="form-control form-control-sm" style="max-width: 220px;">
+                        <button type="submit" class="btn btn-sm btn-success">Allega copia</button>
+                    </form>
+                </div>
             </div>
-            <iframe id="xsl-preview-frame"
-                    src="{{ url_for('documents.preview_visual', document_id=invoice.id, style=default_xsl or 'ordinaria') }}"
-                    class="w-100 flex-grow-1 border-0"
-                    style="display: block;"
-                    title="Anteprima Documento">
-            </iframe>
+            <div class="d-flex flex-column flex-grow-1">
+                <iframe id="xsl-preview-frame"
+                        src="{{ url_for('documents.preview_visual', document_id=invoice.id, style=default_xsl or 'ordinaria') }}"
+                        class="w-100 flex-grow-1 border-0"
+                        style="display: block;"
+                        title="Anteprima Documento">
+                </iframe>
+                <div class="border-top p-2">
+                    <form method="POST" action="{{ url_for('documents.review_loop_invoice_view', document_id=invoice.id) }}" class="d-flex align-items-center gap-2">
+                        <input type="hidden" name="action" value="match_ddt">
+                        <select name="delivery_note_id" class="form-select form-select-sm" style="min-width: 240px;">
+                            <option value="">Seleziona DDT del fornitore</option>
+                            {% for ddt in ddt_candidates %}
+                                <option value="{{ ddt.id }}">{{ ddt.ddt_number }} · {{ ddt.ddt_date.strftime('%d/%m/%Y') if ddt.ddt_date else '-' }} ({{ ddt.status }})</option>
+                            {% endfor %}
+                        </select>
+                        <select name="ddt_status" class="form-select form-select-sm" style="max-width: 160px;">
+                            <option value="matched" selected>matched</option>
+                            <option value="linked">linked</option>
+                        </select>
+                        <button type="submit" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-link-45deg"></i> Abbina DDT
+                        </button>
+                    </form>
+                    <div class="mt-2">
+                        <strong>DDT collegati:</strong>
+                        <div class="table-responsive scrollable-list" style="max-height: 200px;">
+                            <table class="table table-compact mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Data</th>
+                                        <th>Numero</th>
+                                        <th>Stato</th>
+                                        <th>PDF</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for ddt in linked_ddt %}
+                                        <tr>
+                                            <td>{{ ddt.ddt_date.strftime('%d/%m/%Y') if ddt.ddt_date else '-' }}</td>
+                                            <td class="fw-bold">{{ ddt.ddt_number }}</td>
+                                            <td><span class="status-badge status-{{ ddt.status }}">{{ ddt.status }}</span></td>
+                                            <td>
+                                                {% if ddt.file_path %}
+                                                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('delivery_notes.file_view', delivery_note_id=ddt.id) }}" target="_blank">
+                                                        <i class="bi bi-file-earmark-pdf"></i>
+                                                    </a>
+                                                {% else %}
+                                                    <span class="text-muted small">-</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    {% else %}
+                                        <tr>
+                                            <td colspan="4" class="text-center text-muted py-2">Nessun DDT collegato.</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>

@@ -16,8 +16,10 @@ from app.services import (
     get_delivery_note_file_path,
     get_delivery_note_with_lines,
     upsert_delivery_note_lines,
+    link_delivery_note_to_document,
 )
 from app.services.supplier_service import list_active_suppliers
+from app.services.document_service import search_documents
 from app.repositories.legal_entity_repo import list_legal_entities
 
 
@@ -145,4 +147,39 @@ def detail_view(delivery_note_id: int):
     return render_template(
         "delivery_notes/detail.html",
         note=note,
+    )
+
+
+@delivery_notes_bp.route("/<int:delivery_note_id>/match-document", methods=["GET", "POST"])
+def match_document_view(delivery_note_id: int):
+    note = get_delivery_note(delivery_note_id)
+    if not note:
+        flash("DDT non trovato.", "warning")
+        return redirect(url_for("delivery_notes.list_view"))
+
+    if request.method == "POST":
+        document_id = request.form.get("document_id")
+        status = request.form.get("status") or "matched"
+        if not document_id:
+            flash("Seleziona una fattura da abbinare.", "warning")
+            return redirect(url_for("delivery_notes.match_document_view", delivery_note_id=delivery_note_id))
+        try:
+            link_delivery_note_to_document(delivery_note_id, int(document_id), status=status)
+            flash("Fattura abbinata al DDT.", "success")
+            return redirect(url_for("delivery_notes.detail_view", delivery_note_id=delivery_note_id))
+        except Exception as exc:
+            flash(f"Errore in abbinamento fattura: {exc}", "danger")
+
+    documents = []
+    if note and note.supplier_id:
+        # cerca documenti del fornitore (limite 200)
+        from app.services.dto import DocumentSearchFilters
+        filters = DocumentSearchFilters.from_query_args({})
+        filters.supplier_id = note.supplier_id
+        documents = search_documents(filters=filters, limit=200, document_type=None)
+
+    return render_template(
+        "delivery_notes/match_document.html",
+        note=note,
+        documents=documents,
     )

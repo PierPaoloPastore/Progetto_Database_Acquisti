@@ -69,12 +69,15 @@ class DeliveryNoteRepository(SqlAlchemyRepository[DeliveryNote]):
     def find_candidates_for_match(
         self,
         supplier_id: int,
-        ddt_number: str,
+        ddt_number: Optional[str] = None,
         ddt_date: Optional[date] = None,
         allowed_statuses: Optional[List[str]] = None,
+        limit: int = 200,
+        exclude_document_ids: Optional[List[int]] = None,
     ) -> List[DeliveryNote]:
         """
-        Cerca DDT candidati per matching su supplier + numero (+ data opzionale).
+        Cerca DDT candidati per matching.
+        Per default filtra solo per fornitore, opzionalmente per numero/data e stato.
         """
         query = (
             self.session.query(DeliveryNote)
@@ -83,13 +86,20 @@ class DeliveryNoteRepository(SqlAlchemyRepository[DeliveryNote]):
                 joinedload(DeliveryNote.legal_entity),
             )
             .filter(DeliveryNote.supplier_id == supplier_id)
-            .filter(DeliveryNote.ddt_number == ddt_number)
         )
+        if ddt_number:
+            query = query.filter(DeliveryNote.ddt_number == ddt_number)
         if ddt_date:
             query = query.filter(DeliveryNote.ddt_date == ddt_date)
         if allowed_statuses:
             query = query.filter(DeliveryNote.status.in_(allowed_statuses))
-        return query.order_by(DeliveryNote.ddt_date.desc(), DeliveryNote.id.desc()).all()
+        if exclude_document_ids:
+            query = query.filter(~DeliveryNote.document_id.in_(exclude_document_ids))
+        return (
+            query.order_by(DeliveryNote.ddt_date.desc(), DeliveryNote.id.desc())
+            .limit(limit)
+            .all()
+        )
 
     def list_by_document(self, document_id: int) -> List[DeliveryNote]:
         return (

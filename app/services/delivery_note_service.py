@@ -88,12 +88,12 @@ def create_delivery_note(
             if legal_entity is None:
                 raise ValueError("Intestatario non valido")
 
-    base_path = settings_service.get_delivery_note_storage_path()
-    safe_name = secure_filename(file.filename) or f"ddt_{ddt_number}.pdf"
-    rel_path = scan_service.store_delivery_note_file(
-        file=file,
-        base_path=base_path,
-        filename=safe_name,
+        base_path = settings_service.get_delivery_note_storage_path()
+        safe_name = secure_filename(file.filename) or f"ddt_{ddt_number}.pdf"
+        rel_path = scan_service.store_delivery_note_file(
+            file=file,
+            base_path=base_path,
+            filename=safe_name,
         )
 
         note = DeliveryNote(
@@ -172,9 +172,11 @@ def upsert_delivery_note_lines(note_id: int, lines_payload: list[dict]) -> Deliv
 
 def find_delivery_note_candidates(
     supplier_id: int,
-    ddt_number: str,
+    ddt_number: Optional[str] = None,
     ddt_date: Optional[date] = None,
     allowed_statuses: Optional[List[str]] = None,
+    limit: int = 200,
+    exclude_document_ids: Optional[List[int]] = None,
 ) -> List[DeliveryNote]:
     """Ritorna i DDT candidati al matching dato un supplier + numero (+ data)."""
     with UnitOfWork() as uow:
@@ -183,6 +185,8 @@ def find_delivery_note_candidates(
             ddt_number=ddt_number,
             ddt_date=ddt_date,
             allowed_statuses=allowed_statuses,
+            limit=limit,
+            exclude_document_ids=exclude_document_ids,
         )
 
 
