@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block title %}Pagamento #{{ payment.id }} - Gestionale Acquisti{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h1 class="mb-0"><i class="bi bi-cash-coin"></i> Pagamento #{{ payment.id }}</h1>
+            <p class="text-muted mb-0">
+                Registrato il {{ payment.paid_date.strftime('%d/%m/%Y') if payment.paid_date else (payment.updated_at.strftime('%d/%m/%Y') if payment.updated_at else '-') }}
+            </p>
+        </div>
+        <div class="d-flex gap-2">
+            <a class="btn btn-outline-secondary" href="{{ url_for('payments.payment_index') }}#tab-history">
+                <i class="bi bi-arrow-left"></i> Torna all'elenco
+            </a>
+            {% if payment.document_id %}
+                <a class="btn btn-primary" href="{{ url_for('documents.detail_view', document_id=payment.document_id) }}">
+                    <i class="bi bi-file-earmark-text"></i> Documento principale
+                </a>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if payment_document %}
+        <div class="alert alert-info d-flex justify-content-between align-items-center">
+            <div>
+                <div class="fw-bold mb-1">Pagamento cumulativo (Documento #{{ payment_document.id }})</div>
+                <div class="text-muted small">
+                    {{ payment_document.file_name }} · Tipo: {{ payment_document.payment_type }} · Stato: {{ payment_document.status }}
+                </div>
+            </div>
+            <span class="badge bg-light text-dark">Caricato {{ payment_document.uploaded_at.strftime('%d/%m/%Y') if payment_document.uploaded_at }}</span>
+        </div>
+    {% endif %}
+
+    <div class="row g-3">
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Riepilogo</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex align-items-baseline justify-content-between mb-3">
+                        <div>
+                            <div class="text-muted small">Importo complessivo</div>
+                            <div class="fs-3 fw-bold">{{ "%.2f"|format(total_paid) }} &euro;</div>
+                            <small class="text-muted">{{ documents_count }} documenti saldati</small>
+                        </div>
+                        <span class="status-badge status-{{ payment.status }}">{{ payment.status }}</span>
+                    </div>
+                    <dl class="row mb-0">
+                        <dt class="col-5 text-muted">Data pagamento</dt>
+                        <dd class="col-7">{{ payment.paid_date.strftime('%d/%m/%Y') if payment.paid_date else '-' }}</dd>
+
+                        <dt class="col-5 text-muted">Metodo</dt>
+                        <dd class="col-7">{{ payment.payment_method or (payment_document.payment_type if payment_document else '-') }}</dd>
+
+                        <dt class="col-5 text-muted">Note</dt>
+                        <dd class="col-7">{{ payment.notes or '-' }}</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Documenti nel pagamento</h5>
+                    <span class="badge bg-light text-dark">{{ related_payments|length }} movimenti</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive scrollable-list">
+                        <table class="table table-hover table-striped mb-0 align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Documento</th>
+                                    <th>Fornitore</th>
+                                    <th class="text-end">Totale documento</th>
+                                    <th class="text-end">Pagato</th>
+                                    <th>Stato</th>
+                                    <th class="text-end">Azioni</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for p in related_payments %}
+                                    {% set doc = p.document %}
+                                    <tr>
+                                        <td>
+                                            {% if doc %}
+                                                <div class="fw-bold">{{ doc.document_number or ('Documento #' ~ doc.id) }}</div>
+                                                <small class="text-muted">ID {{ doc.id }}</small>
+                                            {% else %}
+                                                <span class="text-muted">Documento non disponibile</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if doc and doc.supplier %}
+                                                <a href="{{ url_for('suppliers.detail_view', supplier_id=doc.supplier_id) }}" class="text-decoration-none fw-bold">
+                                                    {{ doc.supplier.name }}
+                                                </a>
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-end">{{ "%.2f"|format(doc.total_gross_amount or 0) }} &euro;</td>
+                                        <td class="text-end">{{ "%.2f"|format(p.paid_amount or p.expected_amount or 0) }} &euro;</td>
+                                        <td>
+                                            <span class="status-badge status-{{ p.status }}">{{ p.status }}</span>
+                                        </td>
+                                        <td class="text-end">
+                                            {% if doc %}
+                                                <a href="{{ url_for('documents.detail_view', document_id=doc.id) }}" class="btn btn-sm btn-outline-primary">
+                                                    <i class="bi bi-box-arrow-up-right"></i> Apri documento
+                                                </a>
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% else %}
+                                    <tr>
+                                        <td colspan="6" class="text-center py-4 text-muted">
+                                            Nessun documento collegato a questo pagamento.
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

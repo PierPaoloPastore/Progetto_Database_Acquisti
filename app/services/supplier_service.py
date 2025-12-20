@@ -18,13 +18,14 @@ def list_active_suppliers() -> List[Supplier]:
         return uow.suppliers.list_active()
 
 
-def list_suppliers_with_stats() -> List[Dict[str, Any]]:
+def list_suppliers_with_stats(search_term: Optional[str] = None) -> List[Dict[str, Any]]:
     """
     Restituisce l'elenco dei fornitori attivi con statistiche.
+    Consente filtraggio per nome, P.IVA o CF.
     """
     with UnitOfWork() as uow:
-        # 1. Recupera fornitori attivi dal repo
-        suppliers = uow.suppliers.list_active()
+        # 1. Recupera fornitori attivi dal repo (con filtro opzionale)
+        suppliers = uow.suppliers.search_active(search_term)
         results: List[Dict[str, Any]] = []
 
         # 2. Arricchisce con statistiche (query legacy usando la sessione UoW)

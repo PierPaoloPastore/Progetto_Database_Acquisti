@@ -4,7 +4,7 @@ Route per la gestione dei Documenti.
 from __future__ import annotations
 
 import os
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional
 from flask import (
     Blueprint, render_template, render_template_string, request, redirect, url_for, flash, abort, send_file, current_app
@@ -87,7 +87,9 @@ def review_loop_invoice_view(document_id: int):
 
     document = DocumentService.get_document_by_id(document_id)
     if document is None: abort(404)
-    return render_template('documents/review.html', invoice=document)
+    from app.services.settings_service import get_setting
+    default_xsl = get_setting("DEFAULT_XSL_STYLE", "ordinaria")
+    return render_template('documents/review.html', invoice=document, today=date.today(), default_xsl=default_xsl)
 
 @documents_bp.route("/review/<int:document_id>/delete", methods=["POST"])
 def delete_document(document_id: int):

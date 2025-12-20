@@ -29,7 +29,7 @@
                     </div>
                     <div class="col-6">
                         <label class="form-label fw-bold">Registrazione</label>
-                        <input type="date" name="registration_date" class="form-control" value="{{ invoice.registration_date }}">
+                        <input type="date" name="registration_date" class="form-control" value="{{ invoice.registration_date or today }}">
                     </div>
                     <div class="col-6">
                         <label class="form-label fw-bold">Scadenza</label>
@@ -88,13 +88,13 @@
             <div class="p-2 border-bottom d-flex align-items-center gap-2">
                 <label class="form-label mb-0 small text-muted">Foglio di stile AE</label>
                 <select id="xsl-style-selector" class="form-select form-select-sm" style="max-width: 240px;">
-                    <option value="asso">Foglio AssoSoftware</option>
-                    <option value="ordinaria" selected>Fattura Ordinaria (AE)</option>
-                    <option value="vfsm10">Fattura Semplificata VFSM10 (AE)</option>
+                    <option value="asso" {% if default_xsl == 'asso' %}selected{% endif %}>Foglio AssoSoftware</option>
+                    <option value="ordinaria" {% if default_xsl == 'ordinaria' %}selected{% endif %}>Fattura Ordinaria (AE)</option>
+                    <option value="vfsm10" {% if default_xsl == 'vfsm10' %}selected{% endif %}>Fattura Semplificata VFSM10 (AE)</option>
                 </select>
             </div>
             <iframe id="xsl-preview-frame"
-                    src="{{ url_for('documents.preview_visual', document_id=invoice.id) }}"
+                    src="{{ url_for('documents.preview_visual', document_id=invoice.id, style=default_xsl or 'ordinaria') }}"
                     class="w-100 flex-grow-1 border-0"
                     style="display: block;"
                     title="Anteprima Documento">

@@ -11,6 +11,8 @@ from app.services.payment_service import (
     add_payment,
     create_batch_payment,
     delete_payment,
+    get_payment_event_detail,
+    list_paid_payments,
     list_payments_by_document,
     list_overdue_payments_for_ui,
 )
@@ -25,10 +27,10 @@ def payment_index():
     Mostra la dashboard dei pagamenti (Scadenzario / Inbox).
     """
     today = date.today()
+    overdue_invoices = list_overdue_payments_for_ui()
+    payment_history = list_paid_payments()
 
     with UnitOfWork() as uow:
-        overdue_invoices = list_overdue_payments_for_ui()
-
         all_unpaid_invoices = (
             uow.session.query(Document)
             .filter(
@@ -43,6 +45,7 @@ def payment_index():
         "payments/inbox.html",
         overdue_invoices=overdue_invoices,
         all_unpaid_invoices=all_unpaid_invoices,
+        payment_history=payment_history,
         today=today,
     )
 
@@ -150,3 +153,16 @@ def batch_payment():
         flash(f"Errore durante il pagamento cumulativo: {exc}", "danger")
 
     return redirect(url_for("payments.payment_index"))
+
+
+@payments_bp.route("/history/<int:payment_id>", methods=["GET"], endpoint="payment_detail_view")
+def payment_detail_view(payment_id: int):
+    """
+    Mostra il dettaglio di un pagamento e dei documenti collegati.
+    """
+    detail = get_payment_event_detail(payment_id)
+    if not detail:
+        flash("Pagamento non trovato.", "warning")
+        return redirect(url_for("payments.payment_index") + "#tab-history")
+
+    return render_template("payments/detail.html", **detail)

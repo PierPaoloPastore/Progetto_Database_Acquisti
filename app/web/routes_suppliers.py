@@ -28,10 +28,12 @@ def list_view():
     - numero fatture
     - totale importi fatturati
     """
-    suppliers_stats = list_suppliers_with_stats()
+    search_term = request.args.get("q") or None
+    suppliers_stats = list_suppliers_with_stats(search_term=search_term)
     return render_template(
         "suppliers/list.html",
         suppliers_stats=suppliers_stats,
+        search_term=search_term or "",
     )
 
 

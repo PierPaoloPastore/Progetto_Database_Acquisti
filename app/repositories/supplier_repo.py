@@ -7,6 +7,7 @@ import logging
 
 from app.models import Supplier
 from app.repositories.base import SqlAlchemyRepository
+from sqlalchemy import or_
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,29 @@ class SupplierRepository(SqlAlchemyRepository[Supplier]):
     def list_all_ordered(self) -> List[Supplier]:
         """Restituisce tutti i fornitori ordinati per nome."""
         return self.session.query(Supplier).order_by(Supplier.name.asc()).all()
+
+    def search_active(self, term: Optional[str]) -> List[Supplier]:
+        """
+        Cerca fornitori attivi per nome, P.IVA o CF (case-insensitive).
+        Se term è vuoto, restituisce la lista attiva completa.
+        """
+        if not term or not term.strip():
+            return self.list_active()
+
+        pattern = f"%{term.strip()}%"
+        return (
+            self.session.query(Supplier)
+            .filter(
+                Supplier.is_active.is_(True),
+                or_(
+                    Supplier.name.ilike(pattern),
+                    Supplier.vat_number.ilike(pattern),
+                    Supplier.fiscal_code.ilike(pattern),
+                ),
+            )
+            .order_by(Supplier.name.asc())
+            .all()
+        )
 
     def get_or_create_from_dto(self, data: Any) -> Supplier:
         """

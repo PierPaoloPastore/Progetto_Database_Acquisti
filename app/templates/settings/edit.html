@@ -17,13 +17,16 @@
                 </div>
                 <div class="card-body">
                     <form method="post">
-                        
+
                         <div class="mb-4">
                             <label for="scan_inbox" class="form-label fw-bold">Cartella Inbox Scansioni</label>
                             <div class="input-group">
                                 <span class="input-group-text"><i class="bi bi-inbox"></i></span>
                                 <input type="text" class="form-control font-monospace" id="scan_inbox" name="scan_inbox" 
                                        value="{{ scan_inbox }}" placeholder="/percorso/assoluto/inbox">
+                                <button class="btn btn-outline-secondary" type="button" data-clip-target="#scan_inbox">
+                                    Incolla percorso
+                                </button>
                             </div>
                             <div class="form-text">
                                 Cartella dove vengono salvate le scansioni dai multifunzione di rete.
@@ -36,9 +39,26 @@
                                 <span class="input-group-text"><i class="bi bi-archive"></i></span>
                                 <input type="text" class="form-control font-monospace" id="copy_storage" name="copy_storage" 
                                        value="{{ copy_storage }}" placeholder="/percorso/assoluto/storage">
+                                <button class="btn btn-outline-secondary" type="button" data-clip-target="#copy_storage">
+                                    Incolla percorso
+                                </button>
                             </div>
                             <div class="form-text">
                                 Cartella dove il sistema organizza e archivia i PDF rinominati (YYYY/MM).
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <div class="mb-4">
+                            <label for="default_xsl" class="form-label fw-bold">Foglio di stile predefinito (preview documenti)</label>
+                            <select id="default_xsl" name="default_xsl" class="form-select">
+                                <option value="ordinaria" {% if default_xsl == 'ordinaria' %}selected{% endif %}>Fattura Ordinaria (AE)</option>
+                                <option value="asso" {% if default_xsl == 'asso' %}selected{% endif %}>Foglio AssoSoftware</option>
+                                <option value="vfsm10" {% if default_xsl == 'vfsm10' %}selected{% endif %}>Fattura Semplificata VFSM10 (AE)</option>
+                            </select>
+                            <div class="form-text">
+                                Usato come default in revisione documenti; può essere cambiato al volo nella pagina di review.
                             </div>
                         </div>
 
@@ -56,4 +76,39 @@
         </div>
     </div>
 </div>
+
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const buttons = document.querySelectorAll("[data-clip-target]");
+
+    const pasteInto = async (input) => {
+        if (!input) return;
+        if (navigator.clipboard && navigator.clipboard.readText) {
+            try {
+                const text = await navigator.clipboard.readText();
+                if (text) {
+                    input.value = text.trim();
+                }
+                return;
+            } catch (err) {
+                console.warn("Clipboard read failed, fallback to prompt", err);
+            }
+        }
+        const manual = prompt("Incolla il percorso della cartella:");
+        if (manual !== null) {
+            input.value = manual.trim();
+        }
+    };
+
+    buttons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+            const targetSelector = btn.getAttribute("data-clip-target");
+            const input = document.querySelector(targetSelector);
+            pasteInto(input);
+        });
+    });
+});
+</script>
+{% endblock %}
 {% endblock %}

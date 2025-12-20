@@ -8,22 +8,48 @@ function setupTabSwitching() {
     const tabButtons = document.querySelectorAll("[data-tab-target]");
     const sections = document.querySelectorAll(".tab-section");
 
+    const activateTab = (targetId) => {
+        let found = false;
+
+        tabButtons.forEach((btn) => {
+            const isTarget = btn.getAttribute("data-tab-target") === targetId;
+            btn.classList.toggle("active", isTarget);
+            if (isTarget) found = true;
+        });
+
+        sections.forEach((section) => {
+            section.classList.toggle("d-none", section.id !== targetId);
+        });
+
+        if (found) {
+            history.replaceState(null, "", `#${targetId}`);
+        }
+    };
+
     tabButtons.forEach((btn) => {
         btn.addEventListener("click", (event) => {
             event.preventDefault();
             const target = btn.getAttribute("data-tab-target");
 
-            tabButtons.forEach((b) => b.classList.remove("active"));
-            btn.classList.add("active");
-
-            sections.forEach((section) => {
-                if (section.id === target) {
-                    section.classList.remove("d-none");
-                } else {
-                    section.classList.add("d-none");
-                }
-            });
+            activateTab(target);
         });
+    });
+
+    const initialHash = window.location.hash ? window.location.hash.replace("#", "") : "";
+    const defaultTarget =
+        initialHash ||
+        document.querySelector("[data-tab-target].active")?.getAttribute("data-tab-target") ||
+        sections[0]?.id;
+
+    if (defaultTarget) {
+        activateTab(defaultTarget);
+    }
+
+    window.addEventListener("hashchange", () => {
+        const target = window.location.hash ? window.location.hash.replace("#", "") : "";
+        if (target) {
+            activateTab(target);
+        }
     });
 }
 

@@ -9,6 +9,8 @@ from datetime import date
 from decimal import Decimal
 from typing import List, Optional, Sequence
 
+from sqlalchemy.orm import joinedload
+
 from werkzeug.utils import secure_filename
 
 from app.models import Document, Payment, PaymentDocument
@@ -82,6 +84,66 @@ def delete_payment(payment_id: int) -> bool:
         
         logger.info(f"Pagamento {payment_id} cancellato")
         return True
+
+
+def list_paid_payments() -> List[Payment]:
+    """
+    Elenca i pagamenti eseguiti (stato paid/partial) ordinati per data di pagamento.
+    """
+    with UnitOfWork() as uow:
+        payments = (
+            uow.session.query(Payment)
+            .options(
+                joinedload(Payment.document).joinedload(Document.supplier),
+                joinedload(Payment.payment_document),
+            )
+            .filter(Payment.status.in_(["paid", "partial"]))
+            .order_by(Payment.paid_date.desc(), Payment.updated_at.desc())
+            .all()
+        )
+        return payments
+
+
+def get_payment_event_detail(payment_id: int) -> Optional[dict]:
+    """
+    Recupera un pagamento e, se appartiene a un documento di pagamento,
+    restituisce anche tutti i movimenti collegati allo stesso pagamento cumulativo.
+    """
+    with UnitOfWork() as uow:
+        payment = (
+            uow.session.query(Payment)
+            .options(
+                joinedload(Payment.document).joinedload(Document.supplier),
+                joinedload(Payment.payment_document),
+            )
+            .get(payment_id)
+        )
+        if not payment:
+            return None
+
+        if payment.payment_document_id:
+            related_payments = (
+                uow.session.query(Payment)
+                .options(joinedload(Payment.document).joinedload(Document.supplier))
+                .filter(Payment.payment_document_id == payment.payment_document_id)
+                .order_by(Payment.id.asc())
+                .all()
+            )
+            payment_document = payment.payment_document
+        else:
+            related_payments = [payment]
+            payment_document = None
+
+        total_paid = float(sum(float(p.paid_amount or 0) for p in related_payments))
+        documents_count = len({p.document_id for p in related_payments if p.document_id})
+
+        return {
+            "payment": payment,
+            "payment_document": payment_document,
+            "related_payments": related_payments,
+            "total_paid": total_paid,
+            "documents_count": documents_count,
+        }
 
 
 def create_batch_payment(
