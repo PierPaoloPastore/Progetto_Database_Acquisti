@@ -56,13 +56,35 @@ def list_view():
 @documents_bp.route("/review/list", methods=["GET"])
 def review_list_view():
     order = request.args.get("order", "desc")
-    documents = doc_service.list_documents_to_review(order=order, document_type=None)
-    next_doc = doc_service.get_next_document_to_review(order=order, document_type=None)
+    raw_legal_entity_id = request.args.get("legal_entity_id") or None
+    legal_entity_id = None
+    if raw_legal_entity_id:
+        try:
+            legal_entity_id = int(raw_legal_entity_id)
+        except ValueError:
+            legal_entity_id = None
+
+    documents = doc_service.list_documents_to_review(
+        order=order,
+        document_type=None,
+        legal_entity_id=legal_entity_id,
+    )
+    next_doc = doc_service.get_next_document_to_review(
+        order=order,
+        document_type=None,
+        legal_entity_id=legal_entity_id,
+    )
+    from app.repositories.legal_entity_repo import list_legal_entities
+    legal_entities = list_legal_entities(include_inactive=False)
+    le_counts = doc_service.count_documents_to_review_by_legal_entity()
 
     return render_template(
         "documents/review_list.html",
         invoices=documents, 
         next_invoice=next_doc,
+        legal_entities=legal_entities,
+        selected_legal_entity_id=legal_entity_id,
+        le_counts=le_counts,
         order=order,
     )
 

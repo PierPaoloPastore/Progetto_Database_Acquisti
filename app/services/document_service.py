@@ -140,13 +140,30 @@ def reject_document(document_id: int):
 def delete_document(document_id: int) -> bool:
     return DocumentService.delete_document(document_id)
 
-def list_documents_to_review(order: str = "desc", document_type: Optional[str] = None):
+def list_documents_to_review(order: str = "desc", document_type: Optional[str] = None, legal_entity_id: Optional[int] = None):
     with UnitOfWork() as uow:
-        return uow.documents.list_imported(document_type=document_type, order=order)
+        return uow.documents.list_imported(
+            document_type=document_type,
+            order=order,
+            legal_entity_id=legal_entity_id,
+        )
 
-def get_next_document_to_review(order: str = "desc", document_type: Optional[str] = None):
+def get_next_document_to_review(order: str = "desc", document_type: Optional[str] = None, legal_entity_id: Optional[int] = None):
     with UnitOfWork() as uow:
-        return uow.documents.get_next_imported(document_type=document_type, order=order)
+        return uow.documents.get_next_imported(
+            document_type=document_type,
+            order=order,
+            legal_entity_id=legal_entity_id,
+        )
+
+def count_documents_to_review_by_legal_entity() -> dict[int | None, int]:
+    """Ritorna un mapping legal_entity_id -> count di documenti imported."""
+    with UnitOfWork() as uow:
+        rows = uow.documents.count_imported_by_legal_entity()
+        counts = {}
+        for le_id, cnt in rows:
+            counts[le_id] = cnt
+        return counts
 
 def request_physical_copy(document_id: int):
     with UnitOfWork() as uow:

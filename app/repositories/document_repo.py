@@ -121,20 +121,44 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
 
         return query.all()
 
-    def list_imported(self, document_type: Optional[str] = None, order: str = "desc") -> List[Document]:
+    def list_imported(
+        self,
+        document_type: Optional[str] = None,
+        order: str = "desc",
+        legal_entity_id: Optional[int] = None,
+    ) -> List[Document]:
         """Restituisce documenti in stato 'imported' (da revisionare)."""
         query = self.session.query(Document).filter(Document.doc_status == "imported")
         if document_type:
             query = query.filter(Document.document_type == document_type)
+        if legal_entity_id is not None:
+            query = query.filter(Document.legal_entity_id == legal_entity_id)
         
         sort_order = Document.document_date.asc() if order == "asc" else Document.document_date.desc()
         return query.order_by(sort_order).all()
 
-    def get_next_imported(self, document_type: Optional[str] = None, order: str = "desc") -> Optional[Document]:
+    def count_imported_by_legal_entity(self) -> List[tuple[int, int]]:
+        """Ritorna (legal_entity_id, count) per documenti imported."""
+        rows = (
+            self.session.query(Document.legal_entity_id, func.count(Document.id))
+            .filter(Document.doc_status == "imported")
+            .group_by(Document.legal_entity_id)
+            .all()
+        )
+        return rows
+
+    def get_next_imported(
+        self,
+        document_type: Optional[str] = None,
+        order: str = "desc",
+        legal_entity_id: Optional[int] = None,
+    ) -> Optional[Document]:
         """Recupera il prossimo documento da revisionare."""
         query = self.session.query(Document).filter(Document.doc_status == "imported")
         if document_type:
             query = query.filter(Document.document_type == document_type)
+        if legal_entity_id is not None:
+            query = query.filter(Document.legal_entity_id == legal_entity_id)
             
         sort_order = Document.document_date.asc() if order == "asc" else Document.document_date.desc()
         return query.order_by(sort_order).first()
