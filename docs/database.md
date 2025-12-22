@@ -80,6 +80,8 @@ CREATE TABLE suppliers (
   city VARCHAR(128),
   province VARCHAR(64),
   country VARCHAR(64),
+  typical_due_rule VARCHAR(32) NULL,   -- regola scadenza tipica (es. end_of_month, net_30, net_60, immediate)
+  typical_due_days INT NULL,           -- alternativa numerica (giorni di differimento)
   is_active TINYINT(1) NOT NULL DEFAULT 1,
   created_at DATETIME NOT NULL,
   updated_at DATETIME NOT NULL
@@ -96,6 +98,7 @@ CREATE TABLE suppliers (
 - Relazionato a `payment_documents.supplier_id`
 - Relazionato a `delivery_notes.supplier_id`
 - Relazionato a `rent_contracts.supplier_id`
+- `typical_due_rule` / `typical_due_days` vengono usati come fallback per calcolare la scadenza delle fatture quando `due_date` manca o coincide con la data documento. Default operativo: `end_of_month`.
 
 #### `legal_entities`
 Rappresenta l'intestatario "interno" (le varie società / partite IVA dell'azienda).

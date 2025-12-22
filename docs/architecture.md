@@ -44,6 +44,7 @@ Last updated: 2025-12-15
   - `Supplier`
     Fornitore esterno (ragione sociale, P.IVA/CF, contatti).
     Codice fiscale salvato nel campo `fiscal_code`.
+    Campi scadenza tipica: `typical_due_rule` (whitelist: end_of_month, next_month_day_1, net_30, net_60, immediate) e `typical_due_days` (0–365) usati come fallback per calcolare `due_date` delle fatture se assente o uguale a `document_date`; default operativo: `end_of_month`.
   - `LegalEntity`
     Intestatario interno (società/partita IVA dell'azienda).
     Il codice fiscale è gestito tramite la colonna `fiscal_code`.

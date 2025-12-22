@@ -26,6 +26,7 @@ from .supplier_service import (
     list_suppliers_with_stats,
     get_supplier_detail,
     list_active_suppliers, # Aggiunto
+    update_supplier,
 )
 from .category_service import (
     list_categories_for_ui,
@@ -74,6 +75,7 @@ __all__ = [
     "list_suppliers_with_stats",
     "get_supplier_detail",
     "list_active_suppliers",
+    "update_supplier",
     # Categories
     "list_categories_for_ui",
     "create_or_update_category",

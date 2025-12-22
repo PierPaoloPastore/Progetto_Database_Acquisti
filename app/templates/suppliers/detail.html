@@ -8,9 +8,14 @@
         <h1>
             <span class="text-muted fs-4">Fornitore:</span> {{ supplier.name }}
         </h1>
-        <a href="{{ url_for('suppliers.list_view') }}" class="btn btn-secondary">
-            <i class="bi bi-arrow-left"></i> Torna all'elenco
-        </a>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('suppliers.list_view') }}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Torna all'elenco
+            </a>
+            <a class="btn btn-outline-primary" href="#edit-supplier" id="enable-edit-btn">
+                <i class="bi bi-pencil"></i> Modifica
+            </a>
+        </div>
     </div>
 
     {% if legal_entities %}
@@ -86,21 +91,117 @@
                     {% if account_snapshot %}
                     <div class="row mb-3 border-bottom pb-2">
                         <div class="col text-muted">Totale Documenti</div>
-                        <div class="col text-end fw-bold fs-5">{{ "%.2f"|format(account_snapshot.expected_total or 0) }} €</div>
+                        <div class="col text-end fw-bold fs-5">{{ "%.2f"|format(account_snapshot.expected_total or 0) }} ƒ'ª</div>
                     </div>
                     <div class="row mb-3 border-bottom pb-2">
                         <div class="col text-muted">Totale Saldato</div>
-                        <div class="col text-end text-success fw-bold fs-5">{{ "%.2f"|format(account_snapshot.paid_total or 0) }} €</div>
+                        <div class="col text-end text-success fw-bold fs-5">{{ "%.2f"|format(account_snapshot.paid_total or 0) }} ƒ'ª</div>
                     </div>
                     <div class="row mt-2">
                         <div class="col text-uppercase fw-bold text-muted">Residuo da pagare</div>
-                        <div class="col text-end text-danger fw-bold fs-4">{{ "%.2f"|format(account_snapshot.residual or 0) }} €</div>
+                        <div class="col text-end text-danger fw-bold fs-4">{{ "%.2f"|format(account_snapshot.residual or 0) }} ƒ'ª</div>
                     </div>
                     {% else %}
                     <p class="text-center text-muted">Nessun dato contabile disponibile.</p>
                     {% endif %}
                 </div>
             </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4" id="edit-supplier">
+        <div class="card-header bg-white">
+            <h5 class="mb-0"><i class="bi bi-pencil"></i> Modifica fornitore</h5>
+        </div>
+        <div class="card-body">
+            <form method="post"
+                  action="{{ url_for('suppliers.edit_view', supplier_id=supplier.id) }}"
+                  class="row g-3"
+                  id="edit-supplier-form">
+                <div class="col-md-6">
+                    <label class="form-label">Ragione Sociale</label>
+                    <input type="text" name="name" class="form-control" value="{{ supplier.name }}" required
+                           data-editable="true" disabled>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">P.IVA</label>
+                    <input type="text" name="vat_number" class="form-control" value="{{ supplier.vat_number or '' }}"
+                           data-editable="true" disabled>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Cod. Fiscale</label>
+                    <input type="text" name="fiscal_code" class="form-control" value="{{ supplier.fiscal_code or '' }}"
+                           data-editable="true" disabled>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Cod. SDI</label>
+                    <input type="text" name="sdi_code" class="form-control" value="{{ supplier.sdi_code or '' }}"
+                           data-editable="true" disabled>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">PEC</label>
+                    <input type="email" name="pec_email" class="form-control" value="{{ supplier.pec_email or '' }}"
+                           data-editable="true" disabled>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Email</label>
+                    <input type="email" name="email" class="form-control" value="{{ supplier.email or '' }}"
+                           data-editable="true" disabled>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Telefono</label>
+                    <input type="text" name="phone" class="form-control" value="{{ supplier.phone or '' }}"
+                           data-editable="true" disabled>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Regola scadenza tipica</label>
+                    <select name="typical_due_rule" class="form-select" data-editable="true" disabled>
+                        <option value="" {% if not supplier.typical_due_rule %}selected{% endif %}>-- Usa default --</option>
+                        <option value="end_of_month" {% if supplier.typical_due_rule == "end_of_month" %}selected{% endif %}>Ultimo giorno del mese</option>
+                        <option value="next_month_day_1" {% if supplier.typical_due_rule == "next_month_day_1" %}selected{% endif %}>1° del mese successivo</option>
+                        <option value="net_30" {% if supplier.typical_due_rule == "net_30" %}selected{% endif %}>30 giorni</option>
+                        <option value="net_60" {% if supplier.typical_due_rule == "net_60" %}selected{% endif %}>60 giorni</option>
+                        <option value="immediate" {% if supplier.typical_due_rule == "immediate" %}selected{% endif %}>Immediata</option>
+                    </select>
+                    <small class="text-muted">Usata se la fattura non ha scadenza o coincide con l'emissione.</small>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Giorni personalizzati</label>
+                    <input type="number" name="typical_due_days" class="form-control" min="0" max="365"
+                           value="{{ supplier.typical_due_days or '' }}" data-editable="true" disabled>
+                    <small class="text-muted">Alternativa alla regola (0-365).</small>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Indirizzo</label>
+                    <input type="text" name="address" class="form-control" value="{{ supplier.address or '' }}"
+                           data-editable="true" disabled>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">CAP</label>
+                    <input type="text" name="postal_code" class="form-control" value="{{ supplier.postal_code or '' }}"
+                           data-editable="true" disabled>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Città</label>
+                    <input type="text" name="city" class="form-control" value="{{ supplier.city or '' }}"
+                           data-editable="true" disabled>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Provincia</label>
+                    <input type="text" name="province" class="form-control" value="{{ supplier.province or '' }}"
+                           data-editable="true" disabled>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Nazione</label>
+                    <input type="text" name="country" class="form-control" value="{{ supplier.country or '' }}"
+                           data-editable="true" disabled>
+                </div>
+                <div class="col-12 d-flex justify-content-end">
+                    <button type="submit" class="btn btn-success" id="save-supplier-btn" disabled>
+                        <i class="bi bi-save"></i> Salva modifiche
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -128,7 +229,7 @@
                           <td>{{ inv.document_date.strftime('%d/%m/%Y') if inv.document_date else '-' }}</td>
                           <td class="fw-bold">{{ inv.document_number }}</td>
                           <td class="text-end font-monospace">
-                              {{ "%.2f"|format(inv.total_gross_amount or 0) }} €
+                              {{ "%.2f"|format(inv.total_gross_amount or 0) }} ƒ'ª
                           </td>
                           <td>
                               <span class="badge bg-light text-dark border">{{ inv.doc_status }}</span>
@@ -153,4 +254,21 @@
         </div>
     </div>
 </div>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const enableButton = document.getElementById('enable-edit-btn');
+    const form = document.getElementById('edit-supplier-form');
+    const editableFields = form ? form.querySelectorAll('[data-editable]') : [];
+    const saveButton = document.getElementById('save-supplier-btn');
+
+    enableButton?.addEventListener('click', function () {
+        editableFields.forEach(function (field) {
+            field.removeAttribute('disabled');
+        });
+        if (saveButton) {
+            saveButton.removeAttribute('disabled');
+        }
+    });
+});
+</script>
 {% endblock %}

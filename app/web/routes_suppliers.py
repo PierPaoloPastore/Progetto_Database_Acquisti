@@ -13,6 +13,7 @@ from flask import Blueprint, render_template, redirect, request, url_for, flash
 from app.services import (
     list_suppliers_with_stats,
     get_supplier_detail,
+    update_supplier,
 )
 
 suppliers_bp = Blueprint("suppliers", __name__)
@@ -72,3 +73,30 @@ def detail_view(supplier_id: int):
         "suppliers/detail.html",
         **detail,
     )
+
+
+@suppliers_bp.route("/<int:supplier_id>/edit", methods=["POST"])
+def edit_view(supplier_id: int):
+    data = request.form
+    supplier = update_supplier(
+        supplier_id=supplier_id,
+        name=data.get("name"),
+        vat_number=data.get("vat_number"),
+        fiscal_code=data.get("fiscal_code"),
+        sdi_code=data.get("sdi_code"),
+        pec_email=data.get("pec_email"),
+        email=data.get("email"),
+        phone=data.get("phone"),
+        address=data.get("address"),
+        postal_code=data.get("postal_code"),
+        city=data.get("city"),
+        province=data.get("province"),
+        country=data.get("country"),
+        typical_due_rule=data.get("typical_due_rule"),
+        typical_due_days=data.get("typical_due_days"),
+    )
+    if supplier is None:
+        flash("Fornitore non trovato.", "warning")
+    else:
+        flash("Fornitore aggiornato.", "success")
+    return redirect(url_for("suppliers.detail_view", supplier_id=supplier_id))

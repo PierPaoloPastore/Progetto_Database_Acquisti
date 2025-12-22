@@ -89,6 +89,8 @@ class SupplierRepository(SqlAlchemyRepository[Supplier]):
 
         if not supplier:
             logger.info("Fornitore non trovato, creazione: %s", name)
+            typical_due_rule = _get(data, "typical_due_rule") or "end_of_month"
+            typical_due_days = _get(data, "typical_due_days")
             supplier = Supplier(
                 name=name,
                 vat_number=vat_number,
@@ -102,6 +104,8 @@ class SupplierRepository(SqlAlchemyRepository[Supplier]):
                 city=_get(data, "city"),
                 province=_get(data, "province"),
                 country=_get(data, "country") or "IT",
+                typical_due_rule=typical_due_rule,
+                typical_due_days=typical_due_days,
                 is_active=True
             )
             self.add(supplier)

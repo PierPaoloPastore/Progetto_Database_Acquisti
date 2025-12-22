@@ -127,12 +127,12 @@
                 </div>
                 <div class="col">
                     <label class="visually-hidden">Importo min</label>
-                    <input type="number" step="0.01" name="min_total" class="form-control form-control-sm" placeholder="Importo ≥"
+                    <input type="number" step="0.01" name="min_total" class="form-control form-control-sm" placeholder="Importo €"
                            value="{{ filters.min_total if filters.min_total is not none else '' }}">
                 </div>
                 <div class="col">
                     <label class="visually-hidden">Importo max</label>
-                    <input type="number" step="0.01" name="max_total" class="form-control form-control-sm" placeholder="Importo ≤"
+                    <input type="number" step="0.01" name="max_total" class="form-control form-control-sm" placeholder="Importo €"
                            value="{{ filters.max_total if filters.max_total is not none else '' }}">
                 </div>
                 <div class="col d-flex align-items-end gap-2">
@@ -149,21 +149,9 @@
                 <table class="table table-hover table-striped mb-0 align-middle documents-table">
                     <thead class="table-light">
                     <tr>
-                        <th class="text-center" style="width: 80px;">Tipo</th>
-                        <th>
-                            <a class="sort-link {% if sort_field != 'date' %}inactive{% endif %}" href="{{ date_url }}">
-                                Data
-                                {% if sort_field == 'date' %}
-                                    {% if sort_dir == 'asc' %}
-                                        <i class="bi bi-caret-up-fill"></i>
-                                    {% else %}
-                                        <i class="bi bi-caret-down-fill"></i>
-                                    {% endif %}
-                                {% else %}
-                                    <i class="bi bi-caret-up-fill"></i>
-                                {% endif %}
-                            </a>
-                        </th>
+                        <th>Intestatario</th>
+                        <th>Fornitore / Controparte</th>
+                        <th class="text-center" style="width: 80px;">Tipo Doc.</th>
                         <th>
                             <a class="sort-link {% if sort_field != 'number' %}inactive{% endif %}" href="{{ number_url }}">
                                 Numero
@@ -178,8 +166,20 @@
                                 {% endif %}
                             </a>
                         </th>
-                        <th>Fornitore / Controparte</th>
-                        <th>Intestatario</th>
+                        <th>
+                            <a class="sort-link {% if sort_field != 'date' %}inactive{% endif %}" href="{{ date_url }}">
+                                Data
+                                {% if sort_field == 'date' %}
+                                    {% if sort_dir == 'asc' %}
+                                        <i class="bi bi-caret-up-fill"></i>
+                                    {% else %}
+                                        <i class="bi bi-caret-down-fill"></i>
+                                    {% endif %}
+                                {% else %}
+                                    <i class="bi bi-caret-up-fill"></i>
+                                {% endif %}
+                            </a>
+                        </th>
                         <th class="text-end">Importo</th>
                         <th class="text-center">Stato</th>
                         <th class="text-end">Azioni</th>
@@ -188,6 +188,18 @@
                     <tbody>
                     {% for doc in documents %}
                       <tr>
+                          <td>
+                              {% if doc.legal_entity %}
+                                <small class="text-muted">{{ doc.legal_entity.name|truncate(15) }}</small>
+                              {% else %}
+                                <small class="text-muted">-</small>
+                              {% endif %}
+                          </td>
+                          <td>
+                              <div class="text-truncate" style="max-width: 200px;" title="{{ doc.supplier.name if doc.supplier else '' }}">
+                                  {{ doc.supplier.name if doc.supplier else 'N/D' }}
+                              </div>
+                          </td>
                           <td class="text-center">
                               {% if doc.document_type == 'invoice' %}
                                 <span class="badge bg-primary text-uppercase" style="font-size: 0.75rem;">Fattura</span>
@@ -199,21 +211,8 @@
                                 <span class="badge bg-secondary text-uppercase" style="font-size: 0.75rem;">{{ doc.document_type }}</span>
                               {% endif %}
                           </td>
-                          
-                          <td>{{ doc.document_date.strftime('%d/%m/%Y') if doc.document_date else '-' }}</td>
                           <td class="fw-bold text-nowrap">{{ doc.document_number or 'N/D' }}</td>
-                          <td>
-                              <div class="text-truncate" style="max-width: 200px;" title="{{ doc.supplier.name if doc.supplier else '' }}">
-                                  {{ doc.supplier.name if doc.supplier else 'N/D' }}
-                              </div>
-                          </td>
-                          <td>
-                              {% if doc.legal_entity %}
-                                <small class="text-muted">{{ doc.legal_entity.name|truncate(15) }}</small>
-                              {% else %}
-                                <small class="text-muted">-</small>
-                              {% endif %}
-                          </td>
+                          <td>{{ doc.document_date.strftime('%d/%m/%Y') if doc.document_date else '-' }}</td>
                           <td class="text-end font-monospace fw-bold">
                               {{ "%.2f"|format(doc.total_gross_amount or 0) }} €
                           </td>

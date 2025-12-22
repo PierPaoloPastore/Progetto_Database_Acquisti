@@ -30,6 +30,10 @@ class Supplier(db.Model):
     province = db.Column(db.String(64), nullable=True)
     country = db.Column(db.String(64), nullable=True, default="IT")
 
+    # Regola di scadenza tipica (fallback per fatture senza scadenza)
+    typical_due_rule = db.Column(db.String(32), nullable=True)
+    typical_due_days = db.Column(db.Integer, nullable=True)
+
     # Stato
     is_active = db.Column(db.Boolean, nullable=False, default=True)
 

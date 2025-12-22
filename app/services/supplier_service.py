@@ -106,3 +106,73 @@ def get_supplier_detail(
             "selected_legal_entity_id": legal_entity_id,
             "account_snapshot": account_snapshot,
         }
+
+
+def update_supplier(
+    supplier_id: int,
+    *,
+    name: Optional[str] = None,
+    vat_number: Optional[str] = None,
+    fiscal_code: Optional[str] = None,
+    sdi_code: Optional[str] = None,
+    pec_email: Optional[str] = None,
+    email: Optional[str] = None,
+    phone: Optional[str] = None,
+    address: Optional[str] = None,
+    postal_code: Optional[str] = None,
+    city: Optional[str] = None,
+    province: Optional[str] = None,
+    country: Optional[str] = None,
+    typical_due_rule: Optional[str] = None,
+    typical_due_days: Optional[int] = None,
+) -> Optional[Supplier]:
+    """Aggiorna campi base di un fornitore."""
+    with UnitOfWork() as uow:
+        supplier = uow.suppliers.get_by_id(supplier_id)
+        if not supplier:
+            return None
+
+        def _clean(val: Optional[str]) -> Optional[str]:
+            if val is None:
+                return None
+            val = val.strip()
+            return val or None
+
+        def _validate_rule(rule: Optional[str]) -> Optional[str]:
+            allowed = {"end_of_month", "net_30", "net_60", "immediate", "next_month_day_1"}
+            if not rule:
+                return None
+            rule = rule.strip()
+            return rule if rule in allowed else None
+
+        def _validate_days(raw: Optional[int | str]) -> Optional[int]:
+            if raw in (None, ""):
+                return None
+            try:
+                days = int(raw)  # type: ignore[arg-type]
+            except (TypeError, ValueError):
+                return None
+            if days < 0 or days > 365:
+                return None
+            return days
+
+        if name is not None:
+            supplier.name = name.strip()
+        supplier.vat_number = _clean(vat_number)
+        supplier.fiscal_code = _clean(fiscal_code)
+        supplier.sdi_code = _clean(sdi_code)
+        supplier.pec_email = _clean(pec_email)
+        supplier.email = _clean(email)
+        supplier.phone = _clean(phone)
+        supplier.address = _clean(address)
+        supplier.postal_code = _clean(postal_code)
+        supplier.city = _clean(city)
+        supplier.province = _clean(province)
+        supplier.country = _clean(country)
+
+        # Regola scadenza tipica
+        supplier.typical_due_rule = _validate_rule(typical_due_rule)
+        supplier.typical_due_days = _validate_days(typical_due_days)
+
+        uow.commit()
+        return supplier

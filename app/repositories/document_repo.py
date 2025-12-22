@@ -4,16 +4,20 @@ Gestisce tutte le operazioni CRUD e di ricerca su tabella 'documents'.
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Dict, List, Optional, Tuple
+from calendar import monthrange
+import logging
 
 from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 
-from app.models import ImportLog, Document, DocumentLine, LegalEntity, Payment, VatSummary
+from app.models import ImportLog, Document, DocumentLine, LegalEntity, Payment, Supplier, VatSummary
 from app.repositories.base import SqlAlchemyRepository
 from app.parsers.fatturapa_parser import InvoiceDTO, InvoiceLineDTO, PaymentDTO, VatSummaryDTO
+
+logger = logging.getLogger(__name__)
 
 class DocumentRepository(SqlAlchemyRepository[Document]):
     def __init__(self, session):
@@ -237,6 +241,9 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
         taxable = taxable if taxable is not None else Decimal("0")
         vat = vat if vat is not None else Decimal("0")
 
+        supplier = self.session.get(Supplier, supplier_id)
+        effective_due_date, used_fallback = _resolve_due_date(invoice_dto, supplier)
+
         doc = Document(
             supplier_id=supplier_id,
             legal_entity_id=legal_entity_id,
@@ -248,7 +255,7 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
             total_vat_amount=vat,
             total_gross_amount=gross,
             doc_status=invoice_dto.doc_status,
-            due_date=invoice_dto.due_date,
+            due_date=effective_due_date,
             file_name=invoice_dto.file_name,
             import_source=import_source,
         )
@@ -267,6 +274,19 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
         if invoice_dto.payments:
             for pay_dto in invoice_dto.payments:
                 self._create_payment(doc, pay_dto)
+
+        if used_fallback:
+            logger.info(
+                "Scadenza calcolata da regola fornitore",
+                extra={
+                    "supplier_id": supplier_id,
+                    "document_id": doc.id,
+                    "due_date": effective_due_date.isoformat() if effective_due_date else None,
+                    "invoice_date": invoice_dto.invoice_date.isoformat() if invoice_dto.invoice_date else None,
+                    "typical_due_rule": getattr(supplier, "typical_due_rule", None),
+                    "typical_due_days": getattr(supplier, "typical_due_days", None),
+                },
+            )
 
         return doc, True
 
@@ -306,3 +326,55 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
         self.session.add(payment)
         if doc.due_date is None and dto.due_date:
             doc.due_date = dto.due_date
+
+
+def _end_of_month(base: date) -> date:
+    last_day = monthrange(base.year, base.month)[1]
+    return date(base.year, base.month, last_day)
+
+
+def _next_month_day_1(base: date) -> date:
+    year = base.year + (1 if base.month == 12 else 0)
+    month = 1 if base.month == 12 else base.month + 1
+    return date(year, month, 1)
+
+
+def _apply_rule(base: date, rule: Optional[str], days: Optional[int]) -> date:
+    """
+    Applica regola o giorni custom; default = end_of_month.
+    """
+    if rule == "immediate":
+        return base
+    if rule == "net_30":
+        return base + timedelta(days=30)
+    if rule == "net_60":
+        return base + timedelta(days=60)
+    if rule == "next_month_day_1":
+        return _next_month_day_1(base)
+    if rule == "end_of_month":
+        return _end_of_month(base)
+    if days is not None:
+        return base + timedelta(days=days)
+    # Default assoluto: ultimo giorno del mese della data base
+    return _end_of_month(base)
+
+
+def _resolve_due_date(invoice_dto: InvoiceDTO, supplier: Optional[Supplier]) -> tuple[Optional[date], bool]:
+    """
+    Ritorna (due_date, used_fallback) applicando la regola del fornitore
+    se la scadenza manca o coincide con la data documento.
+    """
+    original_due = invoice_dto.due_date
+    invoice_date = invoice_dto.invoice_date
+    base_date = invoice_date or invoice_dto.registration_date or date.today()
+    rule = getattr(supplier, "typical_due_rule", None)
+    days = getattr(supplier, "typical_due_days", None)
+
+    if original_due and invoice_date and original_due != invoice_date:
+        return original_due, False
+
+    if original_due is None or (invoice_date and original_due == invoice_date):
+        computed_due = _apply_rule(base_date, rule, days)
+        return computed_due, True
+
+    return original_due, False
