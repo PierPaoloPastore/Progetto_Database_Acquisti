@@ -1,5 +1,7 @@
 # Project Overview
 
+Nota: documento storico. Il parsing FatturaPA attuale usa xsdata come percorso principale con fallback legacy e pulizia dei tag P7M; vedi `docs/architecture.md` e `docs/fatturapa/PARSING_REFERENCE.md`.
+
 ## Obiettivo
 
 Questo progetto è una webapp Flask/Python per gestire l’intero ciclo di vita dei **documenti di acquisto** dell’azienda e del relativo ciclo passivo.
@@ -147,10 +149,13 @@ Report aggregati per tipo documento (fatture, F24, assicurazioni, ecc.).
   - revisione fatture,
   - gestione scadenziario,
   - gestione DDT mancanti (incluse azioni rapide, es. email precompilate per richiesta copie).
-- **Refactoring Tecnico Parser (Versione 2.0)**:
-  - Migrazione dal parsing manuale basato su `lxml` all'uso di **`xsdata`** per la generazione automatica di DTO.
+- **Parser FatturaPA (Versione 2.0)**:
+  - Migrazione a **xsdata** attiva; parser principale xsdata con fallback legacy lxml per P7M corrotti.
   - Obiettivo: garantire **Type Safety** completa e **copertura al 100% delle specifiche** FatturaPA partendo dagli schemi XSD ufficiali dell'Agenzia delle Entrate.
   - Vantaggi:
     - Riduzione drastica della manutenzione del codice di parsing,
     - Supporto automatico di tutti i campi previsti dallo standard,
     - Maggiore resilienza ai cambiamenti dello schema XML ufficiale.
+  - Note future:
+    - Ridurre il fallback legacy,
+    - Aggiungere test automatici su P7M sporchi.

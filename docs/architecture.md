@@ -9,7 +9,7 @@ Last updated: 2025-12-15
 - SQLAlchemy (ORM)
 - MySQL (mysql+pymysql)
 - Jinja2 templates
-- lxml per parsing XML FatturaPA
+- xsdata + lxml per parsing XML/P7M FatturaPA (xsdata primary, fallback legacy)
 - Logging JSON con RotatingFileHandler
 
 > **Pattern Repository + Unit of Work**
@@ -178,21 +178,24 @@ I repository incapsulano le query SQLAlchemy e centralizzano la logica di access
 
 ### 6. Parsing Layer
 
+- `app/parsers/fatturapa_parser_v2.py`
+  - Parser principale basato su **xsdata** con classi generate in `app/parsers/xsd_generated`.
+  - Converte XML/P7M in DTO compatibili con i servizi.
+  - Se xsdata fallisce o non trova body, tenta fallback al parser legacy.
 - `app/parsers/fatturapa_parser.py`
-  - **Implementazione attuale**: parsing manuale tramite **`lxml`** con XPath namespace-agnostic
-  - Definisce i DTO (`InvoiceDTO`, `SupplierDTO`, `InvoiceLineDTO`, `PaymentDTO`, `VatSummaryDTO`, ecc.)
-  - Effettua il parsing della struttura FatturaPA:
-    - testata fattura,
-    - righe,
-    - riepilogo IVA,
-    - scadenze principali,
-    - riferimenti DDT per fatture differite,
-  - Supporta file `.xml` nativi e `.p7m` (firma digitale PKCS#7)
-  - Restituisce DTO pronti per l'uso in `import_service`
+  - Parser legacy (lxml + XPath namespace-agnostic) usato come fallback.
+  - Definisce i DTO condivisi (`InvoiceDTO`, `SupplierDTO`, `InvoiceLineDTO`, `PaymentDTO`, `VatSummaryDTO`, ecc.).
+  - Gestione P7M:
+    - detection base64/DER,
+    - pulizia control char e byte non ASCII nei nomi tag,
+    - fallback encoding (cp1252/latin-1),
+    - `recover=True` solo come ultima spiaggia.
+  - Dump diagnostici in `import_debug/` quando necessario.
 
 Il layer di parsing è isolato dal resto del dominio: legge XML FatturaPA e non si occupa di come i dati vengono poi salvati.
 
-> **Nota sulla roadmap tecnica**: l'implementazione attuale con `lxml` è manuale e copre i campi essenziali del formato FatturaPA. Per la **Versione 2.0** è pianificata la migrazione a **`xsdata`**, che genererà automaticamente i DTO partendo dagli schemi XSD ufficiali dell'Agenzia delle Entrate, garantendo copertura completa delle specifiche e manutenibilità superiore.
+> **Nota sullo stato**: la migrazione a xsdata è attiva con fallback legacy per P7M/XML corrotti e casi limite.
+> **Note future**: consolidare xsdata come percorso principale, ridurre il fallback e aggiungere test automatici su P7M sporchi/encoding borderline.
 
 ### 7. Web & API Layer
 
@@ -252,14 +255,17 @@ Quando si progettano nuove feature, è importante:
   - **servizi applicativi**,
   - **presentazione** (UI/API).
 
-### Evoluzione del Parser FatturaPA (Versione 2.0)
+### Evoluzione del Parser FatturaPA
 
-È stata presa la decisione architetturale di **migrare il parser FatturaPA** dall'attuale implementazione manuale con `lxml` all'uso di **`xsdata`**.
+La migrazione a **xsdata** è attiva come percorso principale, con fallback legacy per i casi corrotti.
 
 **Motivazioni strategiche**:
-- **Type Safety**: generazione automatica di dataclass Python tipizzate partendo dagli schemi XSD ufficiali dell'Agenzia delle Entrate
-- **Copertura completa**: supporto garantito al 100% di tutti i campi previsti dalla specifica FatturaPA (inclusi quelli opzionali o poco comuni)
-- **Manutenibilità**: riduzione drastica del codice di parsing custom e semplificazione degli aggiornamenti futuri dello schema
-- **Resilienza**: adattamento automatico ai cambiamenti degli schemi XSD ufficiali tramite rigenerazione dei DTO
+- **Type Safety**: generazione automatica di dataclass Python tipizzate partendo dagli schemi XSD ufficiali dell'Agenzia delle Entrate.
+- **Copertura completa**: supporto completo dei campi previsti dalla specifica FatturaPA.
+- **Manutenibilità**: riduzione del codice di parsing custom e semplificazione degli aggiornamenti futuri dello schema.
+- **Resilienza**: adattamento ai cambiamenti degli schemi XSD tramite rigenerazione dei DTO.
 
-Questa migrazione sarà implementata in una iterazione maggiore successiva, mantenendo l'interfaccia dei DTO attuali per garantire retro-compatibilità con i servizi esistenti.
+**Note future**:
+- consolidare xsdata riducendo il fallback legacy,
+- aggiungere test automatizzati su P7M con tag corrotti/encoding sporco,
+- documentare ogni nuova regola di normalizzazione nel parsing reference.

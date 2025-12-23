@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<?xml-stylesheet type="text/xsl" href="fatturapa_v1.2.xsl"?>
+<p:FatturaElettronica versione="FPR12" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:p="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<FatturaElettronicaHeader>
+		<DatiTrasmissione>
+			<IdTrasmittente>
+				<IdPaese>IT</IdPaese>
+				<IdCodice>05141260652     </IdCodice>
+			</IdTrasmittente>
+			<ProgressivoInvio>CDVM</ProgressivoInvio>
+			<FormatoTrasmissione>FPR12</FormatoTrasmissione>
+			<CodiceDestinatario>USAL8PV</CodiceDestinatario>
+		</DatiTrasmissione>
+		<CedentePrestatore>
+			<DatiAnagrafici>
+				<IdFiscaleIVA>
+					<IdPaese>IT</IdPaese>
+					<IdCodice>00182830653</IdCodice>
+				</IdFiscaleIVA>
+				<CodiceFiscale>00182830653</CodiceFiscale>
+				<Anagrafica>
+					<Denominazione>Edilcom Srl</Denominazione>
+				</Anagrafica>
+				<RegimeFiscale>RF01</RegimeFiscale>
+			</DatiAnagrafici>
+			<Sede>
+				<‚èIndirizzo>via Belvedere 195        </Indirizzo>
+				<CAP>84091</CAP>
+				<Comune>BATTIPAGLIA</Comune>
+				<Provincia>SA</Provincia>
+				<Nazione>IT</Nazione>
+			</Sede>
+			<IscrizioneREA>
+				<Ufficio>SA</Ufficio>
+				<NumeroREA>125181</NumeroREA>
+				<CapitaleSociale>51480.00</CapitaleSociale>
+				<SocioUnico>SM</SocioUnico>
+				<StatoLiquidazione>LN</StatoLiquidazione>
+			</IscrizioneREA>
+			<Contatti>
+				<Telefono>0828671301</Telefono>
+				<Email>edilcombattipaglia@pec.it</Email>
+			</Contatti>
+		</CedentePrestatore>
+		<CessionarioCommittente>
+			<DatiAnagrafici>
+				<IdFiscaleIVA>
+					<IdPaese>IT</IdPaese>
+					<IdCodice>01941170654</IdCodice>
+				</IdFiscaleIVA>
+				<Anagrafica>
+					<Denominazione>PASTORE FRANCESCO</Denominazione>
+				</Anagrafica>
+			</DatiAnagrafici>
+			<Sede>
+				<Indirizzo>VIA SPINETA Nø 65/A</Indirizzo>
+				<CAP>84091</CAP>
+				<Comune>BATTIPAGLIA</Comune>
+				<Provincia>SA</Provincia>
+				<Nazione>IT</Nazione>
+			</Sede>
+		</CessionarioCommittente>
+		<Ter‚èzoIntermediarioOSoggettoEmittente>
+			<DatiAnagrafici>
+				<IdFiscaleIVA>
+					<IdPaese>IT</IdPaese>
+					<IdCodice>05141260652     </IdCodice>
+				</IdFiscaleIVA>
+				<Anagrafica>
+					<Denominazione>SAVINO SOLUTION</Denominazione>
+				</Anagrafica>
+			</DatiAnagrafici>
+		</TerzoIntermediarioOSoggettoEmittente>
+		<SoggettoEmittente>TZ</SoggettoEmittente>
+	</FatturaElettronicaHeader>
+	<FatturaElettronicaBody>
+		<DatiGenerali>
+			<DatiGeneraliDocumento>
+				<TipoDocumento>TD01</TipoDocumento>
+				<Divisa>EUR</Divisa>
+				<Data>2020-09-30</Data>
+				<Numero> 137/A</Numero>
+				<ImportoTotaleDocumento>74.99</ImportoTotaleDocumento>
+				<Causale>CODICE CIG ¨¡@</Causale>
+			</DatiGeneraliDocumento>
+			<DatiDDT>
+				<NumeroDDT>   482</NumeroDDT>
+				<DataDDT>2020-09-11</DataDDT>
+				<RiferimentoNumeroLinea>1</RiferimentoNumeroLinea>
+			</DatiDDT>
+		</DatiGenerali>
+		<DatiBeniServizi>
+			<DettaglioLinee>
+				<NumeroLinea>1</NumeroLinea>
+				<CodiceArticolo>
+					<CodiceTipo>INTERNO</CodiceTip‚‚o>
+					<CodiceValore>IV00019       </CodiceValore>
+				</CodiceArticolo>
+				<Descrizione>OLIVER HYVORI CASSETTA A ZAINO</Descrizione>
+				<Quantita>3.00</Quantita>
+				<UnitaMisura>NR</UnitaMisura>
+				<PrezzoUnitario>20.49</PrezzoUnitario>
+				<PrezzoTotale>61.47</PrezzoTotale>
+				<AliquotaIVA>22.00</AliquotaIVA>
+			</DettaglioLinee>
+			<DatiRiepilogo>
+				<AliquotaIVA>22.00</AliquotaIVA>
+				<ImponibileImporto>61.47</ImponibileImporto>
+				<Imposta>13.52</Imposta>
+				<EsigibilitaIVA>I</EsigibilitaIVA>
+			</DatiRiepilogo>
+		</DatiBeniServizi>
+		<DatiPagamento>
+			<CondizioniPagamento>TP02</CondizioniPagamento>
+			<DettaglioPagamento>
+				<ModalitaPagamento>MP01</ModalitaPagamento>
+				<DataScadenzaPagamento>2020-10-30</DataScadenzaPagamento>
+				<ImportoPagamento>74.99</ImportoPagamento>
+			</DettaglioPagamento>
+		</DatiPagamento>
+	</FatturaElettronicaBody>
+</p:FatturaElettronica>

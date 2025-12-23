@@ -7,7 +7,7 @@ Questo progetto è una webapp Flask monolitica per la gestione delle fatture di 
 - services (business logic)
 - web (views + templates)
 - api (endpoint JSON)
-- parsers per FatturaPA
+- parsers per FatturaPA (xsdata primary + legacy fallback, P7M cleaning)
 - MySQL come database
 
 ## Coding Style

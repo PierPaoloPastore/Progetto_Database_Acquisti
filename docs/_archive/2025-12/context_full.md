@@ -1,5 +1,7 @@
 # Progetto Database Acquisti
 
+Nota: documento storico. Il parsing FatturaPA attuale usa xsdata come percorso principale con fallback legacy e pulizia dei tag P7M; vedi `docs/architecture.md` e `docs/fatturapa/PARSING_REFERENCE.md`.
+
 ## Panoramica del Progetto
 
 **Progetto Database Acquisti** è un'applicazione web basata su Flask per la gestione completa del ciclo di vita dei documenti di acquisto (principalmente fatture elettroniche italiane FatturaPA) e del ciclo passivo per un'azienda.
@@ -10,7 +12,7 @@
 - **Database**: MySQL 8.x (mysql+pymysql)
 - **ORM**: SQLAlchemy
 - **Template Engine**: Jinja2
-- **Parsing XML**: lxml (per FatturaPA)
+- **Parsing XML**: xsdata + lxml (legacy fallback) per FatturaPA
 - **Logging**: JSON structured logging con RotatingFileHandler
 
 ## Architettura

@@ -1,5 +1,7 @@
 # Gestionale Acquisti - Flask + MySQL
 
+Nota: documento storico. Il parsing FatturaPA attuale usa xsdata come percorso principale con fallback legacy e pulizia dei tag P7M; vedi `docs/architecture.md` e `docs/fatturapa/PARSING_REFERENCE.md`.
+
 Applicazione monolitica Flask per la gestione delle fatture di acquisto, con import da XML FatturaPA.
 
 ## Requisiti

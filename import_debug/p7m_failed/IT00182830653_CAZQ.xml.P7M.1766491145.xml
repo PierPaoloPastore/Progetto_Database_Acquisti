@@ -1,0 +1,348 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<?xml-stylesheet type="text/xsl" href="fatturapa_v1.2.xsl"?>
+<p:FatturaElettronica versione="FPR12" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:p="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<FatturaElettronicaHeader>
+		<DatiTrasmissione>
+			<IdTrasmittente>
+				<IdPaese>IT</IdPaese>
+				<IdCodice>05141260652     </IdCodice>
+			</IdTrasmittente>
+			<ProgressivoInvio>CAZQ</ProgressivoInvio>
+			<FormatoTrasmissione>FPR12</FormatoTrasmissione>
+			<CodiceDestinatario>USAL8PV</CodiceDestinatario>
+		</DatiTrasmissione>
+		<CedentePrestatore>
+			<DatiAnagrafici>
+				<IdFiscaleIVA>
+					<IdPaese>IT</IdPaese>
+					<IdCodice>00182830653</IdCodice>
+				</IdFiscaleIVA>
+				<CodiceFiscale>00182830653</CodiceFiscale>
+				<Anagrafica>
+					<Denominazione>Edilcom Srl</Denominazione>
+				</Anagrafica>
+				<RegimeFiscale>RF01</RegimeFiscale>
+			</DatiAnagrafici>
+			<Sede>
+				<‚èIndirizzo>via Belvedere 195        </Indirizzo>
+				<CAP>84091</CAP>
+				<Comune>BATTIPAGLIA</Comune>
+				<Provincia>SA</Provincia>
+				<Nazione>IT</Nazione>
+			</Sede>
+			<IscrizioneREA>
+				<Ufficio>SA</Ufficio>
+				<NumeroREA>125181</NumeroREA>
+				<CapitaleSociale>51480.00</CapitaleSociale>
+				<SocioUnico>SM</SocioUnico>
+				<StatoLiquidazione>LN</StatoLiquidazione>
+			</IscrizioneREA>
+			<Contatti>
+				<Telefono>0828671301</Telefono>
+				<Email>edilcombattipaglia@pec.it</Email>
+			</Contatti>
+		</CedentePrestatore>
+		<CessionarioCommittente>
+			<DatiAnagrafici>
+				<IdFiscaleIVA>
+					<IdPaese>IT</IdPaese>
+					<IdCodice>01941170654</IdCodice>
+				</IdFiscaleIVA>
+				<Anagrafica>
+					<Denominazione>PASTORE FRANCESCO</Denominazione>
+				</Anagrafica>
+			</DatiAnagrafici>
+			<Sede>
+				<Indirizzo>VIA SPINETA Nø 65/A</Indirizzo>
+				<CAP>84091</CAP>
+				<Comune>BATTIPAGLIA</Comune>
+				<Provincia>SA</Provincia>
+				<Nazione>IT</Nazione>
+			</Sede>
+		</CessionarioCommittente>
+		<Ter‚èzoIntermediarioOSoggettoEmittente>
+			<DatiAnagrafici>
+				<IdFiscaleIVA>
+					<IdPaese>IT</IdPaese>
+					<IdCodice>05141260652     </IdCodice>
+				</IdFiscaleIVA>
+				<Anagrafica>
+					<Denominazione>SAVINO SOLUTION</Denominazione>
+				</Anagrafica>
+			</DatiAnagrafici>
+		</TerzoIntermediarioOSoggettoEmittente>
+		<SoggettoEmittente>TZ</SoggettoEmittente>
+	</FatturaElettronicaHeader>
+	<FatturaElettronicaBody>
+		<DatiGenerali>
+			<DatiGeneraliDocumento>
+				<TipoDocumento>TD01</TipoDocumento>
+				<Divisa>EUR</Divisa>
+				<Data>2020-05-27</Data>
+				<Numero>   221</Numero>
+				<ImportoTotaleDocumento>325.95</ImportoTotaleDocumento>
+			</DatiGeneraliDocumento>
+			<DatiTrasporto>
+				<MezzoTrasporto>DESTINATARIO</MezzoTrasporto>
+				<Descrizione>A VISTA</Descrizione>
+				<DataInizioTrasporto>2020-05-27</DataInizioTrasporto>
+			</DatiTrasporto>
+		</DatiGenerali>
+		<DatiBeniServizi>
+			<DettaglioLinee>
+				<NumeroLinea>1</NumeroLinea>
+				<CodiceArticolo>
+					<CodiceTipo>INTERNO</CodiceTipo‚è>
+					<CodiceValore>IR00903       </CodiceValore>
+				</CodiceArticolo>
+				<Descrizione>RIVER RUBINETTO PULSANTE PAVIMENTO </Descrizione>
+				<Quantita>1.00</Quantita>
+				<UnitaMisura>NR</UnitaMisura>
+				<PrezzoUnitario>62.00</PrezzoUnitario>
+				<PrezzoTotale>62.00</PrezzoTotale>
+				<AliquotaIVA>22.00</AliquotaIVA>			</DettaglioLinee>
+			<DettaglioLinee>
+				<NumeroLinea>2</NumeroLinea>
+				<CodiceArticolo>
+					<CodiceTipo>INTERNO</CodiceTipo>
+					<CodiceValore>DG06219       </CodiceValore>
+				</CodiceArticolo>
+				<Descrizione>GUARN.TECNICA 0 EST.50-INT.26/32 </Descrizione>
+				<Quantita>3.00</Quantita>
+				<UnitaMisura>NR</UnitaMisura>
+				<PrezzoUnitario>1.54</PrezzoUnitario>
+				<PrezzoTotale>4.62</PrezzoTotale>
+				<AliquotaIVA>22.00</AliquotaIVA>			</DettaglioLinee>
+			<DettaglioLinee>
+				<NumeroLinea>3</NumeroLinea>
+				<CodiceArticolo>
+					<CodiceTipo>INTERNO</CodiceTipo>
+					<CodiceValore>DG05103       </CodiceValore>
+				</CodiceArticolo>
+				<Descrizione>REDI CUR‚èVA TECNICA    0  50 </Descrizione>
+				<Quantita>3.00</Quantita>
+				<UnitaMisura>NR</UnitaMisura>
+				<PrezzoUnitario>2.079</PrezzoUnitario>
+				<PrezzoTotale>6.24</PrezzoTotale>
+				<AliquotaIVA>22.00</AliquotaIVA>			</DettaglioLinee>
+			<DettaglioLinee>
+				<NumeroLinea>4</NumeroLinea>
+				<CodiceArticolo>
+					<CodiceTipo>INTERNO</CodiceTipo>
+					<CodiceValore>DG04502       </CodiceValore>
+				</CodiceArticolo>
+				<Descrizione>REDI AUMENTO ECCENTRICO 32X50 </Descrizione>
+				<Quantita>3.00</Quantita>
+				<UnitaMisura>NR</UnitaMisura>
+				<PrezzoUnitario>1.69</PrezzoUnitario>
+				<PrezzoTotale>5.07</PrezzoTotale>
+				<AliquotaIVA>22.00</AliquotaIVA>			</DettaglioLinee>
+			<DettaglioLinee>
+				<NumeroLinea>5</NumeroLinea>
+				<CodiceArticolo>
+					<CodiceTipo>INTERNO</CodiceTipo>
+					<CodiceValore>DG02201       </CodiceValore>
+				</CodiceArticolo>
+				<Descrizione>REDI CURVA A 45           0   32 </Descrizione>
+				<Quantita>9.00</Quantita>
+				<UnitaMisura>NR</UnitaMisura>
+				<‚èPrezzoUnitario>1.03</PrezzoUnitario>
+				<PrezzoTotale>9.27</PrezzoTotale>
+				<AliquotaIVA>22.00</AliquotaIVA>			</DettaglioLinee>
+			<DettaglioLinee>
+				<NumeroLinea>6</NumeroLinea>
+				<CodiceArticolo>
+					<CodiceTipo>INTERNO</CodiceTipo>
+					<CodiceValore>DG02203       </CodiceValore>
+				</CodiceArticolo>
+				<Descrizione>REDI CURVA A 45'          0   50 </Descrizione>
+				<Quantita>6.00</Quantita>
+				<UnitaMisura>NR</UnitaMisura>
+				<PrezzoUnitario>1.21</PrezzoUnitario>
+				<PrezzoTotale>7.26</PrezzoTotale>
+				<AliquotaIVA>22.00</AliquotaIVA>			</DettaglioLinee>
+			<DettaglioLinee>
+				<NumeroLinea>7</NumeroLinea>
+				<CodiceArticolo>
+					<CodiceTipo>INTERNO</CodiceTipo>
+					<CodiceValore>DG02209       </CodiceValore>
+				</CodiceArticolo>
+				<Descrizione>REDI CURVA A 45ø          0  110 </Descrizione>
+				<Quantita>3.00</Quantita>
+				<UnitaMisura>NR</UnitaMisura>
+				<PrezzoUnitario>1.54</PrezzoUnitario>
+				<PrezzoTotale>4.62</PrezzoTotale>
+				<AliquotaIVA>22.00</Ali‚èquotaIVA>			</DettaglioLinee>
+			<DettaglioLinee>
+				<NumeroLinea>8</NumeroLinea>
+				<CodiceArticolo>
+					<CodiceTipo>INTERNO</CodiceTipo>
+					<CodiceValore>DG03719       </CodiceValore>
+				</CodiceArticolo>
+				<Descrizione>REDI BRAGA RIDOTTA  45' 110/50 </Descrizione>
+				<Quantita>3.00</Quantita>
+				<UnitaMisura>NR</UnitaMisura>
+				<PrezzoUnitario>3.94</PrezzoUnitario>
+				<PrezzoTotale>11.82</PrezzoTotale>
+				<AliquotaIVA>22.00</AliquotaIVA>			</DettaglioLinee>
+			<DettaglioLinee>
+				<NumeroLinea>9</NumeroLinea>
+				<CodiceArticolo>
+					<CodiceTipo>INTERNO</CodiceTipo>
+					<CodiceValore>DG06518       </CodiceValore>
+				</CodiceArticolo>
+				<Descrizione>CURVA WC X SCARICO A PAVIMENTO 0 110 </Descrizione>
+				<Quantita>3.00</Quantita>
+				<UnitaMisura>NR</UnitaMisura>
+				<PrezzoUnitario>8.30</PrezzoUnitario>
+				<PrezzoTotale>24.90</PrezzoTotale>
+				<AliquotaIVA>22.00</AliquotaIVA>			</DettaglioLinee>
+			<DettaglioLinee>
+				<NumeroLinea>10</NumeroLinea>
+				<CodiceArt‚èicolo>
+					<CodiceTipo>INTERNO</CodiceTipo>
+					<CodiceValore>DG06540       </CodiceValore>
+				</CodiceArticolo>
+				<Descrizione>REDI MANICOTTO  MM 230  0 110 </Descrizione>
+				<Quantita>3.00</Quantita>
+				<UnitaMisura>NR</UnitaMisura>
+				<PrezzoUnitario>6.14</PrezzoUnitario>
+				<PrezzoTotale>18.42</PrezzoTotale>
+				<AliquotaIVA>22.00</AliquotaIVA>			</DettaglioLinee>
+			<DettaglioLinee>
+				<NumeroLinea>11</NumeroLinea>
+				<CodiceArticolo>
+					<CodiceTipo>INTERNO</CodiceTipo>
+					<CodiceValore>DG01303       </CodiceValore>
+				</CodiceArticolo>
+				<Descrizione>REDI TUBO 2 BIC. MT.1,50 0   50 </Descrizione>
+				<Quantita>1.00</Quantita>
+				<UnitaMisura>NR</UnitaMisura>
+				<PrezzoUnitario>4.77</PrezzoUnitario>
+				<PrezzoTotale>4.77</PrezzoTotale>
+				<AliquotaIVA>22.00</AliquotaIVA>			</DettaglioLinee>
+			<DettaglioLinee>
+				<NumeroLinea>12</NumeroLinea>
+				<CodiceArticolo>
+					<CodiceTipo>INTERNO</CodiceTipo>
+					<CodiceValore>DG01301       </CodiceValore>
+				</Cod‚èiceArticolo>
+				<Descrizione>REDI TUBO 2 BIC. MT.1,5  0   32 </Descrizione>
+				<Quantita>2.00</Quantita>
+				<UnitaMisura>NR</UnitaMisura>
+				<PrezzoUnitario>3.38</PrezzoUnitario>
+				<PrezzoTotale>6.76</PrezzoTotale>
+				<AliquotaIVA>22.00</AliquotaIVA>			</DettaglioLinee>
+			<DettaglioLinee>
+				<NumeroLinea>13</NumeroLinea>
+				<CodiceArticolo>
+					<CodiceTipo>INTERNO</CodiceTipo>
+					<CodiceValore>DG01403       </CodiceValore>
+				</CodiceArticolo>
+				<Descrizione>REDI TUBO 2 BIC. MT. 1     0  50 </Descrizione>
+				<Quantita>1.00</Quantita>
+				<UnitaMisura>NR</UnitaMisura>
+				<PrezzoUnitario>3.348</PrezzoUnitario>
+				<PrezzoTotale>3.35</PrezzoTotale>
+				<AliquotaIVA>22.00</AliquotaIVA>			</DettaglioLinee>
+			<DettaglioLinee>
+				<NumeroLinea>14</NumeroLinea>
+				<CodiceArticolo>
+					<CodiceTipo>INTERNO</CodiceTipo>
+					<CodiceValore>IV02299       </CodiceValore>
+				</CodiceArticolo>
+				<Descrizione>FLEX PARINOX MF 100 1/2-1/2 PROLUN </Descrizione>
+				<Quantita>3.00</‚èQuantita>
+				<UnitaMisura>NR</UnitaMisura>
+				<PrezzoUnitario>8.00</PrezzoUnitario>
+				<PrezzoTotale>24.00</PrezzoTotale>
+				<AliquotaIVA>22.00</AliquotaIVA>			</DettaglioLinee>
+			<DettaglioLinee>
+				<NumeroLinea>15</NumeroLinea>
+				<CodiceArticolo>
+					<CodiceTipo>INTERNO</CodiceTipo>
+					<CodiceValore>IV02250       </CodiceValore>
+				</CodiceArticolo>
+				<Descrizione>FLEX PARINOX MF 50  1/2-1/2 PROLUN </Descrizione>
+				<Quantita>3.00</Quantita>
+				<UnitaMisura>NR</UnitaMisura>
+				<PrezzoUnitario>4.20</PrezzoUnitario>
+				<PrezzoTotale>12.60</PrezzoTotale>
+				<AliquotaIVA>22.00</AliquotaIVA>			</DettaglioLinee>
+			<DettaglioLinee>
+				<NumeroLinea>16</NumeroLinea>
+				<CodiceArticolo>
+					<CodiceTipo>INTERNO</CodiceTipo>
+					<CodiceValore>IB05404       </CodiceValore>
+				</CodiceArticolo>
+				<Descrizione>MANICOTTI ACCIAIO ZINCATO 268Z 1/2 </Descrizione>
+				<Quantita>3.00</Quantita>
+				<UnitaMisura>NR</UnitaMisura>
+				<PrezzoUnitario>0.42</PrezzoUnitario>
+				<Pre‚èzzoTotale>1.26</PrezzoTotale>
+				<AliquotaIVA>22.00</AliquotaIVA>			</DettaglioLinee>
+			<DettaglioLinee>
+				<NumeroLinea>17</NumeroLinea>
+				<CodiceArticolo>
+					<CodiceTipo>INTERNO</CodiceTipo>
+					<CodiceValore>IV02240       </CodiceValore>
+				</CodiceArticolo>
+				<Descrizione>FLEX PARINOX MF 40  1/2-1/2 PROLUN </Descrizione>
+				<Quantita>3.00</Quantita>
+				<UnitaMisura>NR</UnitaMisura>
+				<PrezzoUnitario>3.99</PrezzoUnitario>
+				<PrezzoTotale>11.97</PrezzoTotale>
+				<AliquotaIVA>22.00</AliquotaIVA>			</DettaglioLinee>
+			<DettaglioLinee>
+				<NumeroLinea>18</NumeroLinea>
+				<CodiceArticolo>
+					<CodiceTipo>INTERNO</CodiceTipo>
+					<CodiceValore>IB35204       </CodiceValore>
+				</CodiceArticolo>
+				<Descrizione>TEE  OTTONE CROMATO  1/2   FF </Descrizione>
+				<Quantita>3.00</Quantita>
+				<UnitaMisura>NR</UnitaMisura>
+				<PrezzoUnitario>3.13</PrezzoUnitario>
+				<PrezzoTotale>9.39</PrezzoTotale>
+				<AliquotaIVA>22.00</AliquotaIVA>			</DettaglioLinee>
+			<Dettaglio‚èLinee>
+				<NumeroLinea>19</NumeroLinea>
+				<CodiceArticolo>
+					<CodiceTipo>INTERNO</CodiceTipo>
+					<CodiceValore>IS00140       </CodiceValore>
+				</CodiceArticolo>
+				<Descrizione>SIFONE A ESSE DA 1"1/4 SENZA PILETT </Descrizione>
+				<Quantita>3.00</Quantita>
+				<UnitaMisura>NR</UnitaMisura>
+				<PrezzoUnitario>8.75</PrezzoUnitario>
+				<PrezzoTotale>26.25</PrezzoTotale>
+				<AliquotaIVA>22.00</AliquotaIVA>			</DettaglioLinee>
+			<DettaglioLinee>
+				<NumeroLinea>20</NumeroLinea>
+				<CodiceArticolo>
+					<CodiceTipo>INTERNO</CodiceTipo>
+					<CodiceValore>IO01956       </CodiceValore>
+				</CodiceArticolo>
+				<Descrizione>RUBINETTO A SFERA 1/2 C/PG. A LEVA </Descrizione>
+				<Quantita>3.00</Quantita>
+				<UnitaMisura>NR</UnitaMisura>
+				<PrezzoUnitario>4.20</PrezzoUnitario>
+				<PrezzoTotale>12.60</PrezzoTotale>
+				<AliquotaIVA>22.00</AliquotaIVA>			</DettaglioLinee>
+			<DatiRiepilogo>
+				<AliquotaIVA>22.00</AliquotaIVA>
+				<ImponibileImporto>267.17</ImponibileImporto>
+‚Æ				<Imposta>58.78</Imposta>
+				<EsigibilitaIVA>I</EsigibilitaIVA>
+			</DatiRiepilogo>
+		</DatiBeniServizi>
+		<DatiPagamento>
+			<CondizioniPagamento>TP02</CondizioniPagamento>
+			<DettaglioPagamento>
+				<ModalitaPagamento>MP01</ModalitaPagamento>
+				<DataScadenzaPagamento>2020-06-27</DataScadenzaPagamento>
+				<ImportoPagamento>325.95</ImportoPagamento>
+			</DettaglioPagamento>
+		</DatiPagamento>
+	</FatturaElettronicaBody>
+</p:FatturaElettronica>

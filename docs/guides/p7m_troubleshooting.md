@@ -5,6 +5,7 @@
 ### 1. Estrazione XML da P7M
 - ✅ Decodifica Base64 automatica
 - ✅ Pulizia caratteri corrotti
+- ✅ Rimozione byte non ASCII nei nomi dei tag (es. `<\x82\xe8Indirizzo>`)
 - ✅ Gestione encoding windows-1252 e UTF-8
 - ✅ Fallback per XML malformati (parser con `recover=True`)
 
@@ -12,6 +13,7 @@
 - ✅ Fallback per supplier name vuoto
 - ✅ Gestione legal_entity da P7M
 - ✅ Error handling per parsing failures
+- ✅ Fallback parser legacy se xsdata fallisce o non trova body
 
 ---
 
@@ -65,13 +67,28 @@ WHERE vat_number = 'XXX';
 **Causa:** XML malformato con typo nei tag (es. `</DatiRieupilogo>` invece di `</DatiRiepilogo>`).
 
 **Soluzione automatica applicata:**
-- Parser lxml con `recover=True` che corregge automaticamente errori XML minori
+- Parser lxml con `recover=True` (ultima spiaggia) che corregge automaticamente errori XML minori
 - Il file viene importato comunque, con warning nel log
 
 **Se persiste:**
 1. Controlla il file XML originale
 2. Correggi manualmente il typo
 3. Ri-importa
+
+---
+
+### ❌ Errore: "Nessun FatturaElettronicaBody trovato"
+
+**Causa:** Tag corrotti con byte non ASCII (es. `<\\x82\\xe8Indirizzo>`); xsdata non riconosce i nodi, quindi i body risultano vuoti.
+
+**Soluzione automatica applicata:**
+- Pulizia dei nomi tag con rimozione byte non ASCII
+- Fallback al parser legacy se xsdata non produce body
+
+**Se persiste:**
+1. Controlla il dump in `import_debug/p7m_failed/`
+2. Verifica che esista `FatturaElettronicaBody` dopo la pulizia
+3. Se necessario, reimporta l'XML ripulito come `.xml` normale
 
 ---
 
@@ -181,7 +198,7 @@ ORDER BY tipo_file, status;
 
 ## ✅ Checklist pre-deployment
 
-- [ ] Sostituisci `app/parsers/fatturapa_parser.py`
+- [ ] Sostituisci `app/parsers/fatturapa_parser_v2.py` e `app/parsers/fatturapa_parser.py`
 - [ ] Sostituisci `app/services/import_service.py`
 - [ ] Verifica che non ci siano conflitti con codice custom
 - [ ] Testa su un subset di file P7M problematici

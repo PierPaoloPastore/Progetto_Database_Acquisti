@@ -24,6 +24,8 @@ Non sostituisce la normativa, ma ne codifica le regole **utili all’implementaz
 - Il namespace XML **non deve influenzare** il parsing (usare local-name).
 - Ogni `FatturaElettronicaBody` rappresenta **un documento applicativo distinto**.
 - L’assenza di un campo obbligatorio genera **non conformità**, ma non sempre blocca il parsing contabile.
+- Prima del parsing: estrazione P7M (base64/DER), pulizia control char, rimozione byte non ASCII nei nomi tag, fallback encoding (cp1252/latin-1). `recover=True` solo come ultima spiaggia.
+- Parser: xsdata come percorso principale; fallback al parser legacy lxml se xsdata fallisce o restituisce 0 body.
 
 ---
 

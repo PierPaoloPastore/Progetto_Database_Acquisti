@@ -16,7 +16,12 @@ from lxml import etree
 from flask import current_app
 
 from app.models import LegalEntity
-from app.parsers.fatturapa_parser import InvoiceDTO, parse_invoice_xml, P7MExtractionError, FatturaPASkipFile
+from app.parsers.fatturapa_parser_v2 import (
+    InvoiceDTO,
+    parse_invoice_xml,
+    P7MExtractionError,
+    FatturaPASkipFile,
+)
 from app.repositories.import_log_repo import create_import_log
 from app.services.unit_of_work import UnitOfWork
 from app.services.logging import log_structured_event

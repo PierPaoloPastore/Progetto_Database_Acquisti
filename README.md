@@ -12,21 +12,21 @@ La webapp modella tutti i documenti economici su un **supertipo unificato** (`do
 - Flussi comuni per revisione, scadenziario, pagamenti e controllo documentale
 
 Funzionalità principali oggi disponibili:
-- **Import e modellazione**: parsing XML/P7M FatturaPA (header, righe, riepiloghi IVA, scadenze, riferimenti DDT) con DTO dedicati.
+- **Import e modellazione**: parsing XML/P7M FatturaPA con xsdata + fallback legacy, pulizia tag corrotti e fallback encoding (header, righe, riepiloghi IVA, scadenze, riferimenti DDT) con DTO dedicati.
 - **Revisione e controllo**: workflow di stato (`imported`, `verified`, `rejected`, `cancelled`, `archived`) e gestione copie fisiche con tracciamento `physical_copy_status`.
 - **Gestione DDT**: `delivery_notes` per DDT attesi da XML e DDT reali importati come PDF, con stato di matching.
 - **Scadenze e pagamenti**: tabella `payments` con più scadenze per documento, stati (`unpaid`, `planned`, `pending`, `partial`, `paid`, `overdue`), riconciliazione con `payment_documents` e legami M:N tramite `payment_document_links`.
 - **Anagrafiche e classificazione**: fornitori (`suppliers`), intestatari (`legal_entities`), categorie (`categories`) collegate alle righe (`invoice_lines`), note operative (`notes`).
 - **Reporting ed export**: export CSV, riepiloghi IVA, estratti conto fornitori/legal entities, scadenziario unificato.
 
-Direzioni di sviluppo già definite includono l’estensione a nuovi documenti (assicurazioni, F24, affitti, tributi, ecc.) mantenendo un unico flusso operativo, e il refactoring del parser verso **`xsdata`** per ottenere type safety e copertura completa degli schemi FatturaPA.
+Direzioni di sviluppo già definite includono l’estensione a nuovi documenti (assicurazioni, F24, affitti, tributi, ecc.) mantenendo un unico flusso operativo, e il consolidamento del parser xsdata (riduzione fallback legacy, test suite, rigenerazione XSD) per mantenere type safety e copertura completa degli schemi FatturaPA.
 
 ## Stack tecnico
 - Python 3.12
 - Flask (app monolitica)
 - SQLAlchemy (ORM) su MySQL (`mysql+pymysql`)
 - Jinja2 templates
-- `lxml` per parsing XML/P7M FatturaPA
+- `xsdata` + `lxml` per parsing XML/P7M FatturaPA (xsdata primary, fallback legacy)
 - Logging JSON con `RotatingFileHandler`
 
 ## Setup rapido
@@ -82,4 +82,4 @@ Linee guida per i contributi: vedi `AGENTS.md`.
 - Integrazione di documenti PDF per assicurazioni, F24, MAV/CBILL, affitti e altri tributi con flussi analoghi a DDT e pagamenti.
 - Automazione della riconciliazione (fatture ↔ DDT; scadenze ↔ documenti di pagamento).
 - Miglioramento UX per revisione fatture, scadenziario e gestione DDT mancanti.
-- **Refactoring Tecnico Parser (Versione 2.0)**: migrazione a `xsdata` per generare DTO dai XSD ufficiali FatturaPA, garantendo type safety e copertura completa dello standard.
+- **Parser FatturaPA**: consolidare xsdata come percorso principale, mantenendo fallback legacy solo per P7M con tag corrotti e aggiungendo test automatizzati su casi sporchi.

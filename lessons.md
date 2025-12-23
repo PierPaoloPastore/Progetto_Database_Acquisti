@@ -17,6 +17,11 @@
 - Keep changes minimal: prefer small CSS tweaks and server-side sorting over heavy JS refactors.
 - For list containers with sticky thead, use a “flush” scroll wrapper (padding 0) to avoid the white gap between header and card/shadow; apply consistently to new lists (documents, payments, scadenziario, etc.).
 
+## FatturaPA / Parsing & P7M
+- Use xsdata as primary path with legacy fallback; log when fallback is used.
+- Clean tag names with non-ASCII bytes before parsing to avoid missing bodies.
+- Keep encoding fallback (cp1252/latin-1); use recover only as last resort; dump to `import_debug/p7m_failed/`.
+
 ## Error Fixes
 - Watch for double `{% endblock %}` and missing imports when adding template features.
 - Compute complex URLs (with dynamic kwargs) in the route/controller and pass them to templates to avoid Jinja syntax issues.

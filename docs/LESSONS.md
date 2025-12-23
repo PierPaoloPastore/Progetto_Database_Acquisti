@@ -14,9 +14,10 @@
 ## FatturaPA / Parsing & P7M
 - **Fonte unica**: seguire sempre `docs/fatturapa/PARSING_REFERENCE.md` per obbligatorietà, fallback e classificazione (imported/skip/error). Non reinterpretare i PDF.
 - **P7M in binario**: aprire `.p7m` sempre in `rb`. Considerare base64 solo se tutti i byte sono nel set base64; altrimenti trattare come DER. Niente decodifica UTF-8 testuale.
-- **Ricerca XML**: trovare `<?xml`/`<FatturaElettronica` nei bytes decodificati/DER e tagliare fino alla chiusura. Pulizia minima: rimuovere solo NUL e control < 0x20 eccetto `\t\n\r`.
+- **Ricerca XML**: trovare `<?xml`/`<FatturaElettronica` nei bytes decodificati/DER e tagliare fino alla chiusura. Pulizia minima: rimuovere solo NUL e control < 0x20 eccetto `\t\n\r`, poi rimuovere byte non ASCII nei nomi tag (es. `<\\x82\\xe8Indirizzo>`).
 - **Encoding sporchi**: se lxml segnala “not proper UTF-8” ma il prolog è UTF-8, provare decode `cp1252` → UTF-8 (fallback `latin-1`), poi riparsare. Loggare warning con encoding usato; se fallisce salvare il blob in `import_debug/xml_encoding_failed/`.
 - **Non mascherare errori**: non usare `recover=True` se non come ultimissima spiaggia loggata. Conservare head_bytes/size nei messaggi di errore e dumpare XML problematici in `import_debug/p7m_failed/` per diagnosi.
+- **Parser ibrido**: xsdata è il percorso principale; fallback al parser legacy se xsdata fallisce o restituisce 0 body. Loggare quando si attiva il fallback.
 - **Skip consapevole**: classificare metadati/notifiche SDI per lo skip, ma non confondere XML illeggibile con metadati. ParseError (non parsabile) ≠ Skip (non fattura).
 
 ## Revisione documenti (UI/Service)

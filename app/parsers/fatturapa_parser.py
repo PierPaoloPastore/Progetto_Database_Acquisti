@@ -646,6 +646,10 @@ def _extract_xml_from_p7m(p7m_path: Path) -> bytes:
     :raises P7MExtractionError: se l'estrazione fallisce
     """
 
+    openssl_xml = _extract_xml_from_p7m_openssl(p7m_path)
+    if openssl_xml:
+        return openssl_xml
+
     try:
         data = p7m_path.read_bytes()
 
@@ -699,7 +703,8 @@ def _extract_xml_from_p7m(p7m_path: Path) -> bytes:
 
 
 def _extract_xml_from_p7m_openssl(p7m_path: Path) -> Optional[bytes]:
-    if shutil.which("openssl") is None:
+    openssl_bin = os.environ.get("OPENSSL_BIN") or shutil.which("openssl")
+    if not openssl_bin:
         return None
     for inform in ("DER", "PEM"):
         try:
@@ -707,7 +712,7 @@ def _extract_xml_from_p7m_openssl(p7m_path: Path) -> Optional[bytes]:
                 out_path = tmp_out.name
             result = subprocess.run(
                 [
-                    "openssl",
+                    openssl_bin,
                     "smime",
                     "-verify",
                     "-in",
@@ -750,7 +755,59 @@ def _clean_xml_bytes(data: bytes) -> bytes:
         if b < 0x20 and b not in allowed_ctrl:
             continue
         cleaned.append(b)
-    return bytes(cleaned)
+    return _strip_invalid_tag_bytes(bytes(cleaned))
+
+
+def _strip_invalid_tag_bytes(data: bytes) -> bytes:
+    """
+    Elimina byte non ASCII dai nomi dei tag (caso P7M con byte corrotti).
+    """
+    allowed = set(b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_:.-")
+    out = bytearray()
+    i = 0
+    length = len(data)
+    while i < length:
+        b = data[i]
+        if b != 0x3C:  # '<'
+            out.append(b)
+            i += 1
+            continue
+
+        out.append(b)
+        i += 1
+        if i >= length:
+            break
+
+        next_b = data[i]
+        if next_b in (0x3F, 0x21):  # '?' o '!' (PI, commenti, doctype)
+            while i < length:
+                out.append(data[i])
+                if data[i] == 0x3E:  # '>'
+                    i += 1
+                    break
+                i += 1
+            continue
+
+        if next_b == 0x2F:  # '/'
+            out.append(next_b)
+            i += 1
+
+        while i < length:
+            b2 = data[i]
+            if b2 == 0x3E or b2 == 0x2F or b2 <= 0x20:
+                break
+            if b2 in allowed:
+                out.append(b2)
+            i += 1
+
+        while i < length:
+            b2 = data[i]
+            out.append(b2)
+            i += 1
+            if b2 == 0x3E:
+                break
+
+    return bytes(out)
 
 
 def _find_xml_start(data: bytes) -> int:
