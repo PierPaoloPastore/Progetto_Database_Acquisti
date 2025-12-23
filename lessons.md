@@ -20,7 +20,13 @@
 ## FatturaPA / Parsing & P7M
 - Use xsdata as primary path with legacy fallback; log when fallback is used.
 - Clean tag names with non-ASCII bytes before parsing to avoid missing bodies.
+- Normalize XML bytes before xsdata; if root parsing fails, try encoding fallback then legacy parser.
 - Keep encoding fallback (cp1252/latin-1); use recover only as last resort; dump to `import_debug/p7m_failed/`.
+
+## Cleanup / Maintenance
+- Before deleting templates/static, confirm `render_template` references and Jinja includes/extends.
+- Check `base.html` for shared CSS/JS before removing assets.
+- Remove legacy service helpers only after repo-wide reference scan.
 
 ## Error Fixes
 - Watch for double `{% endblock %}` and missing imports when adding template features.

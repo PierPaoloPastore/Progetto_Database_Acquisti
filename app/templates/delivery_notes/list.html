@@ -152,6 +152,29 @@
                                 </div>
                             </div>
 
+                            <div class="border rounded p-2 bg-light">
+                                <label class="form-label fw-bold mb-1">OCR (opzionale)</label>
+                                <div class="d-flex align-items-center gap-2">
+                                    <button
+                                        type="button"
+                                        class="btn btn-outline-secondary btn-sm"
+                                        id="ddt-ocr-btn"
+                                        data-ocr-endpoint="{{ url_for('delivery_notes.ocr_view') }}"
+                                    >
+                                        Esegui OCR
+                                    </button>
+                                    <span id="ddt-ocr-status" class="text-muted small"></span>
+                                </div>
+                                <textarea
+                                    id="ddt-ocr-output"
+                                    class="form-control mt-2"
+                                    rows="4"
+                                    placeholder="Testo OCR..."
+                                    readonly
+                                ></textarea>
+                            </div>
+
+
                             <div class="d-grid">
                                 <button type="submit" class="btn btn-success">
                                     <i class="bi bi-save"></i> Salva DDT
@@ -208,6 +231,49 @@ document.addEventListener("DOMContentLoaded", () => {
             previewFrame.style.display = "block";
             placeholder.style.display = "none";
             previewFrame.addEventListener("load", () => URL.revokeObjectURL(url), { once: true });
+        });
+    }
+
+    const ocrButton = document.getElementById("ddt-ocr-btn");
+    const ocrStatus = document.getElementById("ddt-ocr-status");
+    const ocrOutput = document.getElementById("ddt-ocr-output");
+    if (ocrButton && ocrStatus && ocrOutput && fileInput) {
+        const endpoint = ocrButton.getAttribute("data-ocr-endpoint");
+        const setStatus = (message, isError = false) => {
+            ocrStatus.textContent = message || "";
+            ocrStatus.classList.toggle("text-danger", isError);
+            ocrStatus.classList.toggle("text-muted", !isError);
+        };
+
+        ocrButton.addEventListener("click", async () => {
+            const file = fileInput.files[0];
+            if (!file) {
+                setStatus("Carica prima un PDF.", true);
+                return;
+            }
+
+            ocrButton.disabled = true;
+            setStatus("OCR in corso...", false);
+
+            const payload = new FormData();
+            payload.append("file", file);
+
+            try {
+                const response = await fetch(endpoint, { method: "POST", body: payload });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok || !data.success) {
+                    setStatus(data.error || "OCR fallito.", true);
+                    ocrOutput.value = "";
+                    return;
+                }
+                ocrOutput.value = data.text || "";
+                setStatus("OCR completato.", false);
+            } catch (error) {
+                setStatus("Errore di rete durante OCR.", true);
+                ocrOutput.value = "";
+            } finally {
+                ocrButton.disabled = false;
+            }
         });
     }
 });

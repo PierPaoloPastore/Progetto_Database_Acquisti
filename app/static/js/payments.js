@@ -2,6 +2,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setupTabSwitching();
     setupInvoiceFilter();
     setupPdfPreview();
+    setupPaymentOcr();
 });
 
 function setupTabSwitching() {
@@ -149,5 +150,63 @@ function setupPdfPreview() {
                 console.debug('PDF preview loaded (cross-origin check blocked)');
             }
         }, 500);
+    });
+}
+
+function setupPaymentOcr() {
+    const button = document.getElementById("payment-ocr-btn");
+    const status = document.getElementById("payment-ocr-status");
+    const output = document.getElementById("payment-ocr-output");
+    const fileInput = document.getElementById("pdf-file");
+
+    if (!button || !status || !output || !fileInput) {
+        return;
+    }
+
+    const endpoint = button.getAttribute("data-ocr-endpoint");
+    if (!endpoint) {
+        return;
+    }
+
+    const setStatus = (message, isError = false) => {
+        status.textContent = message || "";
+        status.classList.toggle("text-danger", isError);
+        status.classList.toggle("text-muted", !isError);
+    };
+
+    button.addEventListener("click", async () => {
+        const file = fileInput.files[0];
+        if (!file) {
+            setStatus("Carica prima un PDF.", true);
+            return;
+        }
+
+        button.disabled = true;
+        setStatus("OCR in corso...", false);
+
+        const payload = new FormData();
+        payload.append("file", file);
+
+        try {
+            const response = await fetch(endpoint, {
+                method: "POST",
+                body: payload,
+            });
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok || !data.success) {
+                setStatus(data.error || "OCR fallito.", true);
+                output.value = "";
+                return;
+            }
+
+            output.value = data.text || "";
+            setStatus("OCR completato.", false);
+        } catch (error) {
+            setStatus("Errore di rete durante OCR.", true);
+            output.value = "";
+        } finally {
+            button.disabled = false;
+        }
     });
 }

@@ -169,6 +169,10 @@ I repository incapsulano le query SQLAlchemy e centralizzano la logica di access
     - DDT reali (PDF),
     - documenti di pagamento bancari,
   - naming strutturato e percorsi basati su `AppSetting`.
+- `ocr_service`
+  - estrazione testo da PDF/immagini (pytesseract/pdf2image/pypdf),
+  - output pensato per supportare compilazione manuale (scannerizzazione acquisti, registrazione pagamenti, DDT),
+  - richiede Tesseract + tessdata ita e Poppler (config via `TESSERACT_CMD`/`POPPLER_PATH`).
 
 - `settings_service`
   - lettura/scrittura delle impostazioni applicative (`AppSetting`).

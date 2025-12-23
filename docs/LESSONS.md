@@ -18,6 +18,12 @@
 - **Encoding sporchi**: se lxml segnala “not proper UTF-8” ma il prolog è UTF-8, provare decode `cp1252` → UTF-8 (fallback `latin-1`), poi riparsare. Loggare warning con encoding usato; se fallisce salvare il blob in `import_debug/xml_encoding_failed/`.
 - **Non mascherare errori**: non usare `recover=True` se non come ultimissima spiaggia loggata. Conservare head_bytes/size nei messaggi di errore e dumpare XML problematici in `import_debug/p7m_failed/` per diagnosi.
 - **Parser ibrido**: xsdata è il percorso principale; fallback al parser legacy se xsdata fallisce o restituisce 0 body. Loggare quando si attiva il fallback.
+- **Normalizzazione preventiva**: normalizzare i bytes prima di xsdata; se il root non si carica, provare fallback encoding e poi parser legacy.
+
+## Cleanup / Maintenance
+- Verifica `render_template` e Jinja include/extends prima di eliminare template.
+- Controlla `base.html` per CSS/JS condivisi prima di rimuovere asset.
+- Rimuovi helper legacy solo dopo una scansione repo-wide delle referenze.
 - **Skip consapevole**: classificare metadati/notifiche SDI per lo skip, ma non confondere XML illeggibile con metadati. ParseError (non parsabile) ≠ Skip (non fattura).
 
 ## Revisione documenti (UI/Service)

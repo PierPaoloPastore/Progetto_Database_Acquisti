@@ -58,3 +58,4 @@ Last updated: 2025-12-15
 
 10) Near-term TODOs
 - Roadmap: implement F24/insurance/MAV-CBILL/affitti/scontrini/tasse flows and related imports per [roadmap/future_types.md](roadmap/future_types.md).
+- Decluttering: follow `Cleaning_Plan.md` for low-risk cleanup and validation steps.

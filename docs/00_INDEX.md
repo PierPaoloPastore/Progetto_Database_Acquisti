@@ -9,6 +9,8 @@ Benvenuto nel centro documentazione del Gestionale Acquisti. Usa questo indice c
 - Guide
   - [Troubleshooting import P7M](guides/p7m_troubleshooting.md)
   - [UI Pagamenti (scroll/compattazione)](guides/payments_ui.md)
+- Piani
+  - [Cleaning Plan](../Cleaning_Plan.md)
 - Roadmap
   - [Future document types](roadmap/future_types.md)
 - Meta
@@ -19,4 +21,3 @@ Benvenuto nel centro documentazione del Gestionale Acquisti. Usa questo indice c
   - [FatturaPA – Parsing Reference](fatturapa/PARSING_REFERENCE.md)
 - Archivio
   - [Documenti storici 2025-12](./_archive/2025-12/)
-

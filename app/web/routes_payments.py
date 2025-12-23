@@ -3,10 +3,11 @@ Route per la gestione dei Pagamenti.
 """
 from __future__ import annotations
 from datetime import date, datetime
-from flask import Blueprint, request, redirect, url_for, flash, render_template
+from pathlib import Path
+from flask import Blueprint, request, redirect, url_for, flash, render_template, jsonify, current_app
 
 from app.models import Document
-from app.services import payment_service
+from app.services import payment_service, ocr_service
 from app.services.payment_service import (
     add_payment,
     create_batch_payment,
@@ -153,6 +154,39 @@ def batch_payment():
         flash(f"Errore durante il pagamento cumulativo: {exc}", "danger")
 
     return redirect(url_for("payments.payment_index"))
+
+
+@payments_bp.route("/ocr", methods=["POST"])
+def ocr_view():
+    file = request.files.get("file")
+    if file is None or not file.filename:
+        return jsonify({"success": False, "error": "File mancante."}), 400
+
+    suffix = Path(file.filename).suffix.lower()
+    if not suffix:
+        return jsonify({"success": False, "error": "Estensione file mancante."}), 400
+
+    lang = (request.form.get("lang") or "ita").strip() or "ita"
+    max_pages = ocr_service.normalize_max_pages(request.form.get("max_pages"))
+
+    try:
+        text = ocr_service.extract_text_from_bytes(
+            file.read(),
+            suffix=suffix,
+            lang=lang,
+            max_pages=max_pages,
+            logger=current_app.logger,
+        )
+    except ocr_service.OcrDependencyError as exc:
+        return jsonify({"success": False, "error": f"OCR non disponibile: {exc}"}), 400
+    except ocr_service.OcrError as exc:
+        return jsonify({"success": False, "error": f"OCR fallito: {exc}"}), 400
+
+    text = (text or "").strip()
+    if not text:
+        return jsonify({"success": False, "error": "OCR completato ma nessun testo estratto."}), 200
+
+    return jsonify({"success": True, "text": text})
 
 
 @payments_bp.route("/history/<int:payment_id>", methods=["GET"], endpoint="payment_detail_view")

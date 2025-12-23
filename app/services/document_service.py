@@ -130,6 +130,7 @@ def list_document_attachments(document_id: int) -> list[dict]:
         return []
     return []
 
+
 def update_document_status(document_id: int, doc_status: str, due_date: Optional[date] = None, note: Optional[str] = None):
     with UnitOfWork() as uow:
         doc = uow.documents.get_by_id(document_id)
