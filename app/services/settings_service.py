@@ -65,6 +65,18 @@ def get_delivery_note_storage_path() -> str:
     return target_path
 
 
+def get_attachments_storage_path() -> str:
+    """Percorso assoluto per gli allegati FatturaPA."""
+    configured_path = current_app.config.get("ATTACHMENTS_STORAGE_PATH")
+    if configured_path:
+        target_path = os.path.abspath(configured_path)
+    else:
+        base_dir = os.getcwd()
+        target_path = os.path.join(base_dir, "storage", "attachments")
+    os.makedirs(target_path, exist_ok=True)
+    return target_path
+
+
 def resolve_storage_path(base_path: str, relative_path: str) -> str:
     """
     Costruisce un percorso assoluto a partire dalla base storage e un path relativo salvato nel DB.

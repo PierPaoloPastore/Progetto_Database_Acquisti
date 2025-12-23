@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 
 {% block title %}Documento #{{ invoice.id }} - Gestionale Acquisti{% endblock %}
 
@@ -9,18 +9,6 @@
         <a href="{{ url_for('documents.list_view') }}" class="btn-secondary">← Torna all'elenco</a>
     </div>
 </div>
-
-{% if invoice.doc_status == 'imported' %}
-<div class="alert alert-warning d-flex justify-content-between align-items-center">
-    <div>
-        <strong>⚠️ Revisione richiesta</strong>
-        <p class="mb-0">Questo documento è stato importato ma non ancora confermato.</p>
-    </div>
-    <a class="btn btn-primary btn-sm" href="{{ url_for('documents.review_loop_invoice_view', document_id=invoice.id) }}">
-        Vai alla revisione
-    </a>
-</div>
-{% endif %}
 
 <div class="card mb-4 shadow-sm border-primary">
     <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
@@ -38,20 +26,8 @@
                     <div class="mb-3">
                         <label for="doc_status" class="form-label small fw-bold">Stato Attuale</label>
                         <select id="doc_status" name="doc_status" class="form-select">
-                            <option value="imported"{% if invoice.doc_status == 'imported' %}
-<div class="alert alert-warning d-flex justify-content-between align-items-center">
-    <div>
-        <strong>⚠️ Revisione richiesta</strong>
-        <p class="mb-0">Questo documento è stato importato ma non ancora confermato.</p>
-    </div>
-    <a class="btn btn-primary btn-sm" href="{{ url_for('documents.review_loop_invoice_view', document_id=invoice.id) }}">
-        Vai alla revisione
-    </a>
-</div>
-{% endif %}>Importata</option>
-                            <option value="pending_physical_copy"{% if invoice.doc_status == 'pending_physical_copy' %} selected{% endif %}>In attesa copia</option>
+                            <option value="pending_physical_copy"{% if invoice.doc_status == 'pending_physical_copy' %} selected{% endif %}>Da rivedere</option>
                             <option value="verified"{% if invoice.doc_status == 'verified' %} selected{% endif %}>Verificata</option>
-                            <option value="rejected"{% if invoice.doc_status == 'rejected' %} selected{% endif %}>Scartata</option>
                             <option value="archived"{% if invoice.doc_status == 'archived' %} selected{% endif %}>Archiviata</option>
                         </select>
                     </div>
@@ -59,6 +35,10 @@
                         <label for="due_date" class="form-label small fw-bold">Scadenza principale</label>
                         <input type="date" id="due_date" name="due_date" class="form-control"
                                value="{{ invoice.due_date.strftime('%Y-%m-%d') if invoice.due_date }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="note" class="form-label small fw-bold">Note</label>
+                        <textarea id="note" name="note" class="form-control" rows="3" placeholder="Annotazioni interne">{{ invoice.note or '' }}</textarea>
                     </div>
                     <button type="submit" class="btn btn-primary w-100">Aggiorna Stato</button>
                 </form>
@@ -118,6 +98,43 @@
     </div>
 </div>
 
+<section class="panel">
+    <div class="panel-header">
+        <h2>Allegati</h2>
+    </div>
+    <div class="table-wrapper scrollable-list">
+        <table class="table-compact">
+            <thead>
+            <tr>
+                <th>Nome</th>
+                <th>Descrizione</th>
+                <th>Formato</th>
+                <th>Download</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for att in attachments %}
+              <tr>
+                  <td>{{ att.original_name or att.stored_name }}</td>
+                  <td>{{ att.description or '-' }}</td>
+                  <td>{{ att.format or '-' }}</td>
+                  <td>
+                      <a class="btn btn-sm btn-outline-primary"
+                         href="{{ url_for('documents.download_attachment', document_id=invoice.id, filename=att.stored_name) }}">
+                        Scarica
+                      </a>
+                  </td>
+              </tr>
+            {% else %}
+              <tr>
+                  <td colspan="4" class="text-center text-muted">Nessun allegato</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
 <div class="cards-grid cards-2col">
     <div class="card">
         <div class="card-header">
@@ -144,12 +161,16 @@
                 <span class="label">File XML:</span>
                 <span class="value text-muted small text-truncate" style="max-width: 150px;">{{ invoice.file_name }}</span>
             </div>
+            <div class="data-row">
+                <span class="label">Note:</span>
+                <span class="value text-muted">{{ invoice.note or '-' }}</span>
+            </div>
         </div>
     </div>
 
     <div class="card">
         <div class="card-header">
-            <h3>💰 Importi & Soggetti</h3>
+            <h3>💶 Importi & Soggetti</h3>
         </div>
         <div class="card-body">
             <div class="data-row highlight mb-3">
@@ -185,7 +206,7 @@
 
 <section class="panel">
     <div class="panel-header">
-        <h2>📦 Righe Documento</h2>
+        <h2>📑 Righe Documento</h2>
         <a href="{{ url_for('categories.bulk_assign_view', document_id=invoice.id) }}"
            class="btn-secondary btn-sm">Assegna categorie</a>
     </div>
@@ -232,7 +253,7 @@
 <div class="cards-grid cards-2col">
     <div class="card">
         <div class="card-header">
-            <h3>📊 Riepilogo IVA</h3>
+            <h3>🧾 Riepilogo IVA</h3>
         </div>
         <div class="card-body">
             <div class="table-wrapper scrollable-list">
@@ -357,4 +378,3 @@
 </div>
 
 {% endblock %}
-

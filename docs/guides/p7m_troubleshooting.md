@@ -111,6 +111,21 @@ openssl smime -verify -in file.p7m -inform DER -noverify -out file.xml
 # GUI disponibile su https://www.firmacerta.it
 ```
 
+### Installare OpenSSL (per parsing P7M piu' robusto)
+
+Windows (winget):
+```powershell
+winget install --id ShiningLight.OpenSSL.Light -e
+# Aggiungi al PATH (se non automatico)
+[Environment]::SetEnvironmentVariable("Path", $env:Path + ";C:\\Program Files\\OpenSSL-Win64\\bin", "User")
+```
+
+Debian/Ubuntu:
+```bash
+sudo apt update
+sudo apt install -y openssl
+```
+
 ---
 
 ## 🛠 Manutenzione

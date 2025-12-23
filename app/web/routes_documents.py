@@ -58,6 +58,22 @@ def list_view():
                 key=lambda d: (d.document_number or "").lower(),
                 reverse=reverse,
             )
+    else:
+        # Ordinamento di default: da rivedere -> verificati non pagati -> pagati/archiviati
+        status_priority = {
+            "pending_physical_copy": 0,
+            "verified": 1,
+            "archived": 2,
+        }
+        documents = sorted(
+            documents,
+            key=lambda d: (
+                status_priority.get(d.doc_status, 5),
+                0 if not getattr(d, "is_paid", False) else 1,
+                -(d.document_date.toordinal() if d.document_date else date.min.toordinal()),
+                -d.id,
+            ),
+        )
 
     suppliers = list_active_suppliers()
     legal_entities = list_legal_entities(include_inactive=False)
@@ -97,12 +113,12 @@ def review_list_view():
 
     documents = doc_service.list_documents_to_review(
         order=order,
-        document_type=None,
+        document_type="invoice",
         legal_entity_id=legal_entity_id,
     )
     next_doc = doc_service.get_next_document_to_review(
         order=order,
-        document_type=None,
+        document_type="invoice",
         legal_entity_id=legal_entity_id,
     )
     from app.repositories.legal_entity_repo import list_legal_entities
@@ -178,6 +194,7 @@ def review_loop_invoice_view(document_id: int):
             exclude_document_ids=[document_id],
         )
     linked_ddt = list_delivery_notes_by_document(document_id) if document else []
+    attachments = doc_service.list_document_attachments(document_id)
 
     return render_template(
         'documents/review.html',
@@ -186,6 +203,7 @@ def review_loop_invoice_view(document_id: int):
         default_xsl=default_xsl,
         ddt_candidates=ddt_candidates,
         linked_ddt=linked_ddt,
+        attachments=attachments,
     )
 
 @documents_bp.route("/review/<int:document_id>/delete", methods=["POST"])
@@ -262,6 +280,17 @@ def detail_view(document_id: int):
     return render_template("documents/detail.html", **detail)
 
 
+@documents_bp.route("/<int:document_id>/attachments/<path:filename>", methods=["GET"])
+def download_attachment(document_id: int, filename: str):
+    from app.services.settings_service import get_attachments_storage_path
+    safe_name = os.path.basename(filename)
+    base_dir = get_attachments_storage_path()
+    full_path = os.path.join(base_dir, str(document_id), safe_name)
+    if not os.path.exists(full_path):
+        abort(404)
+    return send_file(full_path, as_attachment=True, download_name=safe_name)
+
+
 @documents_bp.route("/<int:document_id>/match-ddt", methods=["GET", "POST"])
 def match_delivery_notes_view(document_id: int):
     invoice = DocumentService.get_document_by_id(document_id)
@@ -299,7 +328,7 @@ def match_delivery_notes_view(document_id: int):
 
 @documents_bp.route("/<int:document_id>/status", methods=["POST"])
 def update_status_view(document_id: int):
-    allowed_doc_statuses = {"imported", "pending_physical_copy", "verified", "rejected", "archived"}
+    allowed_doc_statuses = {"pending_physical_copy", "verified", "archived"}
     doc_status = request.form.get("doc_status") or None
     
     if doc_status is not None and doc_status not in allowed_doc_statuses:
@@ -308,8 +337,9 @@ def update_status_view(document_id: int):
     
     due_date_str = request.form.get("due_date") or ""
     due_date = _parse_date(due_date_str)
+    note = request.form.get("note")
 
-    doc = doc_service.update_document_status(document_id=document_id, doc_status=doc_status, due_date=due_date)
+    doc = doc_service.update_document_status(document_id=document_id, doc_status=doc_status, due_date=due_date, note=note)
     if doc is None:
         flash("Documento non trovato.", "danger")
     else:
@@ -362,7 +392,7 @@ def reject_invoice(document_id: int):
     order = request.args.get("order", "desc")
     invoice = doc_service.reject_document(document_id)
     if invoice is None: abort(404)
-    flash("Documento scartato.", "success")
+    flash("Documento archiviato.", "success")
     next_invoice = doc_service.get_next_document_to_review(order=order, document_type=None)
     if next_invoice:
         return redirect(url_for("documents.detail_view", document_id=next_invoice.id, order=order))

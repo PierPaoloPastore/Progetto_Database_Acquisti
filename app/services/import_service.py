@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+import base64
+import json
 from typing import Dict, List, Optional
 from datetime import datetime
 
@@ -18,6 +20,8 @@ from app.parsers.fatturapa_parser import InvoiceDTO, parse_invoice_xml, P7MExtra
 from app.repositories.import_log_repo import create_import_log
 from app.services.unit_of_work import UnitOfWork
 from app.services.logging import log_structured_event
+from app.services.settings_service import get_attachments_storage_path
+from werkzeug.utils import secure_filename
 
 
 def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = None) -> Dict:
@@ -37,7 +41,7 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
             + list(import_folder.glob("*.P7M"))
         )
     }
-    xml_files: List[Path] = sorted(xml_files_set)
+    xml_files = _select_import_files(xml_files_set)
 
     summary = {
         "folder": str(import_folder),
@@ -117,6 +121,8 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
 
                     uow.commit()
 
+                    _store_attachments(logger, document.id, invoice_dto)
+
                     _log_success(
                         logger,
                         invoice_dto.file_name,
@@ -138,6 +144,55 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
     )
 
     return summary
+
+
+def _store_attachments(logger, document_id: int, invoice_dto: InvoiceDTO):
+    attachments = getattr(invoice_dto, "attachments", None) or []
+    if not attachments:
+        return
+
+    base_dir = Path(get_attachments_storage_path())
+    doc_dir = base_dir / str(document_id)
+    doc_dir.mkdir(parents=True, exist_ok=True)
+
+    metadata = []
+    for idx, att in enumerate(attachments, start=1):
+        if not getattr(att, "data_base64", None):
+            continue
+
+        original_name = att.filename or f"allegato_{idx}"
+        safe_name = secure_filename(original_name) or f"allegato_{idx}"
+        stored_name = f"{idx:02d}_{safe_name}"
+        if "." not in stored_name and att.format:
+            stored_name = f"{stored_name}.{att.format.lower()}"
+
+        try:
+            data = base64.b64decode(att.data_base64, validate=False)
+        except Exception as exc:
+            logger.warning(
+                "Allegato non decodificabile",
+                extra={"document_id": document_id, "attachment": original_name, "error": str(exc)},
+            )
+            continue
+
+        out_path = doc_dir / stored_name
+        out_path.write_bytes(data)
+
+        metadata.append(
+            {
+                "original_name": original_name,
+                "stored_name": stored_name,
+                "description": att.description,
+                "format": att.format,
+                "compression": att.compression,
+                "encryption": att.encryption,
+                "size_bytes": len(data),
+            }
+        )
+
+    if metadata:
+        meta_path = doc_dir / "attachments.json"
+        meta_path.write_text(json.dumps(metadata, ensure_ascii=True, indent=2), encoding="utf-8")
 
 
 def _extract_header_data(xml_path: Path) -> Dict:
@@ -352,3 +407,40 @@ def _compute_file_hash(file_path: Path) -> str:
         while chunk := f.read(8192):
             sha256.update(chunk)
     return sha256.hexdigest()
+
+
+def _select_import_files(candidates: set[Path]) -> List[Path]:
+    """
+    Seleziona i file da importare:
+    - ignora i metadati (nome contiene _metadato)
+    - se esistono sia .xml che .p7m per lo stesso documento, preferisce .xml
+    """
+    def _is_metadata(name: str) -> bool:
+        return "_metadato" in name.lower()
+
+    def _base_key(path: Path) -> str:
+        name = path.name.lower()
+        if name.endswith(".xml.p7m"):
+            return name[:-len(".xml.p7m")]
+        if name.endswith(".p7m"):
+            return name[:-len(".p7m")]
+        if name.endswith(".xml"):
+            return name[:-len(".xml")]
+        return name
+
+    by_key: dict[str, list[Path]] = {}
+    for path in candidates:
+        if _is_metadata(path.name):
+            continue
+        key = _base_key(path)
+        by_key.setdefault(key, []).append(path)
+
+    selected: List[Path] = []
+    for paths in by_key.values():
+        xmls = [p for p in paths if p.name.lower().endswith(".xml")]
+        if xmls:
+            selected.append(sorted(xmls)[0])
+            continue
+        selected.append(sorted(paths)[0])
+
+    return sorted(selected)

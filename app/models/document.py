@@ -51,7 +51,7 @@ class Document(db.Model):
     total_gross_amount = db.Column(db.Numeric(15, 2), nullable=True)
 
     # Stato documento (colonne comuni)
-    doc_status = db.Column(db.String(32), nullable=False, default="imported", index=True)
+    doc_status = db.Column(db.String(32), nullable=False, default="pending_physical_copy", index=True)
 
     # --- CAMPO NUOVO (per gestione pagamenti) ---
     is_paid = db.Column(db.Boolean, nullable=False, default=False, index=True)
@@ -72,6 +72,9 @@ class Document(db.Model):
     )
     physical_copy_requested_at = db.Column(db.DateTime, nullable=True)
     physical_copy_received_at = db.Column(db.DateTime, nullable=True)
+
+    # Note operative
+    note = db.Column(db.Text, nullable=True)
 
     # Timestamps
     created_at = db.Column(

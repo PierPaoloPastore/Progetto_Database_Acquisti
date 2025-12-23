@@ -22,6 +22,8 @@ from __future__ import annotations
 
 import base64
 import tempfile
+import subprocess
+import shutil
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal, InvalidOperation
@@ -49,6 +51,7 @@ class SupplierDTO:
     fiscal_code: Optional[str] = None
     sdi_code: Optional[str] = None
     pec_email: Optional[str] = None
+    email: Optional[str] = None
 
     address: Optional[str] = None
     postal_code: Optional[str] = None
@@ -128,14 +131,27 @@ class InvoiceDTO:
     file_hash: Optional[str] = None  # opzionale: può essere calcolato altrove
 
     # Riepilogo stato di import (lo useremo a livello modello come default)
-    doc_status: str = "imported"
+    doc_status: str = "pending_physical_copy"
     payment_status: str = "unpaid"
 
     # Collezioni collegate
     lines: List[InvoiceLineDTO] = field(default_factory=list)
     vat_summaries: List[VatSummaryDTO] = field(default_factory=list)
     payments: List[PaymentDTO] = field(default_factory=list)
+    attachments: List["AttachmentDTO"] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
+
+
+@dataclass
+class AttachmentDTO:
+    """Allegato FatturaPA (base64 + metadati)."""
+
+    filename: Optional[str] = None
+    description: Optional[str] = None
+    format: Optional[str] = None
+    compression: Optional[str] = None
+    encryption: Optional[str] = None
+    data_base64: Optional[str] = None
 
 
 # =========================
@@ -181,22 +197,64 @@ def parse_invoice_xml(path: str | Path, *, validate_xsd: bool = False, logger: O
     # Gestione file P7M
     if _is_p7m_file(file_path):
         xml_content = _extract_xml_from_p7m(file_path)
-        
-        # Scrivi XML temporaneo per il parsing con lxml
-        with tempfile.NamedTemporaryFile(mode='wb', suffix='.xml', delete=False) as tmp:
-            tmp.write(xml_content)
-            tmp_path = tmp.name
-        
         try:
-            return _parse_xml_file(Path(tmp_path), original_file_name=file_path.name, validate_xsd=validate_xsd, logger=logger)
+            invoices = _parse_xml_bytes(
+                xml_content,
+                original_file_name=file_path.name,
+                validate_xsd=validate_xsd,
+                logger=logger,
+            )
         except Exception as exc:
             _dump_debug_xml(xml_content, file_path.name, logger=logger)
             raise
-        finally:
-            Path(tmp_path).unlink(missing_ok=True)
+
+        if _has_empty_invoices(invoices):
+            openssl_xml = _extract_xml_from_p7m_openssl(file_path)
+            if openssl_xml:
+                try:
+                    openssl_invoices = _parse_xml_bytes(
+                        openssl_xml,
+                        original_file_name=file_path.name,
+                        validate_xsd=validate_xsd,
+                        logger=logger,
+                    )
+                    if not _has_empty_invoices(openssl_invoices):
+                        if logger:
+                            logger.warning(
+                                "P7M re-parsed with OpenSSL due to empty invoice content",
+                                extra={"file": file_path.name},
+                            )
+                        return openssl_invoices
+                except Exception:
+                    pass
+
+            _dump_empty_p7m_xml(xml_content, file_path.name, logger=logger)
+
+        return invoices
     
     # File XML normale
     return _parse_xml_file(file_path, original_file_name=file_path.name, validate_xsd=validate_xsd, logger=logger)
+
+
+def _parse_xml_bytes(xml_bytes: bytes, original_file_name: str, *, validate_xsd: bool, logger: Optional[logging.Logger]) -> List[InvoiceDTO]:
+    with tempfile.NamedTemporaryFile(mode='wb', suffix='.xml', delete=False) as tmp:
+        tmp.write(xml_bytes)
+        tmp_path = tmp.name
+    try:
+        return _parse_xml_file(Path(tmp_path), original_file_name=original_file_name, validate_xsd=validate_xsd, logger=logger)
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+
+
+def _has_empty_invoices(invoices: List[InvoiceDTO]) -> bool:
+    for inv in invoices:
+        total = inv.total_gross_amount
+        has_totals = total is not None and total != Decimal("0")
+        if not inv.lines and not inv.vat_summaries and not has_totals:
+            if inv.warnings is not None:
+                inv.warnings.append("Documento senza righe/riepilogo: controllare estrazione P7M")
+            return True
+    return False
 
 
 def _localname(tag: str | None) -> str:
@@ -289,6 +347,28 @@ def _dump_debug_xml(xml_bytes: bytes, original_file_name: str, logger: Optional[
     except Exception:
         if logger:
             logger.warning("Impossibile scrivere dump XML di debug", extra={"file": original_file_name})
+
+
+def _dump_empty_p7m_xml(xml_bytes: bytes, original_file_name: str, logger: Optional[logging.Logger] = None):
+    """
+    Salva XML estratto quando il parsing produce un documento vuoto.
+    """
+    try:
+        base_dir = Path(__file__).resolve().parents[2]
+        out_dir = base_dir / "import_debug" / "p7m_empty"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        ts = int(time.time())
+        safe_name = original_file_name.replace(os.sep, "_")
+        out_path = out_dir / f"{safe_name}.{ts}.xml"
+        out_path.write_bytes(xml_bytes)
+        if logger:
+            logger.warning(
+                "Dump XML per P7M vuoto",
+                extra={"file": original_file_name, "dump_path": str(out_path)},
+            )
+    except Exception:
+        if logger:
+            logger.warning("Impossibile scrivere dump XML per P7M vuoto", extra={"file": original_file_name})
 
 
 def _dump_encoding_failure(xml_bytes: bytes, original_file_name: str):
@@ -388,18 +468,28 @@ def _load_xml_root(xml_path: Path, original_file_name: str):
         # Fallback per errori UTF-8 dichiarato ma bytes cp1252/latin-1
         from lxml.etree import XMLSyntaxError
         if isinstance(exc, XMLSyntaxError) and "not proper UTF-8" in str(exc):
-            enc_attempts = [("cp1252", "strict"), ("latin-1", "strict")]
-            for enc, mode in enc_attempts:
+            enc_attempts = [
+                ("cp1252", "strict", False),
+                ("latin-1", "strict", False),
+                ("cp1252", "replace", True),
+                ("latin-1", "replace", True),
+            ]
+            for enc, mode, use_recover in enc_attempts:
                 try:
                     text = clean.decode(enc, errors=mode)
                     utf8_bytes = _clean_xml_bytes(text.encode("utf-8", errors="strict"))
-                    root = etree.fromstring(utf8_bytes)
+                    if use_recover:
+                        parser_recover = etree.XMLParser(recover=True)
+                        root = etree.fromstring(utf8_bytes, parser=parser_recover)
+                    else:
+                        root = etree.fromstring(utf8_bytes)
                     logger = logging.getLogger(__name__)
                     logger.warning(
                         "XML encoding fallback applied",
                         extra={
                             "file": original_file_name,
                             "fallback_encoding": enc,
+                            "fallback_mode": mode,
                             "removed_bytes": removed,
                         },
                     )
@@ -489,6 +579,7 @@ def _parse_xml_file(xml_path: Path, original_file_name: str, *, validate_xsd: bo
         lines_dto = _parse_invoice_lines(body)
         vat_summaries_dto, total_taxable, total_vat = _parse_vat_summaries(body)
         payments_dto, main_due_date = _parse_payments(body)
+        attachments_dto = _parse_attachments(body, warnings)
 
         # Calcolo totale con fallback
         computed_total = total_gross_amount
@@ -517,11 +608,12 @@ def _parse_xml_file(xml_path: Path, original_file_name: str, *, validate_xsd: bo
             due_date=main_due_date,
             file_name=original_file_name,
             file_hash=None,
-            doc_status="imported",
+            doc_status="pending_physical_copy",
             payment_status="unpaid",
             lines=lines_dto,
             vat_summaries=vat_summaries_dto,
             payments=payments_dto,
+            attachments=attachments_dto,
             warnings=warnings,
         )
 
@@ -553,6 +645,7 @@ def _extract_xml_from_p7m(p7m_path: Path) -> bytes:
     :return: contenuto XML come bytes
     :raises P7MExtractionError: se l'estrazione fallisce
     """
+
     try:
         data = p7m_path.read_bytes()
 
@@ -590,13 +683,56 @@ def _extract_xml_from_p7m(p7m_path: Path) -> bytes:
         return xml_content
 
     except base64.binascii.Error as exc:
+        openssl_xml = _extract_xml_from_p7m_openssl(p7m_path)
+        if openssl_xml:
+            return openssl_xml
         raise P7MExtractionError(
             f"Errore decodifica Base64 del file P7M: {exc}"
         ) from exc
     except Exception as exc:
+        openssl_xml = _extract_xml_from_p7m_openssl(p7m_path)
+        if openssl_xml:
+            return openssl_xml
         raise P7MExtractionError(
             f"Errore durante l'estrazione XML da P7M: {exc}"
         ) from exc
+
+
+def _extract_xml_from_p7m_openssl(p7m_path: Path) -> Optional[bytes]:
+    if shutil.which("openssl") is None:
+        return None
+    for inform in ("DER", "PEM"):
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as tmp_out:
+                out_path = tmp_out.name
+            result = subprocess.run(
+                [
+                    "openssl",
+                    "smime",
+                    "-verify",
+                    "-in",
+                    str(p7m_path),
+                    "-inform",
+                    inform,
+                    "-noverify",
+                    "-out",
+                    out_path,
+                ],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0 and Path(out_path).is_file():
+                data = Path(out_path).read_bytes()
+                Path(out_path).unlink(missing_ok=True)
+                return _clean_xml_bytes(data)
+            Path(out_path).unlink(missing_ok=True)
+        except Exception:
+            try:
+                Path(out_path).unlink(missing_ok=True)
+            except Exception:
+                pass
+            continue
+    return None
 
 
 def _clean_xml_bytes(data: bytes) -> bytes:
@@ -753,17 +889,9 @@ def _parse_supplier(root, warnings: Optional[List[str]] = None) -> SupplierDTO:
     )
     fiscal_code = _get_text(supplier_node, ".//*[local-name()='CodiceFiscale']")
 
-    # Codice destinatario / SDI
-    sdi_code = _get_text(
-        root,
-        ".//*[local-name()='DatiTrasmissione']/*[local-name()='CodiceDestinatario']",
-    )
-
-    # PEC destinatario
-    pec_email = _get_text(
-        root,
-        ".//*[local-name()='DatiTrasmissione']/*[local-name()='PECDestinatario']",
-    )
+    # Contatti del CedentePrestatore (mittente)
+    email = _get_text(supplier_node, ".//*[local-name()='Contatti']/*[local-name()='Email']")
+    pec_email = _get_text(supplier_node, ".//*[local-name()='Contatti']/*[local-name()='PEC']")
 
     # Sede
     address = _get_text(supplier_node, ".//*[local-name()='Sede']/*[local-name()='Indirizzo']")
@@ -795,8 +923,9 @@ def _parse_supplier(root, warnings: Optional[List[str]] = None) -> SupplierDTO:
         name=name,
         vat_number=vat_number,
         fiscal_code=fiscal_code,
-        sdi_code=sdi_code,
+        sdi_code=None,
         pec_email=pec_email,
+        email=email,
         address=address,
         postal_code=postal_code,
         city=city,
@@ -1040,3 +1169,40 @@ def _parse_payments(body) -> tuple[List[PaymentDTO], Optional[date]]:
             main_due_date = p.due_date
 
     return payments, main_due_date
+
+
+def _parse_attachments(body, warnings: Optional[List[str]] = None) -> List[AttachmentDTO]:
+    """
+    Estrae gli allegati (Allegati) dal body.
+    """
+    attachments: List[AttachmentDTO] = []
+    if body is None:
+        return attachments
+
+    nodes = body.xpath(".//*[local-name()='Allegati']")
+    for node in nodes:
+        filename = _get_text(node, ".//*[local-name()='NomeAttachment']")
+        description = _get_text(node, ".//*[local-name()='DescrizioneAttachment']")
+        format_name = _get_text(node, ".//*[local-name()='FormatoAttachment']")
+        compression = _get_text(node, ".//*[local-name()='AlgoritmoCompressione']")
+        encryption = _get_text(node, ".//*[local-name()='AlgoritmoCrittografia']")
+        data_base64 = _get_text(node, ".//*[local-name()='Attachment']")
+
+        if not any([filename, description, format_name, compression, encryption, data_base64]):
+            continue
+
+        if data_base64 is None and warnings is not None:
+            warnings.append("Allegato presente senza contenuto base64")
+
+        attachments.append(
+            AttachmentDTO(
+                filename=filename,
+                description=description,
+                format=format_name,
+                compression=compression,
+                encryption=encryption,
+                data_base64=data_base64,
+            )
+        )
+
+    return attachments

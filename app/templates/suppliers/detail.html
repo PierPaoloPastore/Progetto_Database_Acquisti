@@ -91,15 +91,15 @@
                     {% if account_snapshot %}
                     <div class="row mb-3 border-bottom pb-2">
                         <div class="col text-muted">Totale Documenti</div>
-                        <div class="col text-end fw-bold fs-5">{{ "%.2f"|format(account_snapshot.expected_total or 0) }} ƒ'ª</div>
+                        <div class="col text-end fw-bold fs-5">{{ "%.2f"|format(account_snapshot.expected_total or 0) }} €</div>
                     </div>
                     <div class="row mb-3 border-bottom pb-2">
                         <div class="col text-muted">Totale Saldato</div>
-                        <div class="col text-end text-success fw-bold fs-5">{{ "%.2f"|format(account_snapshot.paid_total or 0) }} ƒ'ª</div>
+                        <div class="col text-end text-success fw-bold fs-5">{{ "%.2f"|format(account_snapshot.paid_total or 0) }} €</div>
                     </div>
                     <div class="row mt-2">
                         <div class="col text-uppercase fw-bold text-muted">Residuo da pagare</div>
-                        <div class="col text-end text-danger fw-bold fs-4">{{ "%.2f"|format(account_snapshot.residual or 0) }} ƒ'ª</div>
+                        <div class="col text-end text-danger fw-bold fs-4">{{ "%.2f"|format(account_snapshot.residual or 0) }} €</div>
                     </div>
                     {% else %}
                     <p class="text-center text-muted">Nessun dato contabile disponibile.</p>
@@ -229,7 +229,7 @@
                           <td>{{ inv.document_date.strftime('%d/%m/%Y') if inv.document_date else '-' }}</td>
                           <td class="fw-bold">{{ inv.document_number }}</td>
                           <td class="text-end font-monospace">
-                              {{ "%.2f"|format(inv.total_gross_amount or 0) }} ƒ'ª
+                              {{ "%.2f"|format(inv.total_gross_amount or 0) }} €
                           </td>
                           <td>
                               <span class="badge bg-light text-dark border">{{ inv.doc_status }}</span>

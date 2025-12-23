@@ -130,9 +130,12 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
         document_type: Optional[str] = None,
         order: str = "desc",
         legal_entity_id: Optional[int] = None,
+        doc_status: str = "pending_physical_copy",
     ) -> List[Document]:
-        """Restituisce documenti in stato 'imported' (da revisionare)."""
-        query = self.session.query(Document).filter(Document.doc_status == "imported")
+        """
+        Restituisce documenti da revisionare (default: pending_physical_copy).
+        """
+        query = self.session.query(Document).filter(Document.doc_status == doc_status)
         if document_type:
             query = query.filter(Document.document_type == document_type)
         if legal_entity_id is not None:
@@ -142,10 +145,10 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
         return query.order_by(sort_order).all()
 
     def count_imported_by_legal_entity(self) -> List[tuple[int, int]]:
-        """Ritorna (legal_entity_id, count) per documenti imported."""
+        """Ritorna (legal_entity_id, count) per documenti in revisione."""
         rows = (
             self.session.query(Document.legal_entity_id, func.count(Document.id))
-            .filter(Document.doc_status == "imported")
+            .filter(Document.doc_status == "pending_physical_copy")
             .group_by(Document.legal_entity_id)
             .all()
         )
@@ -156,9 +159,10 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
         document_type: Optional[str] = None,
         order: str = "desc",
         legal_entity_id: Optional[int] = None,
+        doc_status: str = "pending_physical_copy",
     ) -> Optional[Document]:
         """Recupera il prossimo documento da revisionare."""
-        query = self.session.query(Document).filter(Document.doc_status == "imported")
+        query = self.session.query(Document).filter(Document.doc_status == doc_status)
         if document_type:
             query = query.filter(Document.document_type == document_type)
         if legal_entity_id is not None:
@@ -189,7 +193,6 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
             .select_from(Document)
             .outerjoin(Payment, Payment.document_id == Document.id)
             .filter(Document.supplier_id == supplier_id)
-            .filter(Document.doc_status != 'cancelled')
         )
 
         if legal_entity_id is not None:
@@ -244,6 +247,11 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
         supplier = self.session.get(Supplier, supplier_id)
         effective_due_date, used_fallback = _resolve_due_date(invoice_dto, supplier)
 
+        allowed_statuses = {"pending_physical_copy", "verified", "archived"}
+        status = invoice_dto.doc_status
+        if status not in allowed_statuses:
+            status = "pending_physical_copy"
+
         doc = Document(
             supplier_id=supplier_id,
             legal_entity_id=legal_entity_id,
@@ -254,10 +262,11 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
             total_taxable_amount=taxable,
             total_vat_amount=vat,
             total_gross_amount=gross,
-            doc_status=invoice_dto.doc_status,
+            doc_status=status,
             due_date=effective_due_date,
             file_name=invoice_dto.file_name,
             import_source=import_source,
+            note=getattr(invoice_dto, "note", None),
         )
         
         self.add(doc)

@@ -97,10 +97,8 @@
                     <label class="visually-hidden">Stato Doc</label>
                     <select name="doc_status" class="form-select form-select-sm">
                         <option value="">Stato documento</option>
-                        <option value="imported" {% if filters.doc_status == 'imported' %}selected{% endif %}>Da rivedere</option>
-                        <option value="pending_physical_copy" {% if filters.doc_status == 'pending_physical_copy' %}selected{% endif %}>In attesa copia</option>
+                        <option value="pending_physical_copy" {% if filters.doc_status == 'pending_physical_copy' %}selected{% endif %}>Da rivedere</option>
                         <option value="verified" {% if filters.doc_status == 'verified' %}selected{% endif %}>Verificato</option>
-                        <option value="rejected" {% if filters.doc_status == 'rejected' %}selected{% endif %}>Scartato</option>
                         <option value="archived" {% if filters.doc_status == 'archived' %}selected{% endif %}>Archiviato</option>
                     </select>
                 </div>
@@ -219,10 +217,10 @@
                           <td class="text-center">
                               {% if doc.doc_status == 'verified' %}
                                 <i class="bi bi-check-circle-fill text-success" title="Verificato"></i>
-                              {% elif doc.doc_status == 'imported' %}
+                              {% elif doc.doc_status == 'pending_physical_copy' %}
                                 <span class="badge bg-warning text-dark">Da Rivedere</span>
-                              {% elif doc.doc_status == 'rejected' %}
-                                <i class="bi bi-x-circle-fill text-danger" title="Scartato"></i>
+                              {% elif doc.doc_status == 'archived' %}
+                                <span class="badge bg-secondary">Archiviato</span>
                               {% else %}
                                 <span class="badge bg-light text-dark border">{{ doc.doc_status }}</span>
                               {% endif %}

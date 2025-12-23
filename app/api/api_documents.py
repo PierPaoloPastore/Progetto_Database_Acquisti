@@ -42,7 +42,7 @@ def api_update_document_status(document_id: int):
 
     Body JSON atteso:
     {
-      "doc_status": "imported|pending_physical_copy|verified|rejected|archived",
+      "doc_status": "pending_physical_copy|verified|archived",
       "due_date": "YYYY-MM-DD"  (opzionale)
     }
     """
