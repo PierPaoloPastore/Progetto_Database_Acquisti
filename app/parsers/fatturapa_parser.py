@@ -115,6 +115,7 @@ class InvoiceDTO:
 
     invoice_number: Optional[str] = None
     invoice_series: Optional[str] = None
+    tipo_documento: Optional[str] = None
     invoice_date: Optional[date] = None
     registration_date: Optional[date] = None
 
@@ -570,6 +571,7 @@ def _parse_xml_file(xml_path: Path, original_file_name: str, *, validate_xsd: bo
         (
             invoice_number,
             invoice_series,
+            tipo_documento,
             invoice_date,
             currency,
             total_gross_amount,
@@ -599,6 +601,7 @@ def _parse_xml_file(xml_path: Path, original_file_name: str, *, validate_xsd: bo
             supplier=supplier_dto,
             invoice_number=invoice_number,
             invoice_series=invoice_series,
+            tipo_documento=tipo_documento,
             invoice_date=invoice_date,
             registration_date=None,
             currency=currency or "EUR",
@@ -995,12 +998,13 @@ def _parse_supplier(root, warnings: Optional[List[str]] = None) -> SupplierDTO:
 
 
 def _parse_invoice_header(body, original_file_name: str) -> tuple[
-    Optional[str], Optional[str], Optional[date], Optional[str], Optional[Decimal], Optional[Decimal]
+    Optional[str], Optional[str], Optional[str], Optional[date], Optional[str], Optional[Decimal], Optional[Decimal]
 ]:
     """
     Estrae i dati principali del documento (DatiGeneraliDocumento):
 
     - Numero
+    - TipoDocumento
     - Divisa
     - Data
     - ImportoTotaleDocumento
@@ -1016,6 +1020,7 @@ def _parse_invoice_header(body, original_file_name: str) -> tuple[
         )
 
     invoice_number = _get_text(dg_node, ".//*[local-name()='Numero']")
+    tipo_documento = _get_text(dg_node, ".//*[local-name()='TipoDocumento']")
     invoice_date_str = _get_text(dg_node, ".//*[local-name()='Data']")
     invoice_date = _to_date(invoice_date_str)
 
@@ -1029,7 +1034,7 @@ def _parse_invoice_header(body, original_file_name: str) -> tuple[
     # Serie (non sempre presente esplicita; talvolta è incorporata nel Numero)
     invoice_series = None  # Manteniamo questo campo per possibili estensioni future
 
-    return invoice_number, invoice_series, invoice_date, currency, total_gross, general_rounding
+    return invoice_number, invoice_series, tipo_documento, invoice_date, currency, total_gross, general_rounding
 
 
 # ---------- DettaglioLinee ----------

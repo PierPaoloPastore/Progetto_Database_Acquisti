@@ -1,0 +1,131 @@
+/* Document detail compact layout */
+
+.document-detail .page-header {
+    margin-bottom: 1rem;
+}
+
+.document-detail .page-actions {
+    align-items: center;
+    display: flex;
+    gap: 0.5rem;
+}
+
+.document-detail .status-badge {
+    text-transform: none;
+}
+
+.document-detail .card {
+    padding: 0.9rem;
+}
+
+.document-detail .card-header {
+    margin-bottom: 0.6rem;
+    padding-bottom: 0.5rem;
+}
+
+.document-detail .card-header h3 {
+    font-size: 1rem;
+}
+
+.document-detail .summary-card {
+    background: #f8fafc;
+    border-color: #d9e2ef;
+}
+
+.document-detail .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.75rem 1rem;
+}
+
+.document-detail .summary-item {
+    background: #ffffff;
+    border: 1px solid #edf0f4;
+    border-radius: 6px;
+    padding: 0.6rem 0.75rem;
+    min-height: 64px;
+}
+
+.document-detail .summary-item .label {
+    display: block;
+    color: #56606b;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-bottom: 0.15rem;
+}
+
+.document-detail .summary-item .value {
+    display: block;
+    font-weight: 600;
+    color: #1f2d3d;
+}
+
+.document-detail .summary-item .text-muted {
+    font-weight: 400;
+}
+
+.document-detail .summary-item.highlight {
+    border-color: #cfe3d6;
+    background: #f2fbf6;
+}
+
+.document-detail .summary-item.highlight .value {
+    font-size: 1rem;
+}
+
+.document-detail .accordion-item {
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #dee2e6;
+    margin-bottom: 0.75rem;
+}
+
+.document-detail .accordion-button {
+    padding: 0.6rem 0.9rem;
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.document-detail .accordion-button:not(.collapsed) {
+    background: #f5f7fb;
+    color: #1f2d3d;
+}
+
+.document-detail .accordion-body {
+    padding: 0.75rem;
+}
+
+.document-detail .scrollable-list {
+    max-height: 55vh;
+    padding: 0.5rem;
+}
+
+.document-detail .table-compact th {
+    font-size: 0.75rem;
+}
+
+.document-detail .compact-card {
+    background: #fdfefe;
+}
+
+.document-detail .compact-card .card-body {
+    padding: 0.75rem;
+}
+
+.document-detail .compact-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1rem;
+}
+
+.document-detail .physical-copy-block .status-badge {
+    font-size: 0.7rem;
+}
+
+@media (max-width: 992px) {
+    .document-detail .scrollable-list {
+        max-height: 60vh;
+    }
+}

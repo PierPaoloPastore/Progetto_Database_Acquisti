@@ -5,7 +5,7 @@ Last updated: 2025-12-15
 - Monolithic Flask app (Python 3.12) that manages the full lifecycle of purchase documents, centered on a unified `documents` supertype with shared workflows for import, review, physical copies, deadlines, and payments. Source of truth: [README](../README.md).
 
 2) What is implemented today
-- FatturaPA XML/P7M import with DTOs, xsdata primary + legacy fallback, tag-name sanitization, encoding fallbacks, and delivery note expectations. Source: [README](../README.md), [P7M troubleshooting](guides/p7m_troubleshooting.md).
+- FatturaPA XML/P7M import with DTOs, xsdata primary + legacy fallback, tag-name sanitization, encoding fallbacks, delivery note expectations, and TD04 credit notes as `document_type='credit_note'`. Source: [README](../README.md), [P7M troubleshooting](guides/p7m_troubleshooting.md).
 - Document review with statuses (`imported`, `verified`, `rejected`, `cancelled`, `archived`) and physical copy tracking. Source: [README](../README.md).
 - Delivery notes (`delivery_notes`) for deferred invoices and PDF inbox with matching states. Source: [architecture](architecture.md).
 - Payment scheduling via `payments`, payment PDFs in `payment_documents`, and M:N reconciliation through `payment_document_links`. Source: [README](../README.md), [architecture](architecture.md).
@@ -59,3 +59,4 @@ Last updated: 2025-12-15
 10) Near-term TODOs
 - Roadmap: implement F24/insurance/MAV-CBILL/affitti/scontrini/tasse flows and related imports per [roadmap/future_types.md](roadmap/future_types.md).
 - Decluttering: follow `Cleaning_Plan.md` for low-risk cleanup and validation steps.
+- OCR scans: fix Tesseract tessdata path/Italian language detection (TESSDATA_PREFIX) so scanned PDFs work reliably.

@@ -100,6 +100,37 @@ def list_view():
         number_url=number_url,
     )
 
+
+@documents_bp.route("/new", methods=["GET", "POST"])
+def manual_create_view():
+    suppliers = list_active_suppliers()
+    legal_entities = list_legal_entities(include_inactive=False)
+    form_data: dict = {}
+
+    if request.method == "POST":
+        form_data = request.form.to_dict()
+        file = request.files.get("document_pdf")
+        ok, message, doc_id = doc_service.create_manual_document(form_data)
+        if ok and doc_id:
+            if file is not None and file.filename:
+                if not _is_allowed_file(file.filename):
+                    flash("Formato file non supportato per il PDF.", "warning")
+                else:
+                    try:
+                        doc_service.mark_physical_copy_received(doc_id, file=file)
+                    except Exception as exc:
+                        flash(f"Errore durante il salvataggio del PDF: {exc}", "warning")
+            flash(message, "success")
+            return redirect(url_for("documents.detail_view", document_id=doc_id))
+        flash(message, "danger")
+
+    return render_template(
+        "documents/manual_create.html",
+        suppliers=suppliers,
+        legal_entities=legal_entities,
+        form_data=form_data,
+    )
+
 @documents_bp.route("/review/list", methods=["GET"])
 def review_list_view():
     order = request.args.get("order", "desc")
@@ -113,12 +144,12 @@ def review_list_view():
 
     documents = doc_service.list_documents_to_review(
         order=order,
-        document_type="invoice",
+        document_type=None,
         legal_entity_id=legal_entity_id,
     )
     next_doc = doc_service.get_next_document_to_review(
         order=order,
-        document_type="invoice",
+        document_type=None,
         legal_entity_id=legal_entity_id,
     )
     from app.repositories.legal_entity_repo import list_legal_entities
@@ -221,6 +252,8 @@ def preview_visual(document_id: int):
     if document is None:
         abort(404)
 
+    from app.services.settings_service import get_xml_storage_path
+    xml_storage = get_xml_storage_path()
     upload_folder = current_app.config.get("UPLOAD_FOLDER", "storage/uploads")
     xml_full_path = None
 
@@ -228,7 +261,11 @@ def preview_visual(document_id: int):
         if os.path.isabs(document.file_path):
              xml_full_path = document.file_path
         else:
-             xml_full_path = os.path.join(upload_folder, document.file_path)
+             xml_full_path = os.path.join(xml_storage, document.file_path)
+             if not os.path.exists(xml_full_path):
+                 legacy_path = os.path.join(upload_folder, document.file_path)
+                 if os.path.exists(legacy_path):
+                     xml_full_path = legacy_path
 
     elif document.import_source:
         candidate_path = document.import_source

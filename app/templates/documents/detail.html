@@ -2,379 +2,522 @@
 
 {% block title %}Documento #{{ invoice.id }} - Gestionale Acquisti{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/document_detail.css') }}">
+{% endblock %}
+
 {% block content %}
-<div class="page-header">
-    <h1>Documento #{{ invoice.id }}</h1>
-    <div class="page-actions">
-        <a href="{{ url_for('documents.list_view') }}" class="btn-secondary">← Torna all'elenco</a>
-    </div>
-</div>
+{% set status_label = 'Da revisionare (con copia fisica)' %}
+{% set status_class = 'pending_physical_copy' %}
+{% if invoice.doc_status == 'archived' %}
+    {% set status_label = 'Archiviata' %}
+    {% set status_class = 'archived' %}
+{% elif invoice.is_paid %}
+    {% set status_label = 'Pagata' %}
+    {% set status_class = 'paid' %}
+{% elif invoice.doc_status == 'verified' %}
+    {% set status_label = 'Verificata' %}
+    {% set status_class = 'verified' %}
+{% endif %}
+{% set physical_status = invoice.physical_copy_status or 'missing' %}
 
-<div class="card mb-4 shadow-sm border-primary">
-    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-        <h5 class="mb-0"><i class="bi bi-sliders"></i> Gestione & Archiviazione</h5>
-        <span class="badge bg-light text-dark">
-            {{ invoice.doc_status|upper }}
-        </span>
-    </div>
-    <div class="card-body">
-        <div class="row">
-            
-            <div class="col-md-6 border-end pe-4">
-                <h6 class="text-muted mb-3">Stato Documento</h6>
-                <form method="post" action="{{ url_for('documents.update_status_view', document_id=invoice.id) }}">
-                    <div class="mb-3">
-                        <label for="doc_status" class="form-label small fw-bold">Stato Attuale</label>
-                        <select id="doc_status" name="doc_status" class="form-select">
-                            <option value="pending_physical_copy"{% if invoice.doc_status == 'pending_physical_copy' %} selected{% endif %}>Da rivedere</option>
-                            <option value="verified"{% if invoice.doc_status == 'verified' %} selected{% endif %}>Verificata</option>
-                            <option value="archived"{% if invoice.doc_status == 'archived' %} selected{% endif %}>Archiviata</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label for="due_date" class="form-label small fw-bold">Scadenza principale</label>
-                        <input type="date" id="due_date" name="due_date" class="form-control"
-                               value="{{ invoice.due_date.strftime('%Y-%m-%d') if invoice.due_date }}">
-                    </div>
-                    <div class="mb-3">
-                        <label for="note" class="form-label small fw-bold">Note</label>
-                        <textarea id="note" name="note" class="form-control" rows="3" placeholder="Annotazioni interne">{{ invoice.note or '' }}</textarea>
-                    </div>
-                    <button type="submit" class="btn btn-primary w-100">Aggiorna Stato</button>
-                </form>
+<div class="document-detail container-fluid">
+    <div class="page-header">
+        <div>
+            <h1>Documento #{{ invoice.id }}</h1>
+            <div class="text-muted small">
+                {{ invoice.document_number or 'N/D' }} |
+                {{ invoice.document_date.strftime('%d/%m/%Y') if invoice.document_date else '-' }} |
+                {{ supplier.name if supplier else 'N/D' }}
             </div>
+        </div>
+        <div class="page-actions">
+            <span class="status-badge status-{{ status_class }}">
+                <span class="status-dot"></span> {{ status_label }}
+            </span>
+            <a href="{{ url_for('documents.list_view') }}" class="btn-secondary btn-sm">Torna all'elenco</a>
+        </div>
+    </div>
 
-            <div class="col-md-6 ps-4">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h6 class="text-muted mb-0">Copia Fisica</h6>
-                    {% set physical_status = invoice.physical_copy_status or 'missing' %}
-                    <span class="status-badge status-{{ physical_status }}" style="font-size: 0.75rem;">
-                        <span class="status-dot"></span> {{ physical_status|upper }}
+    <div class="card summary-card mb-3">
+        <div class="card-header">
+            <h3>Sintesi completa</h3>
+        </div>
+        <div class="card-body">
+            <div class="summary-grid">
+                <div class="summary-item">
+                    <span class="label">Stato</span>
+                    <span class="value">
+                        <span class="status-badge status-{{ status_class }}">
+                            <span class="status-dot"></span> {{ status_label }}
+                        </span>
                     </span>
                 </div>
+                <div class="summary-item">
+                    <span class="label">Copia fisica</span>
+                    <span class="value">
+                        <span class="status-badge status-{{ physical_status }}">
+                            <span class="status-dot"></span> {{ physical_status|upper }}
+                        </span>
+                        {% if invoice.physical_copy_file_path %}
+                            <small class="text-muted d-block text-truncate">{{ invoice.physical_copy_file_path.split('/')[-1] }}</small>
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="summary-item highlight">
+                    <span class="label">Totale Lordo</span>
+                    <span class="value text-success">&euro; {{ "%.2f"|format(invoice.total_gross_amount or 0) }}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">Imponibile</span>
+                    <span class="value">&euro; {{ "%.2f"|format(invoice.total_taxable_amount or 0) }}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">IVA</span>
+                    <span class="value">&euro; {{ "%.2f"|format(invoice.total_vat_amount or 0) }}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">Scadenza</span>
+                    <span class="value">{{ invoice.due_date.strftime('%d/%m/%Y') if invoice.due_date else '-' }}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">Registrazione</span>
+                    <span class="value">{{ invoice.registration_date.strftime('%d/%m/%Y') if invoice.registration_date else '-' }}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">Fornitore</span>
+                    <span class="value">
+                        {% if supplier %}
+                            <a href="{{ url_for('suppliers.detail_view', supplier_id=supplier.id) }}" class="fw-bold">{{ supplier.name }}</a>
+                        {% else %}
+                            <span class="text-muted">N/D</span>
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">Intestatario</span>
+                    <span class="value">{{ invoice.legal_entity.name if invoice.legal_entity else '-' }}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">File XML</span>
+                    <span class="value text-muted text-truncate">{{ invoice.file_name }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
 
-                {% if invoice.physical_copy_file_path %}
-                    <div class="alert alert-success d-flex align-items-center p-2 mb-3">
-                        <i class="bi bi-check-circle-fill fs-4 me-2"></i>
-                        <div class="text-truncate">
-                            <small class="d-block text-muted">File archiviato:</small>
-                            <strong>{{ invoice.physical_copy_file_path.split('/')[-1] }}</strong>
-                        </div>
+    <div class="accordion" id="document-detail-accordion">
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="heading-lines">
+                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-lines" aria-expanded="true" aria-controls="collapse-lines">
+                    Righe Documento ({{ lines|list|length }})
+                </button>
+            </h2>
+            <div id="collapse-lines" class="accordion-collapse collapse show" aria-labelledby="heading-lines" data-bs-parent="#document-detail-accordion">
+                <div class="accordion-body">
+                    <div class="d-flex justify-content-end mb-2">
+                        <a href="{{ url_for('categories.bulk_assign_view', document_id=invoice.id) }}" class="btn-secondary btn-sm">Assegna categorie</a>
                     </div>
-                    
-                    <div class="d-grid gap-2">
-                        <a href="{{ url_for('documents.view_physical_copy', document_id=invoice.id) }}" 
-                           target="_blank" class="btn btn-outline-primary">
-                            <i class="bi bi-eye"></i> Visualizza File
+                    <div class="table-wrapper scrollable-list">
+                        <table class="table-compact">
+                            <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Descrizione</th>
+                                <th class="text-right">Q.ta</th>
+                                <th class="text-right">Prezzo</th>
+                                <th class="text-right">IVA</th>
+                                <th class="text-right">Totale</th>
+                                <th>Categoria</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {% for line in lines %}
+                              <tr>
+                                  <td>{{ line.line_number }}</td>
+                                  <td class="text-truncate" title="{{ line.description }}">{{ line.description }}</td>
+                                  <td class="text-right">{{ line.quantity }}</td>
+                                  <td class="text-right">{{ line.unit_price }}</td>
+                                  <td class="text-right">{{ line.vat_rate }}%</td>
+                                  <td class="text-right text-bold">&euro; {{ line.total_line_amount }}</td>
+                                  <td>
+                                      {% if line.category %}
+                                        <span class="badge bg-info text-dark">{{ line.category.name }}</span>
+                                      {% else %}
+                                        <span class="text-muted">-</span>
+                                      {% endif %}
+                                  </td>
+                              </tr>
+                            {% else %}
+                              <tr>
+                                  <td colspan="7" class="text-center text-muted">Nessuna riga</td>
+                              </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="heading-vat">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-vat" aria-expanded="false" aria-controls="collapse-vat">
+                    Riepilogo IVA ({{ vat_summaries|list|length }})
+                </button>
+            </h2>
+            <div id="collapse-vat" class="accordion-collapse collapse" aria-labelledby="heading-vat" data-bs-parent="#document-detail-accordion">
+                <div class="accordion-body">
+                    <div class="table-wrapper scrollable-list">
+                        <table class="table-compact">
+                            <thead>
+                            <tr>
+                                <th>Aliquota</th>
+                                <th class="text-right">Imponibile</th>
+                                <th class="text-right">Imposta</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {% for vs in vat_summaries %}
+                              <tr>
+                                  <td>{{ vs.vat_rate }}%</td>
+                                  <td class="text-right">&euro; {{ vs.taxable_amount }}</td>
+                                  <td class="text-right">&euro; {{ vs.vat_amount }}</td>
+                              </tr>
+                            {% else %}
+                              <tr>
+                                  <td colspan="3" class="text-center text-muted">Nessun riepilogo</td>
+                              </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="heading-payments">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-payments" aria-expanded="false" aria-controls="collapse-payments">
+                    Pagamenti ({{ payments|list|length }})
+                </button>
+            </h2>
+            <div id="collapse-payments" class="accordion-collapse collapse" aria-labelledby="heading-payments" data-bs-parent="#document-detail-accordion">
+                <div class="accordion-body">
+                    <div class="d-flex justify-content-end mb-2">
+                        <a href="{{ url_for('payments.inbox_view') }}" class="btn-link btn-sm">Inbox pagamenti</a>
+                    </div>
+                    <div class="table-wrapper scrollable-list">
+                        <table class="table-compact">
+                            <thead>
+                            <tr>
+                                <th>Scadenza</th>
+                                <th class="text-right">Previsto</th>
+                                <th class="text-right">Pagato</th>
+                                <th>Stato</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {% for p in payments %}
+                              <tr>
+                                  <td>{{ p.due_date.strftime('%d/%m/%Y') if p.due_date else '-' }}</td>
+                                  <td class="text-right">&euro; {{ p.expected_amount }}</td>
+                                  <td class="text-right">&euro; {{ p.paid_amount or 0 }}</td>
+                                  <td>
+                                      <span class="status-badge status-{{ p.status }}">{{ p.status }}</span>
+                                  </td>
+                              </tr>
+                            {% else %}
+                              <tr>
+                                  <td colspan="4" class="text-center text-muted">Nessun pagamento</td>
+                              </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="heading-attachments">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-attachments" aria-expanded="false" aria-controls="collapse-attachments">
+                    Allegati ({{ attachments|list|length }})
+                </button>
+            </h2>
+            <div id="collapse-attachments" class="accordion-collapse collapse" aria-labelledby="heading-attachments" data-bs-parent="#document-detail-accordion">
+                <div class="accordion-body">
+                    <div class="table-wrapper scrollable-list">
+                        <table class="table-compact">
+                            <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>Descrizione</th>
+                                <th>Formato</th>
+                                <th>Download</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {% for att in attachments %}
+                              <tr>
+                                  <td>{{ att.original_name or att.stored_name }}</td>
+                                  <td>{{ att.description or '-' }}</td>
+                                  <td>{{ att.format or '-' }}</td>
+                                  <td>
+                                      <a class="btn btn-sm btn-outline-primary"
+                                         href="{{ url_for('documents.download_attachment', document_id=invoice.id, filename=att.stored_name) }}">
+                                        Scarica
+                                      </a>
+                                  </td>
+                              </tr>
+                            {% else %}
+                              <tr>
+                                  <td colspan="4" class="text-center text-muted">Nessun allegato</td>
+                              </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="heading-ddt">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-ddt" aria-expanded="false" aria-controls="collapse-ddt">
+                    DDT collegati ({{ linked_delivery_notes|list|length }})
+                </button>
+            </h2>
+            <div id="collapse-ddt" class="accordion-collapse collapse" aria-labelledby="heading-ddt" data-bs-parent="#document-detail-accordion">
+                <div class="accordion-body">
+                    <div class="d-flex justify-content-end gap-2 mb-2">
+                        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('delivery_notes.list_view') }}">Vai a DDT</a>
+                        <a class="btn btn-sm btn-outline-success" href="{{ url_for('documents.match_delivery_notes_view', document_id=invoice.id) }}">
+                            <i class="bi bi-link-45deg"></i> Abbina DDT
                         </a>
-                        <form method="post" action="{{ url_for('documents.remove_physical_copy', document_id=invoice.id) }}"
-                              onsubmit="return confirm('Rimuovere il collegamento al file?');">
-                            <button type="submit" class="btn btn-outline-danger w-100">
-                                <i class="bi bi-link-45deg"></i> Scollega File
-                            </button>
-                        </form>
                     </div>
-
-                {% else %}
-                    <div class="alert alert-secondary p-2 mb-3 text-center small">
-                        Nessun documento digitale collegato.
+                    <div class="table-wrapper scrollable-list">
+                        <table class="table-compact">
+                            <thead>
+                            <tr>
+                                <th>Data</th>
+                                <th>Numero</th>
+                                <th>Fornitore</th>
+                                <th>Stato</th>
+                                <th>PDF</th>
+                                <th>Azioni</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {% for ddt in linked_delivery_notes %}
+                                <tr>
+                                    <td>{{ ddt.ddt_date.strftime('%d/%m/%Y') if ddt.ddt_date else '-' }}</td>
+                                    <td class="fw-bold">{{ ddt.ddt_number }}</td>
+                                    <td>{{ ddt.supplier.name if ddt.supplier else 'N/D' }}</td>
+                                    <td><span class="status-badge status-{{ ddt.status }}">{{ ddt.status }}</span></td>
+                                    <td>
+                                        {% if ddt.file_path %}
+                                            <a href="{{ url_for('delivery_notes.file_view', delivery_note_id=ddt.id) }}" class="btn btn-sm btn-outline-primary" target="_blank">
+                                                <i class="bi bi-file-earmark-pdf"></i>
+                                            </a>
+                                        {% else %}
+                                            <span class="text-muted small">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('delivery_notes.detail_view', delivery_note_id=ddt.id) }}">
+                                            <i class="bi bi-pencil"></i> Dettaglio
+                                        </a>
+                                    </td>
+                                </tr>
+                            {% else %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-3">Nessun DDT collegato.</td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-                    <form method="post" enctype="multipart/form-data"
-                          action="{{ url_for('documents.upload_physical_copy', document_id=invoice.id) }}">
-                        <div class="input-group mb-2">
-                            <input type="file" class="form-control" name="file" required>
-                            <button class="btn btn-success" type="submit">Carica</button>
+    <div class="card compact-card mt-3">
+        <div class="card-header">
+            <h3>Gestione rapida</h3>
+        </div>
+        <div class="card-body">
+            <div class="compact-grid">
+                <div class="compact-form">
+                    <form method="post" action="{{ url_for('documents.update_status_view', document_id=invoice.id) }}">
+                        <div class="row g-2">
+                            <div class="col-12">
+                                <label for="doc_status" class="form-label small fw-bold">Stato</label>
+                                <select id="doc_status" name="doc_status" class="form-select form-select-sm">
+                                    <option value="pending_physical_copy"{% if invoice.doc_status == 'pending_physical_copy' %} selected{% endif %}>Da revisionare (con copia fisica)</option>
+                                    <option value="verified"{% if invoice.doc_status == 'verified' %} selected{% endif %}>Verificata</option>
+                                    <option value="archived"{% if invoice.doc_status == 'archived' %} selected{% endif %}>Archiviata</option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label for="due_date" class="form-label small fw-bold">Scadenza</label>
+                                <input type="date" id="due_date" name="due_date" class="form-control form-control-sm"
+                                       value="{{ invoice.due_date.strftime('%Y-%m-%d') if invoice.due_date }}">
+                            </div>
+                            <div class="col-12">
+                                <label for="note" class="form-label small fw-bold">Note</label>
+                                <textarea id="note" name="note" class="form-control form-control-sm" rows="2" placeholder="Annotazioni interne">{{ invoice.note or '' }}</textarea>
+                            </div>
+                            <div class="col-12">
+                                <button type="submit" class="btn btn-primary w-100 btn-sm">Aggiorna</button>
+                            </div>
                         </div>
                     </form>
-                    
-                    <div class="text-center mt-2">
-                        <small class="text-muted">oppure</small>
-                        <a href="{{ url_for('documents.attach_scan_view', document_id=invoice.id) }}" class="small fw-bold">seleziona da Inbox</a>
+                </div>
+
+                <div class="preview-block">
+                    <div class="small text-muted mb-2">Anteprima XML</div>
+                    <div class="row g-2">
+                        <div class="col-12">
+                            <label for="preview-style" class="form-label small fw-bold">Foglio di stile</label>
+                            <select id="preview-style" class="form-select form-select-sm">
+                                <option value="ordinaria" selected>Fattura Ordinaria (AE)</option>
+                                <option value="vfsm10">Fattura Semplificata VFSM10 (AE)</option>
+                                <option value="asso">Foglio AssoSoftware</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <button
+                                type="button"
+                                class="btn btn-outline-primary btn-sm w-100"
+                                data-bs-toggle="modal"
+                                data-bs-target="#xmlPreviewModal"
+                                data-preview-url="{{ url_for('documents.preview_visual', document_id=invoice.id) }}"
+                            >
+                                <i class="bi bi-eye"></i> Apri anteprima XML
+                            </button>
+                        </div>
+                        <div class="col-6">
+                            <button
+                                type="button"
+                                id="xml-print-btn"
+                                class="btn btn-outline-secondary btn-sm w-100"
+                                data-preview-url="{{ url_for('documents.preview_visual', document_id=invoice.id) }}"
+                            >
+                                <i class="bi bi-printer"></i> Stampa XML
+                            </button>
+                        </div>
                     </div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-</div>
+                </div>
 
-<section class="panel">
-    <div class="panel-header">
-        <h2>Allegati</h2>
-    </div>
-    <div class="table-wrapper scrollable-list">
-        <table class="table-compact">
-            <thead>
-            <tr>
-                <th>Nome</th>
-                <th>Descrizione</th>
-                <th>Formato</th>
-                <th>Download</th>
-            </tr>
-            </thead>
-            <tbody>
-            {% for att in attachments %}
-              <tr>
-                  <td>{{ att.original_name or att.stored_name }}</td>
-                  <td>{{ att.description or '-' }}</td>
-                  <td>{{ att.format or '-' }}</td>
-                  <td>
-                      <a class="btn btn-sm btn-outline-primary"
-                         href="{{ url_for('documents.download_attachment', document_id=invoice.id, filename=att.stored_name) }}">
-                        Scarica
-                      </a>
-                  </td>
-              </tr>
-            {% else %}
-              <tr>
-                  <td colspan="4" class="text-center text-muted">Nessun allegato</td>
-              </tr>
-            {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</section>
-
-<div class="cards-grid cards-2col">
-    <div class="card">
-        <div class="card-header">
-            <h3>📄 Dettagli</h3>
-        </div>
-        <div class="card-body">
-            <div class="data-row">
-                <span class="label">Numero:</span>
-                <span class="value fw-bold">{{ invoice.document_number }}</span>
-            </div>
-            <div class="data-row">
-                <span class="label">Data Documento:</span>
-                <span class="value">{{ invoice.document_date.strftime('%d/%m/%Y') if invoice.document_date else '-' }}</span>
-            </div>
-            <div class="data-row">
-                <span class="label">Registrazione:</span>
-                <span class="value">{{ invoice.registration_date.strftime('%d/%m/%Y') if invoice.registration_date else '-' }}</span>
-            </div>
-            <div class="data-row">
-                <span class="label">Anno contabile:</span>
-                <span class="value">{{ invoice.document_date.year if invoice.document_date else '-' }}</span>
-            </div>
-            <div class="data-row">
-                <span class="label">File XML:</span>
-                <span class="value text-muted small text-truncate" style="max-width: 150px;">{{ invoice.file_name }}</span>
-            </div>
-            <div class="data-row">
-                <span class="label">Note:</span>
-                <span class="value text-muted">{{ invoice.note or '-' }}</span>
-            </div>
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="card-header">
-            <h3>💶 Importi & Soggetti</h3>
-        </div>
-        <div class="card-body">
-            <div class="data-row highlight mb-3">
-                <span class="label">Totale Lordo:</span>
-                <span class="value text-bold text-success fs-5">€ {{ "%.2f"|format(invoice.total_gross_amount or 0) }}</span>
-            </div>
-            <div class="data-row">
-                <span class="label">Imponibile:</span>
-                <span class="value">€ {{ "%.2f"|format(invoice.total_taxable_amount or 0) }}</span>
-            </div>
-            <div class="data-row">
-                <span class="label">IVA:</span>
-                <span class="value">€ {{ "%.2f"|format(invoice.total_vat_amount or 0) }}</span>
-            </div>
-            <hr class="my-2">
-            <div class="data-row">
-                <span class="label">Fornitore:</span>
-                <span class="value">
-                    {% if supplier %}
-                        <a href="{{ url_for('suppliers.detail_view', supplier_id=supplier.id) }}" class="fw-bold">{{ supplier.name }}</a>
-                    {% else %}
-                        <span class="text-muted">N/D</span>
-                    {% endif %}
-                </span>
-            </div>
-            <div class="data-row">
-                <span class="label">Intestatario:</span>
-                <span class="value">{{ invoice.legal_entity.name if invoice.legal_entity else '-' }}</span>
-            </div>
-        </div>
-    </div>
-</div>
-
-<section class="panel">
-    <div class="panel-header">
-        <h2>📑 Righe Documento</h2>
-        <a href="{{ url_for('categories.bulk_assign_view', document_id=invoice.id) }}"
-           class="btn-secondary btn-sm">Assegna categorie</a>
-    </div>
-    <div class="table-wrapper scrollable-list">
-        <table class="table-compact">
-            <thead>
-            <tr>
-                <th>#</th>
-                <th>Descrizione</th>
-                <th class="text-right">Q.tà</th>
-                <th class="text-right">Prezzo</th>
-                <th class="text-right">IVA</th>
-                <th class="text-right">Totale</th>
-                <th>Categoria</th>
-            </tr>
-            </thead>
-            <tbody>
-            {% for line in lines %}
-              <tr>
-                  <td>{{ line.line_number }}</td>
-                  <td class="text-truncate" title="{{ line.description }}">{{ line.description }}</td>
-                  <td class="text-right">{{ line.quantity }}</td>
-                  <td class="text-right">{{ line.unit_price }}</td>
-                  <td class="text-right">{{ line.vat_rate }}%</td>
-                  <td class="text-right text-bold">€ {{ line.total_line_amount }}</td>
-                  <td>
-                      {% if line.category %}
-                        <span class="badge bg-info text-dark">{{ line.category.name }}</span>
-                      {% else %}
-                        <span class="text-muted">-</span>
-                      {% endif %}
-                  </td>
-              </tr>
-            {% else %}
-              <tr>
-                  <td colspan="7" class="text-center text-muted">Nessuna riga</td>
-              </tr>
-            {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</section>
-
-<div class="cards-grid cards-2col">
-    <div class="card">
-        <div class="card-header">
-            <h3>🧾 Riepilogo IVA</h3>
-        </div>
-        <div class="card-body">
-            <div class="table-wrapper scrollable-list">
-                <table class="table-compact">
-                    <thead>
-                    <tr>
-                        <th>Aliquota</th>
-                        <th class="text-right">Imponibile</th>
-                        <th class="text-right">Imposta</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    {% for vs in vat_summaries %}
-                      <tr>
-                          <td>{{ vs.vat_rate }}%</td>
-                          <td class="text-right">€ {{ vs.taxable_amount }}</td>
-                          <td class="text-right">€ {{ vs.vat_amount }}</td>
-                      </tr>
-                    {% else %}
-                      <tr>
-                          <td colspan="3" class="text-center text-muted">Nessun riepilogo</td>
-                      </tr>
-                    {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="card-header">
-            <h3>💳 Pagamenti</h3>
-            <a href="{{ url_for('payments.inbox_view') }}" class="btn-link btn-sm">Inbox pagamenti →</a>
-        </div>
-        <div class="card-body">
-            <div class="table-wrapper scrollable-list">
-                <table class="table-compact">
-                    <thead>
-                    <tr>
-                        <th>Scadenza</th>
-                        <th class="text-right">Previsto</th>
-                        <th class="text-right">Pagato</th>
-                        <th>Stato</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    {% for p in payments %}
-                      <tr>
-                          <td>{{ p.due_date.strftime('%d/%m/%Y') if p.due_date else '-' }}</td>
-                          <td class="text-right">€ {{ p.expected_amount }}</td>
-                          <td class="text-right">€ {{ p.paid_amount or 0 }}</td>
-                          <td>
-                              <span class="status-badge status-{{ p.status }}">{{ p.status }}</span>
-                          </td>
-                      </tr>
-                    {% else %}
-                      <tr>
-                          <td colspan="4" class="text-center text-muted">Nessun pagamento</td>
-                      </tr>
-                    {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="card mt-4">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <h3><i class="bi bi-truck"></i> DDT collegati</h3>
-        <div class="d-flex gap-2">
-            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('delivery_notes.list_view') }}">Vai a DDT</a>
-            <a class="btn btn-sm btn-outline-success" href="{{ url_for('documents.match_delivery_notes_view', document_id=invoice.id) }}">
-                <i class="bi bi-link-45deg"></i> Abbina DDT
-            </a>
-        </div>
-    </div>
-    <div class="card-body">
-        <div class="table-wrapper scrollable-list">
-            <table class="table-compact">
-                <thead>
-                <tr>
-                    <th>Data</th>
-                    <th>Numero</th>
-                    <th>Fornitore</th>
-                    <th>Stato</th>
-                    <th>PDF</th>
-                    <th>Azioni</th>
-                </tr>
-                </thead>
-                <tbody>
-                {% for ddt in linked_delivery_notes %}
-                    <tr>
-                        <td>{{ ddt.ddt_date.strftime('%d/%m/%Y') if ddt.ddt_date else '-' }}</td>
-                        <td class="fw-bold">{{ ddt.ddt_number }}</td>
-                        <td>{{ ddt.supplier.name if ddt.supplier else 'N/D' }}</td>
-                        <td><span class="status-badge status-{{ ddt.status }}">{{ ddt.status }}</span></td>
-                        <td>
-                            {% if ddt.file_path %}
-                                <a href="{{ url_for('delivery_notes.file_view', delivery_note_id=ddt.id) }}" class="btn btn-sm btn-outline-primary" target="_blank">
-                                    <i class="bi bi-file-earmark-pdf"></i>
-                                </a>
-                            {% else %}
-                                <span class="text-muted small">-</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('delivery_notes.detail_view', delivery_note_id=ddt.id) }}">
-                                <i class="bi bi-pencil"></i> Dettaglio
+                <div class="physical-copy-block">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="small text-muted">Copia fisica</span>
+                        <span class="status-badge status-{{ physical_status }}">
+                            <span class="status-dot"></span> {{ physical_status|upper }}
+                        </span>
+                    </div>
+                    {% if invoice.physical_copy_file_path %}
+                        <div class="small text-muted text-truncate mb-2">{{ invoice.physical_copy_file_path.split('/')[-1] }}</div>
+                        <div class="d-grid gap-2">
+                            <a href="{{ url_for('documents.view_physical_copy', document_id=invoice.id) }}"
+                               target="_blank" class="btn btn-outline-primary btn-sm">
+                                <i class="bi bi-eye"></i> Visualizza
                             </a>
-                        </td>
-                    </tr>
-                {% else %}
-                    <tr>
-                        <td colspan="6" class="text-center text-muted py-3">Nessun DDT collegato.</td>
-                    </tr>
-                {% endfor %}
-                </tbody>
-            </table>
+                            <form method="post" action="{{ url_for('documents.remove_physical_copy', document_id=invoice.id) }}"
+                                  onsubmit="return confirm('Rimuovere il collegamento al file?');">
+                                <button type="submit" class="btn btn-outline-danger btn-sm w-100">
+                                    <i class="bi bi-link-45deg"></i> Scollega
+                                </button>
+                            </form>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-secondary p-2 mb-2 text-center small">
+                            Nessun documento digitale collegato.
+                        </div>
+                        <form method="post" enctype="multipart/form-data"
+                              action="{{ url_for('documents.upload_physical_copy', document_id=invoice.id) }}">
+                            <div class="input-group input-group-sm mb-2">
+                                <input type="file" class="form-control" name="file" required>
+                                <button class="btn btn-success" type="submit">Carica</button>
+                            </div>
+                        </form>
+                        <div class="text-center">
+                            <small class="text-muted">oppure</small>
+                            <a href="{{ url_for('documents.attach_scan_view', document_id=invoice.id) }}" class="small fw-bold">seleziona da Inbox</a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
+<div class="modal fade" id="xmlPreviewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Anteprima XML</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+            </div>
+            <div class="modal-body p-0">
+                <iframe id="xml-preview-frame" class="w-100 border-0" style="height: 80vh;" title="Anteprima XML"></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+<iframe id="xml-print-frame" class="d-none" title="XML Print"></iframe>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const modal = document.getElementById("xmlPreviewModal");
+    const frame = document.getElementById("xml-preview-frame");
+    const styleSelect = document.getElementById("preview-style");
+    const trigger = document.querySelector("[data-preview-url]");
+    const printBtn = document.getElementById("xml-print-btn");
+    const printFrame = document.getElementById("xml-print-frame");
+
+    if (modal && frame && styleSelect && trigger) {
+        const buildUrl = () => {
+            const base = trigger.getAttribute("data-preview-url");
+            const style = styleSelect.value || "ordinaria";
+            return `${base}?style=${encodeURIComponent(style)}`;
+        };
+
+        modal.addEventListener("show.bs.modal", () => {
+            frame.src = buildUrl();
+        });
+
+        modal.addEventListener("hidden.bs.modal", () => {
+            frame.removeAttribute("src");
+        });
+
+        styleSelect.addEventListener("change", () => {
+            if (modal.classList.contains("show")) {
+                frame.src = buildUrl();
+            }
+        });
+    }
+
+    if (printBtn && printFrame) {
+        printBtn.addEventListener("click", () => {
+            const base = printBtn.getAttribute("data-preview-url");
+            if (!base) return;
+            const style = styleSelect ? (styleSelect.value || "ordinaria") : "ordinaria";
+            const url = `${base}?style=${encodeURIComponent(style)}`;
+            printFrame.onload = () => {
+                if (printFrame.contentWindow) {
+                    printFrame.contentWindow.focus();
+                    printFrame.contentWindow.print();
+                }
+            };
+            printFrame.src = url;
+        });
+    }
+});
+</script>
 {% endblock %}

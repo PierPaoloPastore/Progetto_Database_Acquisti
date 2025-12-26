@@ -17,10 +17,10 @@ from flask import (
     redirect,
     url_for,
     flash,
-    current_app,
 )
 
 from app.services import run_import
+from app.services.settings_service import get_xml_inbox_path
 
 import_bp = Blueprint("import", __name__)
 
@@ -37,7 +37,7 @@ def run_view():
     """
     from flask import session  # import locale per evitare problemi in contesti non-WSGI
 
-    default_folder = current_app.config.get("IMPORT_XML_FOLDER")
+    default_folder = get_xml_inbox_path()
 
     if request.method == "GET":
         last_summary = session.get("last_import_summary")

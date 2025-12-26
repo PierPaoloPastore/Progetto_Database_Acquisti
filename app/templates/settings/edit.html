@@ -19,6 +19,21 @@
                     <form method="post">
 
                         <div class="mb-4">
+                            <label for="xml_inbox" class="form-label fw-bold">Cartella Inbox XML (Fatture)</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-inbox"></i></span>
+                                <input type="text" class="form-control font-monospace" id="xml_inbox" name="xml_inbox"
+                                       value="{{ xml_inbox }}" placeholder="/percorso/assoluto/inbox/xml">
+                                <button class="btn btn-outline-secondary" type="button" data-clip-target="#xml_inbox">
+                                    Incolla percorso
+                                </button>
+                            </div>
+                            <div class="form-text">
+                                Cartella di input per i file XML/P7M. Gli originali vengono archiviati in Archivio/XML/AAAA.
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
                             <label for="scan_inbox" class="form-label fw-bold">Cartella Inbox Scansioni</label>
                             <div class="input-group">
                                 <span class="input-group-text"><i class="bi bi-inbox"></i></span>
@@ -29,12 +44,44 @@
                                 </button>
                             </div>
                             <div class="form-text">
-                                Cartella dove vengono salvate le scansioni dai multifunzione di rete.
+                                Cartella di input per scansioni documenti/DDT. Gli originali vengono archiviati in Archivio/Documenti/AAAA e Archivio/DDT/AAAA.
                             </div>
                         </div>
 
                         <div class="mb-4">
-                            <label for="copy_storage" class="form-label fw-bold">Archivio Copie Fisiche</label>
+                            <label for="payment_inbox" class="form-label fw-bold">Cartella Inbox Pagamenti</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-inbox"></i></span>
+                                <input type="text" class="form-control font-monospace" id="payment_inbox" name="payment_inbox"
+                                       value="{{ payment_inbox }}" placeholder="/percorso/assoluto/inbox/pagamenti">
+                                <button class="btn btn-outline-secondary" type="button" data-clip-target="#payment_inbox">
+                                    Incolla percorso
+                                </button>
+                            </div>
+                            <div class="form-text">
+                                Cartella di input per i documenti di pagamento. Gli originali vengono archiviati in Archivio/Pagamenti/AAAA.
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <div class="mb-4">
+                            <label for="xml_storage" class="form-label fw-bold">Deposito XML</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-folder"></i></span>
+                                <input type="text" class="form-control font-monospace" id="xml_storage" name="xml_storage"
+                                       value="{{ xml_storage }}" placeholder="/percorso/assoluto/storage/xml">
+                                <button class="btn btn-outline-secondary" type="button" data-clip-target="#xml_storage">
+                                    Incolla percorso
+                                </button>
+                            </div>
+                            <div class="form-text">
+                                Deposito interno per i file XML importati (AAAA).
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="copy_storage" class="form-label fw-bold">Deposito Copie Fisiche</label>
                             <div class="input-group">
                                 <span class="input-group-text"><i class="bi bi-archive"></i></span>
                                 <input type="text" class="form-control font-monospace" id="copy_storage" name="copy_storage" 
@@ -44,7 +91,37 @@
                                 </button>
                             </div>
                             <div class="form-text">
-                                Cartella dove il sistema organizza e archivia i PDF rinominati (YYYY/MM).
+                                Deposito interno per i PDF dei documenti di acquisto (AAAA).
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="payment_storage" class="form-label fw-bold">Deposito Pagamenti</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-credit-card"></i></span>
+                                <input type="text" class="form-control font-monospace" id="payment_storage" name="payment_storage"
+                                       value="{{ payment_storage }}" placeholder="/percorso/assoluto/storage/pagamenti">
+                                <button class="btn btn-outline-secondary" type="button" data-clip-target="#payment_storage">
+                                    Incolla percorso
+                                </button>
+                            </div>
+                            <div class="form-text">
+                                Deposito interno per i PDF dei pagamenti (AAAA).
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="ddt_storage" class="form-label fw-bold">Deposito DDT</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-truck"></i></span>
+                                <input type="text" class="form-control font-monospace" id="ddt_storage" name="ddt_storage"
+                                       value="{{ ddt_storage }}" placeholder="/percorso/assoluto/storage/ddt">
+                                <button class="btn btn-outline-secondary" type="button" data-clip-target="#ddt_storage">
+                                    Incolla percorso
+                                </button>
+                            </div>
+                            <div class="form-text">
+                                Deposito interno per i DDT (AAAA).
                             </div>
                         </div>
 

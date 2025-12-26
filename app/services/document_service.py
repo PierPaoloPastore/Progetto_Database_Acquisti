@@ -5,16 +5,17 @@ Rifattorizzato con Pattern Unit of Work.
 from __future__ import annotations
 
 import os
+import shutil
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional, List, Any
 
-from flask import current_app
-
 from app.services.unit_of_work import UnitOfWork
+from app.services import settings_service
 from app.services.settings_service import get_attachments_storage_path
 import json
 from app.services.dto import DocumentSearchFilters
+from app.models import Document
 
 class DocumentService:
     """
@@ -131,6 +132,75 @@ def list_document_attachments(document_id: int) -> list[dict]:
     return []
 
 
+def create_manual_document(form_data: dict) -> tuple[bool, str, Optional[int]]:
+    allowed_types = {"f24", "insurance", "mav", "cbill", "receipt", "rent", "tax", "other"}
+    doc_type = (form_data.get("document_type") or "").strip()
+    if doc_type not in allowed_types:
+        return False, "Tipo documento non supportato.", None
+
+    allowed_statuses = {"pending_physical_copy", "verified", "archived"}
+    doc_status = (form_data.get("doc_status") or "verified").strip()
+    if doc_status not in allowed_statuses:
+        doc_status = "verified"
+
+    supplier_id = _parse_int(form_data.get("supplier_id"))
+    legal_entity_id = _parse_int(form_data.get("legal_entity_id"))
+
+    taxable = _parse_decimal(form_data.get("total_taxable_amount"))
+    vat = _parse_decimal(form_data.get("total_vat_amount"))
+    gross = _parse_decimal(form_data.get("total_gross_amount"))
+    if gross is None:
+        gross = (taxable or Decimal("0")) + (vat or Decimal("0"))
+
+    doc = Document(
+        document_type=doc_type,
+        supplier_id=supplier_id,
+        legal_entity_id=legal_entity_id,
+        document_number=form_data.get("document_number") or None,
+        document_date=_parse_date(form_data.get("document_date")),
+        registration_date=_parse_date(form_data.get("registration_date")),
+        due_date=_parse_date(form_data.get("due_date")),
+        total_taxable_amount=taxable,
+        total_vat_amount=vat,
+        total_gross_amount=gross,
+        note=form_data.get("note") or None,
+        doc_status=doc_status,
+        is_paid=_parse_bool(form_data.get("is_paid")),
+    )
+
+    if doc_type == "f24":
+        doc.f24_period_from = _parse_date(form_data.get("f24_period_from"))
+        doc.f24_period_to = _parse_date(form_data.get("f24_period_to"))
+        doc.f24_tax_type = form_data.get("f24_tax_type") or None
+        doc.f24_payment_code = form_data.get("f24_payment_code") or None
+    elif doc_type == "insurance":
+        doc.insurance_policy_number = form_data.get("insurance_policy_number") or None
+        doc.insurance_coverage_start = _parse_date(form_data.get("insurance_coverage_start"))
+        doc.insurance_coverage_end = _parse_date(form_data.get("insurance_coverage_end"))
+        doc.insurance_type = form_data.get("insurance_type") or None
+        doc.insurance_asset_description = form_data.get("insurance_asset_description") or None
+    elif doc_type in {"mav", "cbill"}:
+        doc.payment_code = form_data.get("payment_code") or None
+        doc.creditor_entity = form_data.get("creditor_entity") or None
+    elif doc_type == "receipt":
+        doc.receipt_merchant = form_data.get("receipt_merchant") or None
+        doc.receipt_category = form_data.get("receipt_category") or None
+    elif doc_type == "rent":
+        doc.rent_period_month = _parse_int(form_data.get("rent_period_month"))
+        doc.rent_period_year = _parse_int(form_data.get("rent_period_year"))
+        doc.rent_property_description = form_data.get("rent_property_description") or None
+    elif doc_type == "tax":
+        doc.tax_type = form_data.get("tax_type") or None
+        doc.tax_period_year = _parse_int(form_data.get("tax_period_year"))
+        doc.tax_period_description = form_data.get("tax_period_description") or None
+
+    with UnitOfWork() as uow:
+        uow.documents.add(doc)
+        uow.commit()
+
+    return True, "Documento creato manualmente.", doc.id
+
+
 def update_document_status(document_id: int, doc_status: str, due_date: Optional[date] = None, note: Optional[str] = None):
     with UnitOfWork() as uow:
         doc = uow.documents.get_by_id(document_id)
@@ -166,7 +236,7 @@ def delete_document(document_id: int) -> bool:
 def list_documents_to_review(order: str = "desc", document_type: Optional[str] = None, legal_entity_id: Optional[int] = None):
     with UnitOfWork() as uow:
         return uow.documents.list_imported(
-            document_type=document_type or "invoice",
+            document_type=document_type,
             order=order,
             legal_entity_id=legal_entity_id,
             doc_status="pending_physical_copy",
@@ -175,7 +245,7 @@ def list_documents_to_review(order: str = "desc", document_type: Optional[str] =
 def get_next_document_to_review(order: str = "desc", document_type: Optional[str] = None, legal_entity_id: Optional[int] = None):
     with UnitOfWork() as uow:
         return uow.documents.get_next_imported(
-            document_type=document_type or "invoice",
+            document_type=document_type,
             order=order,
             legal_entity_id=legal_entity_id,
             doc_status="pending_physical_copy",
@@ -211,23 +281,25 @@ def mark_physical_copy_received(document_id: int, file=None):
         if file:
             from werkzeug.utils import secure_filename
             filename = secure_filename(file.filename)
-            
-            upload_folder = current_app.config.get("UPLOAD_FOLDER", "storage/uploads")
-            
+
             ref_date = doc.document_date or date.today()
             year_str = str(ref_date.year)
-            month_str = f"{ref_date.month:02d}"
-            
-            save_dir = os.path.join(upload_folder, "scans", year_str, month_str)
+            base_dir = settings_service.get_documents_storage_path()
+            save_dir = os.path.join(base_dir, year_str)
             os.makedirs(save_dir, exist_ok=True)
-            
-            new_filename = f"doc_{doc.id}_{filename}"
-            full_path = os.path.join(save_dir, new_filename)
-            
+
+            new_filename = f"doc_{doc.id}_{filename}" if filename else f"doc_{doc.id}"
+            safe_name = settings_service.ensure_unique_filename(save_dir, new_filename)
+            full_path = os.path.join(save_dir, safe_name)
+
             file.save(full_path)
-            
-            rel_path = os.path.join("scans", year_str, month_str, new_filename)
+
+            rel_path = os.path.join(year_str, safe_name)
             doc.physical_copy_file_path = rel_path
+
+            archive_dir = settings_service.get_documents_archive_path(ref_date.year)
+            archive_name = settings_service.ensure_unique_filename(archive_dir, safe_name)
+            shutil.copy2(full_path, os.path.join(archive_dir, archive_name))
 
         uow.commit()
         return doc
@@ -294,3 +366,18 @@ def _parse_decimal(value: Optional[str]) -> Optional[Decimal]:
         return Decimal(value)
     except Exception:
         return None
+
+
+def _parse_int(value: Optional[str]) -> Optional[int]:
+    if value is None or value == "":
+        return None
+    try:
+        return int(value)
+    except Exception:
+        return None
+
+
+def _parse_bool(value: Optional[str]) -> bool:
+    if value is None:
+        return False
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}

@@ -2,7 +2,7 @@
 Modello Document (tabella: documents).
 
 Single Table Inheritance per tutti i documenti economici:
-fatture, F24, assicurazioni, MAV, CBILL, scontrini, affitti, tributi.
+fatture, note di credito, F24, assicurazioni, MAV, CBILL, scontrini, affitti, tributi.
 """
 
 from datetime import datetime
@@ -189,6 +189,10 @@ class Document(db.Model):
     @property
     def is_invoice(self) -> bool:
         return self.document_type == "invoice"
+
+    @property
+    def is_credit_note(self) -> bool:
+        return self.document_type == "credit_note"
 
     @property
     def is_f24(self) -> bool:

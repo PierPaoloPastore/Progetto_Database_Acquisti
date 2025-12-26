@@ -223,7 +223,7 @@ CREATE TABLE documents (
   
   -- Check Constraints
   CONSTRAINT chk_documents_type 
-    CHECK (document_type IN ('invoice', 'f24', 'insurance', 'mav', 
+    CHECK (document_type IN ('invoice', 'credit_note', 'f24', 'insurance', 'mav', 
                              'cbill', 'receipt', 'rent', 'tax', 'other')),
   
   CONSTRAINT chk_documents_status 
@@ -235,8 +235,8 @@ CREATE TABLE documents (
                                     'uploaded', 'not_required')),
   
   CONSTRAINT chk_documents_invoice_type 
-    CHECK ((document_type = 'invoice' AND invoice_type IN ('immediate', 'deferred'))
-           OR (document_type != 'invoice' AND invoice_type IS NULL)),
+    CHECK ((document_type IN ('invoice', 'credit_note') AND invoice_type IN ('immediate', 'deferred'))
+           OR (document_type NOT IN ('invoice', 'credit_note') AND invoice_type IS NULL)),
   
   CONSTRAINT chk_documents_f24_code 
     CHECK ((document_type = 'f24' AND f24_payment_code IS NOT NULL)
@@ -276,7 +276,7 @@ idx_documents_created_at (created_at)
 **Colonne Comuni (tutti i document_type):**
 
 - `document_type` VARCHAR(32) NOT NULL
-  - Valori: `'invoice'`, `'f24'`, `'insurance'`, `'mav'`, `'cbill'`, `'receipt'`, `'rent'`, `'tax'`, `'other'`
+  - Valori: `'invoice'`, `'credit_note'`, `'f24'`, `'insurance'`, `'mav'`, `'cbill'`, `'receipt'`, `'rent'`, `'tax'`, `'other'`
   - Discriminatore del tipo di documento
 
 - `doc_status` VARCHAR(32) NOT NULL DEFAULT 'imported'
@@ -290,7 +290,10 @@ idx_documents_created_at (created_at)
 **Colonne Specifiche per Tipo:**
 
 - **FATTURE** (`document_type = 'invoice'`):
-  - `invoice_type` VARCHAR(16) – `'immediate'` | `'deferred'`
+  - `invoice_type` VARCHAR(16) - `'immediate'` | `'deferred'`
+
+- **NOTE DI CREDITO** (`document_type = 'credit_note'`):
+  - `invoice_type` VARCHAR(16) - `'immediate'` | `'deferred'`
 
 - **F24** (`document_type = 'f24'`):
   - `f24_period_from`, `f24_period_to` DATE

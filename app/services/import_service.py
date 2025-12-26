@@ -6,11 +6,13 @@ Aggiornato per usare l'architettura Document e UnitOfWork.
 from __future__ import annotations
 
 import hashlib
+import os
+import shutil
 from pathlib import Path
 import base64
 import json
 from typing import Dict, List, Optional
-from datetime import datetime
+from datetime import date, datetime
 
 from lxml import etree
 from flask import current_app
@@ -25,6 +27,7 @@ from app.parsers.fatturapa_parser_v2 import (
 from app.repositories.import_log_repo import create_import_log
 from app.services.unit_of_work import UnitOfWork
 from app.services.logging import log_structured_event
+from app.services import settings_service
 from app.services.settings_service import get_attachments_storage_path
 from werkzeug.utils import secure_filename
 
@@ -34,7 +37,7 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
     logger = app.logger
     validate_xsd = bool(app.config.get("FATTURAPA_VALIDATE_XSD_WARN", False))
 
-    import_folder = Path(folder or app.config.get("IMPORT_XML_FOLDER"))
+    import_folder = Path(folder) if folder else Path(settings_service.get_xml_inbox_path())
     if not import_folder.exists():
         import_folder.mkdir(parents=True, exist_ok=True)
 
@@ -75,9 +78,16 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
             _log_error_parsing(logger, file_name, exc, summary, str(import_folder))
             continue
 
-        file_hash = _compute_file_hash(xml_path) if len(invoice_dtos) == 1 else None
+        file_hash = _compute_file_hash(xml_path)
         header_data = _extract_header_data(xml_path)
         current_legal_entity_id = legal_entity_id
+        archive_year = _resolve_archive_year(invoice_dtos)
+
+        try:
+            stored_rel_path = _store_import_file(xml_path, archive_year)
+        except Exception as exc:
+            _log_error_storage(logger, file_name, exc, summary, str(import_folder))
+            continue
 
         for idx, invoice_dto in enumerate(invoice_dtos, start=1):
             # Nomina univoca per body multipli
@@ -86,7 +96,7 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
                 invoice_dto.file_name = f"{base_name}#body{idx}"
             else:
                 invoice_dto.file_name = base_name
-            if file_hash is not None and not invoice_dto.file_hash:
+            if file_hash is not None and not invoice_dto.file_hash and len(invoice_dtos) == 1:
                 invoice_dto.file_hash = file_hash
 
         try:
@@ -123,6 +133,7 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
                     if not created:
                         _log_skip(logger, invoice_dto.file_name, document.id, summary, reason="Duplicato per file_name/file_hash")
                         continue
+                    document.file_path = stored_rel_path
 
                     uow.commit()
 
@@ -138,6 +149,12 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
 
         except Exception as exc:
             _log_error_db(logger, file_name, exc, summary)
+            continue
+
+        try:
+            _archive_original_file(xml_path, archive_year, import_folder)
+        except Exception as exc:
+            _log_error_storage(logger, file_name, exc, summary, str(import_folder))
 
     log_structured_event(
         action="run_import_completed",
@@ -359,6 +376,31 @@ def _log_error_parsing(logger, file_name, exc, summary, folder):
         message=f"Parsing error: {exc}",
     )
 
+def _log_error_storage(logger, file_name, exc, summary, folder):
+    logger.error(
+        "Errore salvataggio/archivio file import.",
+        exc_info=exc,
+        extra={
+            "component": "import_service",
+            "file_name": file_name,
+            "status": "error",
+        },
+    )
+    summary["errors"] += 1
+    summary["details"].append(
+        {
+            "file_name": file_name,
+            "status": "error",
+            "message": f"Storage error: {exc}",
+        }
+    )
+    create_import_log(
+        file_name=file_name,
+        import_source=folder,
+        status="error",
+        message=f"Storage error: {exc}",
+    )
+
 
 def _log_error_p7m(logger, file_name, exc, summary, folder):
     logger.error(
@@ -412,6 +454,31 @@ def _compute_file_hash(file_path: Path) -> str:
         while chunk := f.read(8192):
             sha256.update(chunk)
     return sha256.hexdigest()
+
+def _resolve_archive_year(invoice_dtos: List[InvoiceDTO]) -> int:
+    for dto in invoice_dtos:
+        if dto.invoice_date:
+            return dto.invoice_date.year
+        if dto.registration_date:
+            return dto.registration_date.year
+    return date.today().year
+
+def _store_import_file(xml_path: Path, year: int) -> str:
+    base_dir = Path(settings_service.get_xml_storage_path())
+    year_dir = base_dir / str(year)
+    year_dir.mkdir(parents=True, exist_ok=True)
+
+    target_name = settings_service.ensure_unique_filename(str(year_dir), xml_path.name)
+    dest_path = year_dir / target_name
+    shutil.copy2(xml_path, dest_path)
+
+    return os.path.join(str(year), target_name)
+
+def _archive_original_file(xml_path: Path, year: int, import_folder: Path) -> None:
+    archive_dir = Path(settings_service.get_xml_archive_path(year, base_path=str(import_folder)))
+    target_name = settings_service.ensure_unique_filename(str(archive_dir), xml_path.name)
+    dest_path = archive_dir / target_name
+    shutil.move(str(xml_path), str(dest_path))
 
 
 def _select_import_files(candidates: set[Path]) -> List[Path]:

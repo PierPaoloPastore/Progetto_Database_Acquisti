@@ -22,8 +22,10 @@ from flask import (
 
 from app.services import (
     list_categories_for_ui,
+    list_all_categories,
     create_or_update_category,
     bulk_assign_category_to_invoice_lines,
+    set_category_active,
 )
 from app.repositories import list_lines_by_document
 
@@ -35,7 +37,7 @@ def list_view():
     """
     Pagina elenco categorie.
     """
-    categories = list_categories_for_ui()
+    categories = list_all_categories()
     return render_template(
         "categories/list.html",
         categories=categories,
@@ -83,6 +85,19 @@ def save_view():
     )
 
     flash(f"Categoria '{category.name}' salvata con successo.", "success")
+    return redirect(url_for("categories.list_view"))
+
+
+@categories_bp.route("/<int:category_id>/toggle", methods=["POST"])
+def toggle_view(category_id: int):
+    desired_state = request.form.get("is_active")
+    is_active = desired_state == "1"
+    category = set_category_active(category_id, is_active)
+    if category is None:
+        flash("Categoria non trovata.", "warning")
+    else:
+        label = "attivata" if category.is_active else "disattivata"
+        flash(f"Categoria '{category.name}' {label}.", "success")
     return redirect(url_for("categories.list_view"))
 
 # FIX: invoice_id -> document_id
@@ -140,5 +155,5 @@ def bulk_assign_view(document_id: int):
     else:
         flash(result.get("message", "Errore durante l'assegnazione categorie."), "danger")
 
-    # FIX: Redirect a documents.detail_view
-    return redirect(url_for("documents.detail_view", document_id=document_id))
+    # Rimani nella pagina di assegnazione dopo l'applicazione.
+    return redirect(url_for("categories.bulk_assign_view", document_id=document_id))

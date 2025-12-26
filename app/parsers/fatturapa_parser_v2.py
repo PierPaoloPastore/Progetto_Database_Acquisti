@@ -246,6 +246,7 @@ def _map_body(body, supplier_dto: SupplierDTO, original_file_name: str) -> Invoi
         )
 
     invoice_number = getattr(dati_generali_doc, "numero", None)
+    tipo_documento = _enum_to_str(getattr(dati_generali_doc, "tipo_documento", None))
     invoice_date = _to_date(getattr(dati_generali_doc, "data", None))
     currency = getattr(dati_generali_doc, "divisa", None) or "EUR"
     total_gross_amount = _to_decimal(
@@ -272,6 +273,7 @@ def _map_body(body, supplier_dto: SupplierDTO, original_file_name: str) -> Invoi
         supplier=supplier_dto,
         invoice_number=invoice_number,
         invoice_series=None,
+        tipo_documento=tipo_documento,
         invoice_date=invoice_date,
         registration_date=None,
         currency=currency,

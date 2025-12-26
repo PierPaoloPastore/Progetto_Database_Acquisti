@@ -8,40 +8,18 @@
 </div>
 
 <div class="welcome-message">
-    <h2>👋 Benvenuto nel gestionale acquisti</h2>
-    <p>Gestisci fatture, fornitori, pagamenti e molto altro.</p>
+    <h2>Benvenuto nel gestionale acquisti</h2>
+    <p>Usa la barra in alto per navigare i moduli principali.</p>
 </div>
 
-<!-- MENU ORIZZONTALE CON BOTTONI QUADRATI -->
-<div class="dashboard-menu">
-    <a class="menu-button" href="{{ url_for('documents.list_view') }}">
-        <div class="menu-icon">📄</div>
-        <div class="menu-label">Documenti di Acquisto</div>
-    </a>
-
-    <a class="menu-button" href="{{ url_for('suppliers.list_view') }}">
-        <div class="menu-icon">🏢</div>
-        <div class="menu-label">Fornitori</div>
-    </a>
-
-    <a class="menu-button" href="{{ url_for('categories.list_view') }}">
-        <div class="menu-icon">🏷️</div>
-        <div class="menu-label">Categorie</div>
-    </a>
-
-    <a class="menu-button" href="{{ url_for('import.run_view') }}">
-        <div class="menu-icon">⬇️</div>
-        <div class="menu-label">Import XML</div>
-    </a>
-
-    <a class="menu-button" href="{{ url_for('export.options_view') }}">
-        <div class="menu-icon">⬆️</div>
-        <div class="menu-label">Export</div>
-    </a>
-
-    <a class="menu-button" href="{{ url_for('payments.inbox_view') }}">
-        <div class="menu-icon">💳</div>
-        <div class="menu-label">Pagamenti</div>
-    </a>
+<div class="card shadow-sm">
+    <div class="card-body">
+        <h5 class="card-title mb-2">Punti di partenza</h5>
+        <p class="mb-0 text-muted">
+            Vai su <a href="{{ url_for('documents.list_view') }}">Documenti</a> per la consultazione generale,
+            su <a href="{{ url_for('documents.review_list_view') }}">Revisione</a> per i documenti da confermare,
+            oppure usa <a href="{{ url_for('import.run_view') }}">Import</a> per caricare nuove fatture.
+        </p>
+    </div>
 </div>
 {% endblock %}

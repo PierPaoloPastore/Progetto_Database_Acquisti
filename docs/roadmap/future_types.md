@@ -11,6 +11,7 @@ Questo file descrive come estendere il sistema per gestire nuovi tipi di documen
 Il sistema attualmente supporta **nativamente** questi tipi tramite la tabella `documents`:
 
 ✅ **Fatture FatturaPA** (`document_type = 'invoice'`)  
+✅ **Note di credito** (`document_type = 'credit_note'`)  
 ✅ **F24** (`document_type = 'f24'`)  
 ✅ **Assicurazioni** (`document_type = 'insurance'`)  
 ✅ **MAV** (`document_type = 'mav'`)  

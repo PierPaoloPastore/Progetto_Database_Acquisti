@@ -28,11 +28,18 @@ from .supplier_service import (
     list_active_suppliers, # Aggiunto
     update_supplier,
 )
+from .legal_entity_service import (
+    list_legal_entities_with_stats,
+    get_legal_entity_detail,
+    update_legal_entity,
+)
 from .category_service import (
     list_categories_for_ui,
+    list_all_categories,
     create_or_update_category,
     assign_category_to_line,
     bulk_assign_category_to_invoice_lines,
+    set_category_active,
 )
 # AGGIORNATO: Importiamo solo le funzioni esistenti nel nuovo payment_service
 from .payment_service import (
@@ -76,11 +83,17 @@ __all__ = [
     "get_supplier_detail",
     "list_active_suppliers",
     "update_supplier",
+    # Legal Entities
+    "list_legal_entities_with_stats",
+    "get_legal_entity_detail",
+    "update_legal_entity",
     # Categories
     "list_categories_for_ui",
+    "list_all_categories",
     "create_or_update_category",
     "assign_category_to_line",
     "bulk_assign_category_to_invoice_lines",
+    "set_category_active",
     # Payments
     "list_overdue_payments_for_ui",
     "list_payments_by_document",

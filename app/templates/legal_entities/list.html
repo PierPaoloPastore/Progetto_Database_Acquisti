@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}Intestazioni - Gestionale Acquisti{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1>Elenco Intestazioni</h1>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-white py-3">
+            <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                <h5 class="mb-0 card-title">Anagrafica Intestazioni ({{ legal_entities_stats|length }})</h5>
+                <form class="d-flex gap-2" method="get" action="{{ url_for('legal_entities.list_view') }}">
+                    <input type="search"
+                           class="form-control form-control-sm"
+                           name="q"
+                           placeholder="Cerca per nome, P.IVA o CF"
+                           value="{{ search_term }}">
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="bi bi-search"></i> Cerca
+                    </button>
+                    {% if search_term %}
+                        <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('legal_entities.list_view') }}">Reset</a>
+                    {% endif %}
+                </form>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive scrollable-list">
+                <table class="table table-hover table-striped mb-0 align-middle">
+                    <thead class="table-light">
+                    <tr>
+                        <th>Intestazione</th>
+                        <th>Riferimenti Fiscali</th>
+                        <th class="text-center">Documenti</th>
+                        <th class="text-end">Totale Documenti</th>
+                        <th class="text-end">Azioni</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for item in legal_entities_stats %}
+                      {% set le = item.legal_entity %}
+                      <tr>
+                          <td class="fw-bold text-primary">
+                              {{ le.name }}
+                          </td>
+                          <td>
+                              <div class="d-flex flex-column">
+                                  {% if le.vat_number %}
+                                    <span class="small text-muted">P.IVA: <span class="text-dark font-monospace">{{ le.vat_number }}</span></span>
+                                  {% endif %}
+                                  {% if le.fiscal_code and le.fiscal_code != le.vat_number %}
+                                    <span class="small text-muted">CF: <span class="text-dark font-monospace">{{ le.fiscal_code }}</span></span>
+                                  {% endif %}
+                              </div>
+                          </td>
+                          <td class="text-center">
+                              <span class="badge bg-light text-dark border">{{ item.document_count }}</span>
+                          </td>
+                          <td class="text-end font-monospace fw-bold">
+                              {{ "%.2f"|format(item.total_gross_amount or 0) }} &euro;
+                          </td>
+                          <td class="text-end">
+                              <a href="{{ url_for('legal_entities.detail_view', legal_entity_id=le.id) }}"
+                                 class="btn btn-sm btn-outline-secondary">
+                                  <i class="bi bi-eye"></i> Dettaglio
+                              </a>
+                          </td>
+                      </tr>
+                    {% else %}
+                      <tr>
+                          <td colspan="5" class="text-center py-5 text-muted">
+                              <i class="bi bi-building fs-1 d-block mb-3"></i>
+                              Nessuna intestazione presente in archivio.
+                          </td>
+                      </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

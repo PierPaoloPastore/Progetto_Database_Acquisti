@@ -44,7 +44,7 @@
             <a href="{{ url_for('import.run_view') }}" class="btn btn-success">
                 <i class="bi bi-cloud-upload"></i> Importa XML
             </a>
-            <button class="btn btn-outline-secondary ms-2" disabled>+ Nuovo (Manuale)</button>
+            <a href="{{ url_for('documents.manual_create_view') }}" class="btn btn-outline-secondary ms-2">+ Nuovo (Manuale)</a>
         </div>
     </div>
 
@@ -201,6 +201,8 @@
                           <td class="text-center">
                               {% if doc.document_type == 'invoice' %}
                                 <span class="badge bg-primary text-uppercase" style="font-size: 0.75rem;">Fattura</span>
+                              {% elif doc.document_type == 'credit_note' %}
+                                <span class="badge bg-danger text-uppercase" style="font-size: 0.75rem;">Nota di credito</span>
                               {% elif doc.document_type == 'f24' %}
                                 <span class="badge bg-warning text-dark text-uppercase" style="font-size: 0.75rem;">F24</span>
                               {% elif doc.document_type == 'receipt' %}

@@ -26,6 +26,14 @@ def list_categories_for_ui() -> List:
         return uow.categories.list_active()
 
 
+def list_all_categories() -> List:
+    """
+    Restituisce tutte le categorie (attive e non), ordinate per nome.
+    """
+    with UnitOfWork() as uow:
+        return uow.categories.list_all_ordered()
+
+
 def create_or_update_category(
     name: str,
     description: Optional[str] = None,
@@ -70,6 +78,19 @@ def create_or_update_category(
         # Ritorniamo l'oggetto (che sarà "detached" o "expired" dopo il commit, 
         # ma i dati base dovrebbero essere leggibili se la sessione non è chiusa aggressivamente,
         # oppure ritorniamo i dati. Per sicurezza in Flask solitamente va bene ritornare l'oggetto).
+        return category
+
+
+def set_category_active(category_id: int, is_active: bool) -> Optional[Any]:
+    """
+    Attiva/disattiva una categoria senza eliminarla (evita orfani).
+    """
+    with UnitOfWork() as uow:
+        category = uow.categories.get_by_id(category_id)
+        if category is None:
+            return None
+        category.is_active = bool(is_active)
+        uow.commit()
         return category
 
 

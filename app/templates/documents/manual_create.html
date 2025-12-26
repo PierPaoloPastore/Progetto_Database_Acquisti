@@ -1,0 +1,395 @@
+{% extends "base.html" %}
+
+{% block title %}Nuovo documento manuale - Gestionale Acquisti{% endblock %}
+
+{% block extra_css %}
+<style>
+.manual-doc-split {
+    display: grid;
+    grid-template-columns: 1.6fr 1fr;
+    gap: 1.25rem;
+    align-items: stretch;
+}
+
+@media (max-width: 991px) {
+    .manual-doc-split {
+        grid-template-columns: 1fr;
+    }
+}
+
+.manual-preview-frame {
+    width: 100%;
+    height: 100%;
+    min-height: 70vh;
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+}
+
+.manual-preview-placeholder {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.95rem;
+    color: #6c757d;
+    pointer-events: none;
+    text-align: center;
+    padding: 1rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+{% set doc_type = form_data.get('document_type', 'other') %}
+{% set doc_status = form_data.get('doc_status', 'verified') %}
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1>Nuovo documento manuale</h1>
+        <a href="{{ url_for('documents.list_view') }}" class="btn btn-outline-secondary btn-sm">Torna all'elenco</a>
+    </div>
+
+    <div class="manual-doc-split">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label for="document_type" class="form-label fw-bold">Tipo documento</label>
+                        <select id="document_type" name="document_type" class="form-select" required>
+                            <option value="f24" {% if doc_type == 'f24' %}selected{% endif %}>F24</option>
+                            <option value="insurance" {% if doc_type == 'insurance' %}selected{% endif %}>Assicurazione</option>
+                            <option value="mav" {% if doc_type == 'mav' %}selected{% endif %}>MAV</option>
+                            <option value="cbill" {% if doc_type == 'cbill' %}selected{% endif %}>CBILL</option>
+                            <option value="receipt" {% if doc_type == 'receipt' %}selected{% endif %}>Scontrino</option>
+                            <option value="rent" {% if doc_type == 'rent' %}selected{% endif %}>Affitto</option>
+                            <option value="tax" {% if doc_type == 'tax' %}selected{% endif %}>Tributo / Tassa</option>
+                            <option value="other" {% if doc_type == 'other' %}selected{% endif %}>Altro</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="supplier_id" class="form-label fw-bold">Fornitore / Controparte</label>
+                        <select id="supplier_id" name="supplier_id" class="form-select">
+                            <option value="">Seleziona fornitore</option>
+                            {% for s in suppliers %}
+                                <option value="{{ s.id }}" {% if form_data.get('supplier_id') == s.id|string %}selected{% endif %}>{{ s.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="legal_entity_id" class="form-label fw-bold">Intestatario</label>
+                        <select id="legal_entity_id" name="legal_entity_id" class="form-select">
+                            <option value="">Non specificato</option>
+                            {% for le in legal_entities %}
+                                <option value="{{ le.id }}" {% if form_data.get('legal_entity_id') == le.id|string %}selected{% endif %}>{{ le.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="document_pdf" class="form-label fw-bold">PDF documento</label>
+                        <input type="file" id="document_pdf" name="document_pdf" accept="application/pdf" class="form-control">
+                        <div class="form-text">Il PDF viene mostrato nell'anteprima a destra.</div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label for="document_number" class="form-label fw-bold">Numero documento</label>
+                        <input type="text" id="document_number" name="document_number" class="form-control"
+                               value="{{ form_data.get('document_number', '') }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="document_date" class="form-label fw-bold">Data documento</label>
+                        <input type="date" id="document_date" name="document_date" class="form-control"
+                               value="{{ form_data.get('document_date', '') }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="registration_date" class="form-label fw-bold">Data registrazione</label>
+                        <input type="date" id="registration_date" name="registration_date" class="form-control"
+                               value="{{ form_data.get('registration_date', '') }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="due_date" class="form-label fw-bold">Scadenza</label>
+                        <input type="date" id="due_date" name="due_date" class="form-control"
+                               value="{{ form_data.get('due_date', '') }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="total_taxable_amount" class="form-label fw-bold">Imponibile</label>
+                        <input type="number" step="0.01" id="total_taxable_amount" name="total_taxable_amount" class="form-control text-end"
+                               value="{{ form_data.get('total_taxable_amount', '') }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="total_vat_amount" class="form-label fw-bold">IVA</label>
+                        <input type="number" step="0.01" id="total_vat_amount" name="total_vat_amount" class="form-control text-end"
+                               value="{{ form_data.get('total_vat_amount', '') }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="total_gross_amount" class="form-label fw-bold">Totale lordo</label>
+                        <input type="number" step="0.01" id="total_gross_amount" name="total_gross_amount" class="form-control text-end"
+                               value="{{ form_data.get('total_gross_amount', '') }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="doc_status" class="form-label fw-bold">Stato</label>
+                        <select id="doc_status" name="doc_status" class="form-select">
+                            <option value="pending_physical_copy" {% if doc_status == 'pending_physical_copy' %}selected{% endif %}>Da revisionare (con copia fisica)</option>
+                            <option value="verified" {% if doc_status == 'verified' %}selected{% endif %}>Verificata</option>
+                            <option value="archived" {% if doc_status == 'archived' %}selected{% endif %}>Archiviata</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="is_paid" name="is_paid"
+                                   {% if form_data.get('is_paid') %}checked{% endif %}>
+                            <label class="form-check-label" for="is_paid">Pagata</label>
+                        </div>
+                    </div>
+                    <div class="col-md-12">
+                        <label for="note" class="form-label fw-bold">Note</label>
+                        <textarea id="note" name="note" class="form-control" rows="2">{{ form_data.get('note', '') }}</textarea>
+                    </div>
+                </div>
+
+                <hr class="my-4">
+
+                <div class="type-section" data-doc-types="f24">
+                    <h5>Dettagli F24</h5>
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label for="f24_period_from" class="form-label fw-bold">Periodo dal</label>
+                            <input type="date" id="f24_period_from" name="f24_period_from" class="form-control"
+                                   value="{{ form_data.get('f24_period_from', '') }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="f24_period_to" class="form-label fw-bold">Periodo al</label>
+                            <input type="date" id="f24_period_to" name="f24_period_to" class="form-control"
+                                   value="{{ form_data.get('f24_period_to', '') }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="f24_tax_type" class="form-label fw-bold">Tipo tributo</label>
+                            <input type="text" id="f24_tax_type" name="f24_tax_type" class="form-control"
+                                   value="{{ form_data.get('f24_tax_type', '') }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="f24_payment_code" class="form-label fw-bold">Codice pagamento</label>
+                            <input type="text" id="f24_payment_code" name="f24_payment_code" class="form-control"
+                                   value="{{ form_data.get('f24_payment_code', '') }}">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="type-section d-none" data-doc-types="insurance">
+                    <h5>Dettagli assicurazione</h5>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label for="insurance_policy_number" class="form-label fw-bold">Numero polizza</label>
+                            <input type="text" id="insurance_policy_number" name="insurance_policy_number" class="form-control"
+                                   value="{{ form_data.get('insurance_policy_number', '') }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="insurance_coverage_start" class="form-label fw-bold">Copertura dal</label>
+                            <input type="date" id="insurance_coverage_start" name="insurance_coverage_start" class="form-control"
+                                   value="{{ form_data.get('insurance_coverage_start', '') }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="insurance_coverage_end" class="form-label fw-bold">Copertura al</label>
+                            <input type="date" id="insurance_coverage_end" name="insurance_coverage_end" class="form-control"
+                                   value="{{ form_data.get('insurance_coverage_end', '') }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="insurance_type" class="form-label fw-bold">Tipo polizza</label>
+                            <input type="text" id="insurance_type" name="insurance_type" class="form-control"
+                                   value="{{ form_data.get('insurance_type', '') }}">
+                        </div>
+                        <div class="col-md-8">
+                            <label for="insurance_asset_description" class="form-label fw-bold">Bene coperto</label>
+                            <input type="text" id="insurance_asset_description" name="insurance_asset_description" class="form-control"
+                                   value="{{ form_data.get('insurance_asset_description', '') }}">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="type-section d-none" data-doc-types="mav cbill">
+                    <h5>Dettagli MAV / CBILL</h5>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label for="payment_code" class="form-label fw-bold">Codice pagamento</label>
+                            <input type="text" id="payment_code" name="payment_code" class="form-control"
+                                   value="{{ form_data.get('payment_code', '') }}">
+                        </div>
+                        <div class="col-md-8">
+                            <label for="creditor_entity" class="form-label fw-bold">Ente creditore</label>
+                            <input type="text" id="creditor_entity" name="creditor_entity" class="form-control"
+                                   value="{{ form_data.get('creditor_entity', '') }}">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="type-section d-none" data-doc-types="receipt">
+                    <h5>Dettagli scontrino</h5>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="receipt_merchant" class="form-label fw-bold">Esercente</label>
+                            <input type="text" id="receipt_merchant" name="receipt_merchant" class="form-control"
+                                   value="{{ form_data.get('receipt_merchant', '') }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="receipt_category" class="form-label fw-bold">Categoria</label>
+                            <input type="text" id="receipt_category" name="receipt_category" class="form-control"
+                                   value="{{ form_data.get('receipt_category', '') }}">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="type-section d-none" data-doc-types="rent">
+                    <h5>Dettagli affitto</h5>
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label for="rent_period_month" class="form-label fw-bold">Mese</label>
+                            <input type="number" id="rent_period_month" name="rent_period_month" class="form-control"
+                                   min="1" max="12" value="{{ form_data.get('rent_period_month', '') }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="rent_period_year" class="form-label fw-bold">Anno</label>
+                            <input type="number" id="rent_period_year" name="rent_period_year" class="form-control"
+                                   value="{{ form_data.get('rent_period_year', '') }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="rent_property_description" class="form-label fw-bold">Immobile</label>
+                            <input type="text" id="rent_property_description" name="rent_property_description" class="form-control"
+                                   value="{{ form_data.get('rent_property_description', '') }}">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="type-section d-none" data-doc-types="tax">
+                    <h5>Dettagli tributo / tassa</h5>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label for="tax_type" class="form-label fw-bold">Tipo tributo</label>
+                            <input type="text" id="tax_type" name="tax_type" class="form-control"
+                                   value="{{ form_data.get('tax_type', '') }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="tax_period_year" class="form-label fw-bold">Anno</label>
+                            <input type="number" id="tax_period_year" name="tax_period_year" class="form-control"
+                                   value="{{ form_data.get('tax_period_year', '') }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="tax_period_description" class="form-label fw-bold">Periodo</label>
+                            <input type="text" id="tax_period_description" name="tax_period_description" class="form-control"
+                                   value="{{ form_data.get('tax_period_description', '') }}">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4 d-flex justify-content-end gap-2">
+                    <a href="{{ url_for('documents.list_view') }}" class="btn btn-outline-secondary">Annulla</a>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-save"></i> Salva documento
+                    </button>
+                </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">Anteprima PDF</h5>
+            </div>
+            <div class="card-body position-relative">
+                <div id="manual-pdf-placeholder" class="manual-preview-placeholder">
+                    <p class="text-center text-muted py-5 mb-0">
+                        <i class="bi bi-file-earmark-pdf fs-1"></i><br>
+                        Carica un PDF per visualizzarlo qui.
+                    </p>
+                </div>
+                <iframe id="manual-pdf-preview" class="manual-preview-frame" title="Anteprima PDF"></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const selector = document.getElementById("document_type");
+    const sections = document.querySelectorAll("[data-doc-types]");
+
+    const updateSections = () => {
+        const current = selector.value;
+        sections.forEach((section) => {
+            const types = (section.getAttribute("data-doc-types") || "").split(" ");
+            section.classList.toggle("d-none", !types.includes(current));
+        });
+    };
+
+    selector.addEventListener("change", updateSections);
+    updateSections();
+
+    const fileInput = document.getElementById("document_pdf");
+    const previewFrame = document.getElementById("manual-pdf-preview");
+    const placeholderDiv = document.getElementById("manual-pdf-placeholder");
+
+    if (fileInput && previewFrame && placeholderDiv) {
+        fileInput.addEventListener("change", () => {
+            const file = fileInput.files[0];
+
+            if (!file) {
+                previewFrame.removeAttribute("src");
+                placeholderDiv.classList.remove("d-none");
+                return;
+            }
+
+            if (file.type !== "application/pdf") {
+                alert("Solo file PDF sono consentiti.");
+                fileInput.value = "";
+                return;
+            }
+
+            const maxSize = 10 * 1024 * 1024;
+            if (file.size > maxSize) {
+                alert("File troppo grande. Massimo 10MB consentito.");
+                fileInput.value = "";
+                return;
+            }
+
+            const url = URL.createObjectURL(file);
+            previewFrame.src = url;
+            placeholderDiv.classList.add("d-none");
+
+            previewFrame.addEventListener(
+                "load",
+                () => {
+                    URL.revokeObjectURL(url);
+                },
+                { once: true }
+            );
+
+            setTimeout(() => {
+                try {
+                    const doc = previewFrame.contentDocument;
+                    if (!doc || doc.body.innerHTML === "") {
+                        placeholderDiv.innerHTML = `
+                            <p class="text-center text-muted">
+                                <i class="bi bi-exclamation-triangle"></i><br>
+                                Anteprima non disponibile nel browser.<br>
+                                <a href="${url}" download="${file.name}" class="btn btn-sm btn-primary mt-2">
+                                    Scarica PDF
+                                </a>
+                            </p>
+                        `;
+                        placeholderDiv.classList.remove("d-none");
+                    }
+                } catch (e) {
+                    console.debug("PDF preview loaded (cross-origin check blocked)");
+                }
+            }, 500);
+        });
+    }
+});
+</script>
+{% endblock %}

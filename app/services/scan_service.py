@@ -5,6 +5,7 @@ Servizio per la gestione delle scansioni e dei file fisici.
 from __future__ import annotations
 
 import os
+import shutil
 from datetime import datetime
 from typing import List
 
@@ -30,27 +31,33 @@ def store_payment_document_file(file: FileStorage, base_path: str, filename: str
     """Salva un file di pagamento."""
     now = datetime.now()
     year_str = str(now.year)
-    month_str = f"{now.month:02d}"
-
-    dest_dir = os.path.join(base_path, year_str, month_str)
+    dest_dir = os.path.join(base_path, year_str)
     os.makedirs(dest_dir, exist_ok=True)
 
-    dest_path = os.path.join(dest_dir, filename)
+    safe_name = settings_service.ensure_unique_filename(dest_dir, filename)
+    dest_path = os.path.join(dest_dir, safe_name)
     file.save(dest_path)
 
-    return os.path.join(year_str, month_str, filename)
+    archive_dir = settings_service.get_payments_archive_path(now.year)
+    archive_name = settings_service.ensure_unique_filename(archive_dir, safe_name)
+    shutil.copy2(dest_path, os.path.join(archive_dir, archive_name))
+
+    return os.path.join(year_str, safe_name)
 
 
 def store_delivery_note_file(file: FileStorage, base_path: str, filename: str) -> str:
-    """Salva un PDF di DDT sotto la cartella base, organizzato per anno/mese."""
+    """Salva un PDF di DDT sotto la cartella base, organizzato per anno."""
     now = datetime.now()
     year_str = str(now.year)
-    month_str = f"{now.month:02d}"
-
-    dest_dir = os.path.join(base_path, year_str, month_str)
+    dest_dir = os.path.join(base_path, year_str)
     os.makedirs(dest_dir, exist_ok=True)
 
-    dest_path = os.path.join(dest_dir, filename)
+    safe_name = settings_service.ensure_unique_filename(dest_dir, filename)
+    dest_path = os.path.join(dest_dir, safe_name)
     file.save(dest_path)
 
-    return os.path.join(year_str, month_str, filename)
+    archive_dir = settings_service.get_ddt_archive_path(now.year)
+    archive_name = settings_service.ensure_unique_filename(archive_dir, safe_name)
+    shutil.copy2(dest_path, os.path.join(archive_dir, archive_name))
+
+    return os.path.join(year_str, safe_name)

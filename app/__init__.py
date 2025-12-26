@@ -38,6 +38,7 @@ def _register_blueprints(app: Flask) -> None:
     from .web.routes_documents import documents_bp
     
     from .web.routes_suppliers import suppliers_bp
+    from .web.routes_legal_entities import legal_entities_bp
     from .web.routes_categories import categories_bp
     from .web.routes_import import import_bp
     from .web.routes_export import export_bp
@@ -51,6 +52,7 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(documents_bp, url_prefix="/documents")
     
     app.register_blueprint(suppliers_bp, url_prefix="/suppliers")
+    app.register_blueprint(legal_entities_bp, url_prefix="/legal-entities")
     app.register_blueprint(categories_bp, url_prefix="/categories")
     app.register_blueprint(import_bp, url_prefix="/import")
     app.register_blueprint(export_bp, url_prefix="/export")

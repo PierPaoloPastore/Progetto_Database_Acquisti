@@ -29,22 +29,49 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('documents.list_view') }}">Documenti</a>
+                        <a class="nav-link" href="{{ url_for('documents.list_view') }}">
+                            <i class="bi bi-file-earmark-text me-1"></i>Documenti
+                        </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('documents.review_list_view') }}">Revisione</a>
+                        <a class="nav-link" href="{{ url_for('documents.review_list_view') }}">
+                            <i class="bi bi-clipboard-check me-1"></i>Revisione
+                        </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('payments.inbox_view') }}">Pagamenti</a>
+                        <a class="nav-link" href="{{ url_for('import.run_view') }}">
+                            <i class="bi bi-cloud-arrow-up me-1"></i>Import
+                        </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('delivery_notes.list_view') }}">DDT</a>
+                        <a class="nav-link" href="{{ url_for('export.options_view') }}">
+                            <i class="bi bi-cloud-arrow-down me-1"></i>Export
+                        </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('suppliers.list_view') }}">Fornitori</a>
+                        <a class="nav-link" href="{{ url_for('payments.inbox_view') }}">
+                            <i class="bi bi-credit-card-2-front me-1"></i>Pagamenti
+                        </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('categories.list_view') }}">Categorie</a>
+                        <a class="nav-link" href="{{ url_for('delivery_notes.list_view') }}">
+                            <i class="bi bi-truck me-1"></i>DDT
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('suppliers.list_view') }}">
+                            <i class="bi bi-people me-1"></i>Fornitori
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('legal_entities.list_view') }}">
+                            <i class="bi bi-building me-1"></i>Intestazioni
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('categories.list_view') }}">
+                            <i class="bi bi-tags me-1"></i>Categorie
+                        </a>
                     </li>
                 </ul>
                 <ul class="navbar-nav ms-auto">

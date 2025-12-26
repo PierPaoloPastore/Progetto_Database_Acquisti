@@ -228,6 +228,11 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
         if existing:
             return existing, False
 
+        tipo_documento = (getattr(invoice_dto, "tipo_documento", None) or "").upper()
+        is_credit_note = tipo_documento == "TD04"
+        document_type = "credit_note" if is_credit_note else "invoice"
+        invoice_type = "deferred" if tipo_documento == "TD24" else "immediate"
+
         # Fallback robusti per i totali: alcuni XML arrivano senza riepiloghi completi
         # e il DB richiede total_gross_amount valorizzato.
         gross = invoice_dto.total_gross_amount
@@ -244,6 +249,11 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
         taxable = taxable if taxable is not None else Decimal("0")
         vat = vat if vat is not None else Decimal("0")
 
+        sign = -1 if is_credit_note else 1
+        gross = _apply_credit_sign(gross, sign)
+        taxable = _apply_credit_sign(taxable, sign)
+        vat = _apply_credit_sign(vat, sign)
+
         supplier = self.session.get(Supplier, supplier_id)
         effective_due_date, used_fallback = _resolve_due_date(invoice_dto, supplier)
 
@@ -255,7 +265,8 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
         doc = Document(
             supplier_id=supplier_id,
             legal_entity_id=legal_entity_id,
-            document_type="invoice",
+            document_type=document_type,
+            invoice_type=invoice_type,
             document_number=invoice_dto.invoice_number,
             document_date=invoice_dto.invoice_date,
             registration_date=invoice_dto.registration_date,
@@ -274,15 +285,24 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
 
         if invoice_dto.lines:
             for line_dto in invoice_dto.lines:
-                self._create_line(doc.id, line_dto)
+                self._create_line(doc.id, line_dto, sign=sign)
         
         if invoice_dto.vat_summaries:
             for vat_dto in invoice_dto.vat_summaries:
-                self._create_vat_summary(doc.id, vat_dto)
+                self._create_vat_summary(doc.id, vat_dto, sign=sign)
 
-        if invoice_dto.payments:
+        if invoice_dto.payments and not is_credit_note:
             for pay_dto in invoice_dto.payments:
                 self._create_payment(doc, pay_dto)
+        elif invoice_dto.payments and is_credit_note:
+            logger.info(
+                "Pagamenti ignorati per nota di credito",
+                extra={
+                    "document_id": doc.id,
+                    "file_name": invoice_dto.file_name,
+                    "tipo_documento": tipo_documento or None,
+                },
+            )
 
         if used_fallback:
             logger.info(
@@ -299,26 +319,26 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
 
         return doc, True
 
-    def _create_line(self, doc_id: int, dto: InvoiceLineDTO):
+    def _create_line(self, doc_id: int, dto: InvoiceLineDTO, sign: int = 1):
         line = DocumentLine(
             document_id=doc_id,
             line_number=dto.line_number,
             description=dto.description or "N/D",
             quantity=dto.quantity,
-            unit_price=dto.unit_price,
-            total_line_amount=dto.total_line_amount,
-            taxable_amount=dto.taxable_amount,
+            unit_price=_apply_credit_sign(dto.unit_price, sign),
+            total_line_amount=_apply_credit_sign(dto.total_line_amount, sign),
+            taxable_amount=_apply_credit_sign(dto.taxable_amount, sign),
             vat_rate=dto.vat_rate,
-            vat_amount=dto.vat_amount
+            vat_amount=_apply_credit_sign(dto.vat_amount, sign),
         )
         self.session.add(line)
 
-    def _create_vat_summary(self, doc_id: int, dto: VatSummaryDTO):
+    def _create_vat_summary(self, doc_id: int, dto: VatSummaryDTO, sign: int = 1):
         summary = VatSummary(
             document_id=doc_id,
             vat_rate=dto.vat_rate,
-            taxable_amount=dto.taxable_amount,
-            vat_amount=dto.vat_amount,
+            taxable_amount=_apply_credit_sign(dto.taxable_amount, sign),
+            vat_amount=_apply_credit_sign(dto.vat_amount, sign),
             vat_nature=dto.vat_nature,
         )
         self.session.add(summary)
@@ -387,3 +407,11 @@ def _resolve_due_date(invoice_dto: InvoiceDTO, supplier: Optional[Supplier]) -> 
         return computed_due, True
 
     return original_due, False
+
+
+def _apply_credit_sign(value: Optional[Decimal], sign: int) -> Optional[Decimal]:
+    if value is None:
+        return None
+    if sign < 0 and value > 0:
+        return -value
+    return value
