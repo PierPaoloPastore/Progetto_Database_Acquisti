@@ -20,6 +20,7 @@ class Supplier(db.Model):
     fiscal_code = db.Column(db.String(32), nullable=True)  # Codice fiscale
     sdi_code = db.Column(db.String(16), nullable=True)  # Codice destinatario/SDI
     pec_email = db.Column(db.String(255), nullable=True)
+    iban = db.Column(db.String(34), nullable=True)
 
     # Contatti / indirizzo
     email = db.Column(db.String(255), nullable=True)

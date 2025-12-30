@@ -86,6 +86,7 @@ def edit_view(supplier_id: int):
         sdi_code=data.get("sdi_code"),
         pec_email=data.get("pec_email"),
         email=data.get("email"),
+        iban=data.get("iban"),
         phone=data.get("phone"),
         address=data.get("address"),
         postal_code=data.get("postal_code"),

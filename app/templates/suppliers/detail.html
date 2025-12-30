@@ -76,6 +76,10 @@
                                     {% if supplier.phone %}<div><i class="bi bi-telephone"></i> {{ supplier.phone }}</div>{% endif %}
                                 </td>
                             </tr>
+                            <tr>
+                                <td class="text-muted">IBAN:</td>
+                                <td class="font-monospace">{{ supplier.iban or '-' }}</td>
+                            </tr>
                         </table>
                     </div>
                 </div>
@@ -146,6 +150,11 @@
                 <div class="col-md-3">
                     <label class="form-label">Email</label>
                     <input type="email" name="email" class="form-control" value="{{ supplier.email or '' }}"
+                           data-editable="true" disabled>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">IBAN</label>
+                    <input type="text" name="iban" class="form-control" value="{{ supplier.iban or '' }}"
                            data-editable="true" disabled>
                 </div>
                 <div class="col-md-3">

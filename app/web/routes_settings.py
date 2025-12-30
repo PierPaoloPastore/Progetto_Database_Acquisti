@@ -29,6 +29,7 @@ def index():
     ocrspace_endpoint = get_setting("OCRSPACE_ENDPOINT", "https://api.ocr.space/parse/image")
     ocr_default_lang = get_setting("OCR_DEFAULT_LANG", "ita")
     ocr_max_pages = get_setting("OCR_MAX_PAGES", "5")
+    schedule_soon_days = get_setting("SCHEDULE_SOON_DAYS", "7")
 
     return render_template(
         "settings/edit.html",
@@ -45,6 +46,7 @@ def index():
         ocrspace_endpoint=ocrspace_endpoint,
         ocr_default_lang=ocr_default_lang,
         ocr_max_pages=ocr_max_pages,
+        schedule_soon_days=schedule_soon_days,
     )
 
 
@@ -66,6 +68,7 @@ def save_settings():
     ocrspace_endpoint = request.form.get("ocrspace_endpoint", "").strip()
     ocr_default_lang = request.form.get("ocr_default_lang", "ita").strip() or "ita"
     ocr_max_pages = request.form.get("ocr_max_pages", "").strip()
+    schedule_soon_days = request.form.get("schedule_soon_days", "").strip()
 
     set_setting("SCAN_INBOX_PATH", scan_inbox)
     set_setting("XML_INBOX_PATH", xml_inbox)
@@ -80,6 +83,7 @@ def save_settings():
     set_setting("OCRSPACE_ENDPOINT", ocrspace_endpoint)
     set_setting("OCR_DEFAULT_LANG", ocr_default_lang)
     set_setting("OCR_MAX_PAGES", ocr_max_pages)
+    set_setting("SCHEDULE_SOON_DAYS", schedule_soon_days)
 
     flash("Impostazioni salvate correttamente", "success")
     

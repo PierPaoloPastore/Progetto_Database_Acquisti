@@ -223,6 +223,14 @@
     min-width: 200px;
 }
 
+.schedule-date-filter {
+    min-width: 210px;
+}
+
+.schedule-amount-filter {
+    min-width: 170px;
+}
+
 .schedule-table .schedule-status-pill {
     font-size: 0.75rem;
 }

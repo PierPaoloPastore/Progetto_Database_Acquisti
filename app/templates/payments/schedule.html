@@ -30,7 +30,7 @@
             <div class="schedule-card-meta">{{ "%.2f"|format(summary.overdue_amount) }} &euro;</div>
         </div>
         <div class="schedule-card schedule-card-warning">
-            <div class="schedule-card-label">In scadenza (7gg)</div>
+            <div class="schedule-card-label">In scadenza ({{ soon_days }}gg)</div>
             <div class="schedule-card-value">{{ summary.soon_count }}</div>
             <div class="schedule-card-meta">{{ "%.2f"|format(summary.soon_amount) }} &euro;</div>
         </div>
@@ -59,6 +59,22 @@
                     <option value="scheduled">Programmate</option>
                     <option value="no_due">Senza scadenza</option>
                 </select>
+                <div class="input-group input-group-sm schedule-date-filter">
+                    <span class="input-group-text">Dal</span>
+                    <input type="date" id="schedule-date-from" class="form-control">
+                </div>
+                <div class="input-group input-group-sm schedule-date-filter">
+                    <span class="input-group-text">Al</span>
+                    <input type="date" id="schedule-date-to" class="form-control">
+                </div>
+                <div class="input-group input-group-sm schedule-amount-filter">
+                    <span class="input-group-text">&euro; Min</span>
+                    <input type="number" id="schedule-amount-min" class="form-control" step="0.01" min="0">
+                </div>
+                <div class="input-group input-group-sm schedule-amount-filter">
+                    <span class="input-group-text">&euro; Max</span>
+                    <input type="number" id="schedule-amount-max" class="form-control" step="0.01" min="0">
+                </div>
             </div>
         </div>
         <div class="card-body p-0">
@@ -96,11 +112,14 @@
                                 {% endif %}
                             {% endif %}
                             {% set remaining_val = doc.remaining_amount if doc.remaining_amount is defined else doc.total_gross_amount %}
+                            {% set due_iso = doc.due_date.strftime('%Y-%m-%d') if doc.due_date else '' %}
                             <tr
                                 class="schedule-row schedule-{{ due_status }}"
                                 data-schedule-row
                                 data-status="{{ due_status }}"
                                 data-search="{{ doc.supplier.name }} {{ doc.document_number }}"
+                                data-due-date="{{ due_iso }}"
+                                data-amount="{{ "%.2f"|format(remaining_val or 0) }}"
                             >
                                 <td>
                                     {% if doc.due_date %}

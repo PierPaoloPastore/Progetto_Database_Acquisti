@@ -5,6 +5,7 @@ Rifattorizzato con Pattern Unit of Work.
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
+import re
 
 from app.extensions import db
 from app.models import Document, LegalEntity, Supplier
@@ -117,6 +118,7 @@ def update_supplier(
     sdi_code: Optional[str] = None,
     pec_email: Optional[str] = None,
     email: Optional[str] = None,
+    iban: Optional[str] = None,
     phone: Optional[str] = None,
     address: Optional[str] = None,
     postal_code: Optional[str] = None,
@@ -137,6 +139,12 @@ def update_supplier(
                 return None
             val = val.strip()
             return val or None
+
+        def _normalize_iban(val: Optional[str]) -> Optional[str]:
+            cleaned = _clean(val)
+            if not cleaned:
+                return None
+            return re.sub(r"\s+", "", cleaned).upper()
 
         def _validate_rule(rule: Optional[str]) -> Optional[str]:
             allowed = {"end_of_month", "net_30", "net_60", "immediate", "next_month_day_1"}
@@ -163,6 +171,7 @@ def update_supplier(
         supplier.sdi_code = _clean(sdi_code)
         supplier.pec_email = _clean(pec_email)
         supplier.email = _clean(email)
+        supplier.iban = _normalize_iban(iban)
         supplier.phone = _clean(phone)
         supplier.address = _clean(address)
         supplier.postal_code = _clean(postal_code)
