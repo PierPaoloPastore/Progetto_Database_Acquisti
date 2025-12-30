@@ -21,22 +21,22 @@
     <div class="schedule-grid mb-3">
         <div class="schedule-card">
             <div class="schedule-card-label">Totale da pagare</div>
-            <div class="schedule-card-value">{{ "%.2f"|format(summary.total_amount) }} &euro;</div>
-            <div class="schedule-card-meta">{{ summary.total }} documenti</div>
+            <div class="schedule-card-value">{{ summary.total_amount|format_amount }} &euro;</div>
+            <div class="schedule-card-meta">{{ summary.total|format_int }} documenti</div>
         </div>
         <div class="schedule-card schedule-card-danger">
             <div class="schedule-card-label">Scadute</div>
-            <div class="schedule-card-value">{{ summary.overdue_count }}</div>
-            <div class="schedule-card-meta">{{ "%.2f"|format(summary.overdue_amount) }} &euro;</div>
+            <div class="schedule-card-value">{{ summary.overdue_count|format_int }}</div>
+            <div class="schedule-card-meta">{{ summary.overdue_amount|format_amount }} &euro;</div>
         </div>
         <div class="schedule-card schedule-card-warning">
             <div class="schedule-card-label">In scadenza ({{ soon_days }}gg)</div>
-            <div class="schedule-card-value">{{ summary.soon_count }}</div>
-            <div class="schedule-card-meta">{{ "%.2f"|format(summary.soon_amount) }} &euro;</div>
+            <div class="schedule-card-value">{{ summary.soon_count|format_int }}</div>
+            <div class="schedule-card-meta">{{ summary.soon_amount|format_amount }} &euro;</div>
         </div>
         <div class="schedule-card schedule-card-muted">
             <div class="schedule-card-label">Senza scadenza</div>
-            <div class="schedule-card-value">{{ summary.no_due_count }}</div>
+            <div class="schedule-card-value">{{ summary.no_due_count|format_int }}</div>
             <div class="schedule-card-meta">Da completare</div>
         </div>
     </div>
@@ -137,8 +137,8 @@
                                     <div class="fw-semibold">{{ doc.document_number }}</div>
                                     <small class="text-muted">ID {{ doc.id }}</small>
                                 </td>
-                                <td class="text-end">{{ "%.2f"|format(doc.total_gross_amount or 0) }} &euro;</td>
-                                <td class="text-end fw-semibold">{{ "%.2f"|format(remaining_val or 0) }} &euro;</td>
+                                <td class="text-end">{{ (doc.total_gross_amount or 0)|format_amount }} &euro;</td>
+                                <td class="text-end fw-semibold">{{ (remaining_val or 0)|format_amount }} &euro;</td>
                                 <td>
                                     <span class="badge bg-{{ status_class }} schedule-status-pill">{{ status_label }}</span>
                                 </td>

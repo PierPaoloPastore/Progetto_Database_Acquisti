@@ -81,15 +81,15 @@
                 </div>
                 <div class="summary-item highlight">
                     <span class="label">Totale Lordo</span>
-                    <span class="value text-success">&euro; {{ "%.2f"|format(invoice.total_gross_amount or 0) }}</span>
+                    <span class="value text-success">&euro; {{ (invoice.total_gross_amount or 0)|format_amount }}</span>
                 </div>
                 <div class="summary-item">
                     <span class="label">Imponibile</span>
-                    <span class="value">&euro; {{ "%.2f"|format(invoice.total_taxable_amount or 0) }}</span>
+                    <span class="value">&euro; {{ (invoice.total_taxable_amount or 0)|format_amount }}</span>
                 </div>
                 <div class="summary-item">
                     <span class="label">IVA</span>
-                    <span class="value">&euro; {{ "%.2f"|format(invoice.total_vat_amount or 0) }}</span>
+                    <span class="value">&euro; {{ (invoice.total_vat_amount or 0)|format_amount }}</span>
                 </div>
                 <div class="summary-item">
                     <span class="label">Scadenza</span>
@@ -125,7 +125,7 @@
         <div class="accordion-item">
             <h2 class="accordion-header" id="heading-lines">
                 <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-lines" aria-expanded="true" aria-controls="collapse-lines">
-                    Righe Documento ({{ lines|list|length }})
+                    Righe Documento ({{ lines|list|length|format_int }})
                 </button>
             </h2>
             <div id="collapse-lines" class="accordion-collapse collapse show" aria-labelledby="heading-lines" data-bs-parent="#document-detail-accordion">
@@ -154,7 +154,7 @@
                                   <td class="text-right">{{ line.quantity }}</td>
                                   <td class="text-right">{{ line.unit_price }}</td>
                                   <td class="text-right">{{ line.vat_rate }}%</td>
-                                  <td class="text-right text-bold">&euro; {{ line.total_line_amount }}</td>
+                                  <td class="text-right text-bold">&euro; {{ (line.total_line_amount or 0)|format_amount }}</td>
                                   <td>
                                       {% if line.category %}
                                         <span class="badge bg-info text-dark">{{ line.category.name }}</span>
@@ -178,7 +178,7 @@
         <div class="accordion-item">
             <h2 class="accordion-header" id="heading-vat">
                 <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-vat" aria-expanded="false" aria-controls="collapse-vat">
-                    Riepilogo IVA ({{ vat_summaries|list|length }})
+                    Riepilogo IVA ({{ vat_summaries|list|length|format_int }})
                 </button>
             </h2>
             <div id="collapse-vat" class="accordion-collapse collapse" aria-labelledby="heading-vat" data-bs-parent="#document-detail-accordion">
@@ -196,8 +196,8 @@
                             {% for vs in vat_summaries %}
                               <tr>
                                   <td>{{ vs.vat_rate }}%</td>
-                                  <td class="text-right">&euro; {{ vs.taxable_amount }}</td>
-                                  <td class="text-right">&euro; {{ vs.vat_amount }}</td>
+                                  <td class="text-right">&euro; {{ (vs.taxable_amount or 0)|format_amount }}</td>
+                                  <td class="text-right">&euro; {{ (vs.vat_amount or 0)|format_amount }}</td>
                               </tr>
                             {% else %}
                               <tr>
@@ -214,7 +214,7 @@
         <div class="accordion-item">
             <h2 class="accordion-header" id="heading-payments">
                 <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-payments" aria-expanded="false" aria-controls="collapse-payments">
-                    Pagamenti ({{ payments|list|length }})
+                    Pagamenti ({{ payments|list|length|format_int }})
                 </button>
             </h2>
             <div id="collapse-payments" class="accordion-collapse collapse" aria-labelledby="heading-payments" data-bs-parent="#document-detail-accordion">
@@ -241,8 +241,8 @@
                             {% for p in payments %}
                               <tr>
                                   <td>{{ p.due_date.strftime('%d/%m/%Y') if p.due_date else '-' }}</td>
-                                  <td class="text-right">&euro; {{ p.expected_amount }}</td>
-                                  <td class="text-right">&euro; {{ p.paid_amount or 0 }}</td>
+                                  <td class="text-right">&euro; {{ (p.expected_amount or 0)|format_amount }}</td>
+                                  <td class="text-right">&euro; {{ (p.paid_amount or 0)|format_amount }}</td>
                                   <td>
                                       <span class="status-badge status-{{ p.status }}">{{ p.status }}</span>
                                   </td>
@@ -262,7 +262,7 @@
         <div class="accordion-item">
             <h2 class="accordion-header" id="heading-ddt">
                 <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-ddt" aria-expanded="false" aria-controls="collapse-ddt">
-                    DDT collegati ({{ linked_delivery_notes|list|length }})
+                    DDT collegati ({{ linked_delivery_notes|list|length|format_int }})
                 </button>
             </h2>
             <div id="collapse-ddt" class="accordion-collapse collapse" aria-labelledby="heading-ddt" data-bs-parent="#document-detail-accordion">

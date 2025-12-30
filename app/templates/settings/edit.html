@@ -142,6 +142,19 @@
                         <hr>
 
                         <div class="mb-4">
+                            <label for="format_thousands_separator" class="form-label fw-bold">Formato numeri - separatori migliaia</label>
+                            <select id="format_thousands_separator" name="format_thousands_separator" class="form-select">
+                                <option value="0" {% if not format_thousands_separator %}selected{% endif %}>Senza separatori</option>
+                                <option value="1" {% if format_thousands_separator %}selected{% endif %}>Con separatori</option>
+                            </select>
+                            <div class="form-text">
+                                Applica la formattazione alle cifre mostrate in UI e negli export.
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <div class="mb-4">
                             <label for="schedule_soon_days" class="form-label fw-bold">Scadenziario - giorni di preavviso</label>
                             <div class="input-group">
                                 <span class="input-group-text"><i class="bi bi-calendar-check"></i></span>

@@ -37,7 +37,7 @@
 
     <div class="card shadow-sm">
         <div class="card-header bg-white">
-            <h5 class="mb-0">Elenco categorie ({{ categories|length }})</h5>
+            <h5 class="mb-0">Elenco categorie ({{ categories|length|format_int }})</h5>
         </div>
         <div class="card-body p-0">
             <div class="table-responsive scrollable-list">
@@ -61,7 +61,7 @@
                           <td>{{ c.description or '-' }}</td>
                           <td class="text-end font-monospace">
                               {% if c.vat_rate is not none %}
-                                {{ "%.2f"|format(c.vat_rate) }}
+                                {{ c.vat_rate|format_number(2) }}
                               {% else %}
                                 -
                               {% endif %}

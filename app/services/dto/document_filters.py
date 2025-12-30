@@ -19,6 +19,8 @@ class DocumentSearchFilters:
     doc_status: Optional[str] = None
     physical_copy_status: Optional[str] = None
     payment_status: Optional[str] = None
+    amount_operator: str = "gt"
+    amount_value: Optional[Decimal] = None
     min_total: Optional[Decimal] = None
     max_total: Optional[Decimal] = None
 
@@ -52,6 +54,26 @@ class DocumentSearchFilters:
     @classmethod
     def from_query_args(cls, args: Mapping[str, Any]) -> "DocumentSearchFilters":
         document_number_raw = (args.get("document_number") or "").strip()
+        amount_value = cls._parse_decimal(args.get("amount_value", ""))
+        amount_operator = (args.get("amount_operator") or "").strip().lower()
+        if amount_operator not in {"lt", "gt"}:
+            amount_operator = "gt"
+        min_total = cls._parse_decimal(args.get("min_total", ""))
+        max_total = cls._parse_decimal(args.get("max_total", ""))
+        if amount_value is not None:
+            if amount_operator == "lt":
+                max_total = amount_value
+                min_total = None
+            else:
+                min_total = amount_value
+                max_total = None
+        else:
+            if min_total is not None and max_total is None:
+                amount_value = min_total
+                amount_operator = "gt"
+            elif max_total is not None and min_total is None:
+                amount_value = max_total
+                amount_operator = "lt"
         return cls(
             date_from=cls._parse_date(args.get("date_from", "")),
             date_to=cls._parse_date(args.get("date_to", "")),
@@ -62,6 +84,8 @@ class DocumentSearchFilters:
             doc_status=(args.get("doc_status") or None),
             physical_copy_status=(args.get("physical_copy_status") or None),
             payment_status=(args.get("payment_status") or None),
-            min_total=cls._parse_decimal(args.get("min_total", "")),
-            max_total=cls._parse_decimal(args.get("max_total", "")),
+            amount_operator=amount_operator,
+            amount_value=amount_value,
+            min_total=min_total,
+            max_total=max_total,
         )

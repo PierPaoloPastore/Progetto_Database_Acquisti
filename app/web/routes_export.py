@@ -13,6 +13,7 @@ from flask import (
 )
 
 from app.services import search_documents
+from app.services.formatting_service import format_amount
 # FIX: Importa DocumentSearchFilters
 from app.services.dto import DocumentSearchFilters
 
@@ -54,7 +55,7 @@ def export_invoices_csv():
             inv.document_number or "",
             inv.document_date.isoformat() if inv.document_date else "",
             supplier_name,
-            str(inv.total_gross_amount or ""),
+            format_amount(inv.total_gross_amount),
             inv.doc_status or "",
         ])
 

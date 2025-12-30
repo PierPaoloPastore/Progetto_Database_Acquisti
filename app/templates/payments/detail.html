@@ -45,8 +45,8 @@
                     <div class="d-flex align-items-baseline justify-content-between mb-3">
                         <div>
                             <div class="text-muted small">Importo complessivo</div>
-                            <div class="fs-3 fw-bold">{{ "%.2f"|format(total_paid) }} &euro;</div>
-                            <small class="text-muted">{{ documents_count }} documenti saldati</small>
+                            <div class="fs-3 fw-bold">{{ total_paid|format_amount }} &euro;</div>
+                            <small class="text-muted">{{ documents_count|format_int }} documenti saldati</small>
                         </div>
                         <span class="status-badge status-{{ payment.status }}">{{ payment.status }}</span>
                     </div>
@@ -68,7 +68,7 @@
             <div class="card">
                 <div class="card-header bg-white d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Documenti nel pagamento</h5>
-                    <span class="badge bg-light text-dark">{{ related_payments|length }} movimenti</span>
+                    <span class="badge bg-light text-dark">{{ related_payments|length|format_int }} movimenti</span>
                 </div>
                 <div class="card-body p-0">
                     <div class="table-responsive scrollable-list">
@@ -104,8 +104,8 @@
                                                 <span class="text-muted">-</span>
                                             {% endif %}
                                         </td>
-                                        <td class="text-end">{{ "%.2f"|format(doc.total_gross_amount or 0) }} &euro;</td>
-                                        <td class="text-end">{{ "%.2f"|format(p.paid_amount or p.expected_amount or 0) }} &euro;</td>
+                                        <td class="text-end">{{ (doc.total_gross_amount or 0)|format_amount }} &euro;</td>
+                                        <td class="text-end">{{ (p.paid_amount or p.expected_amount or 0)|format_amount }} &euro;</td>
                                         <td>
                                             <span class="status-badge status-{{ p.status }}">{{ p.status }}</span>
                                         </td>

@@ -30,6 +30,8 @@ def index():
     ocr_default_lang = get_setting("OCR_DEFAULT_LANG", "ita")
     ocr_max_pages = get_setting("OCR_MAX_PAGES", "5")
     schedule_soon_days = get_setting("SCHEDULE_SOON_DAYS", "7")
+    format_thousands_separator = get_setting("FORMAT_THOUSANDS_SEPARATOR", "0")
+    format_thousands_separator = str(format_thousands_separator).strip().lower() in {"1", "true", "yes", "on"}
 
     return render_template(
         "settings/edit.html",
@@ -47,6 +49,7 @@ def index():
         ocr_default_lang=ocr_default_lang,
         ocr_max_pages=ocr_max_pages,
         schedule_soon_days=schedule_soon_days,
+        format_thousands_separator=format_thousands_separator,
     )
 
 
@@ -69,6 +72,8 @@ def save_settings():
     ocr_default_lang = request.form.get("ocr_default_lang", "ita").strip() or "ita"
     ocr_max_pages = request.form.get("ocr_max_pages", "").strip()
     schedule_soon_days = request.form.get("schedule_soon_days", "").strip()
+    format_thousands_separator = request.form.get("format_thousands_separator", "0").strip()
+    format_thousands_separator = "1" if format_thousands_separator == "1" else "0"
 
     set_setting("SCAN_INBOX_PATH", scan_inbox)
     set_setting("XML_INBOX_PATH", xml_inbox)
@@ -84,6 +89,7 @@ def save_settings():
     set_setting("OCR_DEFAULT_LANG", ocr_default_lang)
     set_setting("OCR_MAX_PAGES", ocr_max_pages)
     set_setting("SCHEDULE_SOON_DAYS", schedule_soon_days)
+    set_setting("FORMAT_THOUSANDS_SEPARATOR", format_thousands_separator)
 
     flash("Impostazioni salvate correttamente", "success")
     

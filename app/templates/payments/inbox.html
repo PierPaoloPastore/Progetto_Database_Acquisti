@@ -119,7 +119,7 @@
                                             {% set paid_val = (doc.paid_amount if doc.paid_amount is defined else 0) %}
                                             {% set remaining_val = (doc.remaining_amount if doc.remaining_amount is defined else (doc.total_gross_amount - paid_val)) %}
                                             {% set due_val = remaining_val if remaining_val is not none else doc.total_gross_amount %}
-                                            <strong>{{ "%.2f"|format(due_val) }} &euro;</strong>
+                                            <strong>{{ due_val|format_amount }} &euro;</strong>
                                         </div>
                                         <div class="invoice-col amount-col text-end">
                                             <div class="input-group input-group-sm">
@@ -166,7 +166,7 @@
                     <h5 class="mb-0">Elenco Pagamenti</h5>
                     <small class="text-muted">Movimenti registrati (stato partial / paid)</small>
                 </div>
-                <span class="badge bg-light text-dark">{{ payment_history|length }} movimenti</span>
+                <span class="badge bg-light text-dark">{{ payment_history|length|format_int }} movimenti</span>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive scrollable-list scrollable-list-flush">
@@ -207,7 +207,7 @@
                                             <span class="text-muted">-</span>
                                         {% endif %}
                                     </td>
-                                    <td class="text-end">{{ "%.2f"|format(payment.paid_amount or payment.expected_amount or 0) }} &euro;</td>
+                                    <td class="text-end">{{ (payment.paid_amount or payment.expected_amount or 0)|format_amount }} &euro;</td>
                                     <td>{{ payment.payment_method or (payment.payment_document.payment_type if payment.payment_document) or 'N/D' }}</td>
                                     <td>
                                         <span class="status-badge status-{{ payment.status }}">{{ payment.status }}</span>

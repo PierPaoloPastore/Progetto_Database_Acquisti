@@ -15,6 +15,8 @@ def create_app(config_class=DevConfig) -> Flask:
     )
     app.config.from_object(config_class)
     init_extensions(app)
+    from .web.template_filters import register_template_filters
+    register_template_filters(app)
 
     from .middleware.auth_stub import init_auth_stub
     init_auth_stub(app)

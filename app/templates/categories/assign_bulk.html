@@ -58,7 +58,7 @@
                                 {{ line.description }}
                             </td>
                             <td class="text-end font-monospace">
-                                {{ "%.2f"|format(line.total_line_amount or 0) }} €
+                                {{ (line.total_line_amount or 0)|format_amount }} €
                             </td>
                             <td>
                                 {% if line.category %}

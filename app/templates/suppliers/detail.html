@@ -30,7 +30,7 @@
                         <option value="">-- Tutte le intestazioni --</option>
                         {% for entity in legal_entities %}
                           <option value="{{ entity.id }}" {% if selected_legal_entity_id == entity.id %}selected{% endif %}>
-                            {{ entity.name }} ({{ entity.invoice_count }})
+                            {{ entity.name }} ({{ entity.invoice_count|format_int }})
                           </option>
                         {% endfor %}
                     </select>
@@ -95,15 +95,15 @@
                     {% if account_snapshot %}
                     <div class="row mb-3 border-bottom pb-2">
                         <div class="col text-muted">Totale Documenti</div>
-                        <div class="col text-end fw-bold fs-5">{{ "%.2f"|format(account_snapshot.expected_total or 0) }} €</div>
+                        <div class="col text-end fw-bold fs-5">{{ (account_snapshot.expected_total or 0)|format_amount }} €</div>
                     </div>
                     <div class="row mb-3 border-bottom pb-2">
                         <div class="col text-muted">Totale Saldato</div>
-                        <div class="col text-end text-success fw-bold fs-5">{{ "%.2f"|format(account_snapshot.paid_total or 0) }} €</div>
+                        <div class="col text-end text-success fw-bold fs-5">{{ (account_snapshot.paid_total or 0)|format_amount }} €</div>
                     </div>
                     <div class="row mt-2">
                         <div class="col text-uppercase fw-bold text-muted">Residuo da pagare</div>
-                        <div class="col text-end text-danger fw-bold fs-4">{{ "%.2f"|format(account_snapshot.residual or 0) }} €</div>
+                        <div class="col text-end text-danger fw-bold fs-4">{{ (account_snapshot.residual or 0)|format_amount }} €</div>
                     </div>
                     {% else %}
                     <p class="text-center text-muted">Nessun dato contabile disponibile.</p>
@@ -216,7 +216,7 @@
 
     <div class="card shadow-sm">
         <div class="card-header">
-            <h5 class="mb-0">Storico Documenti ({{ invoices|length }})</h5>
+            <h5 class="mb-0">Storico Documenti ({{ invoices|length|format_int }})</h5>
         </div>
         <div class="card-body p-0">
             <div class="table-responsive scrollable-list">
@@ -238,7 +238,7 @@
                           <td>{{ inv.document_date.strftime('%d/%m/%Y') if inv.document_date else '-' }}</td>
                           <td class="fw-bold">{{ inv.document_number }}</td>
                           <td class="text-end font-monospace">
-                              {{ "%.2f"|format(inv.total_gross_amount or 0) }} €
+                              {{ (inv.total_gross_amount or 0)|format_amount }} €
                           </td>
                           <td>
                               <span class="badge bg-light text-dark border">{{ inv.doc_status }}</span>

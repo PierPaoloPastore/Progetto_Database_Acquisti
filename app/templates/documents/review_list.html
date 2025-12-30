@@ -18,15 +18,15 @@
     <div class="card shadow-sm">
         <div class="card-header bg-white">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <h5 class="mb-0">Coda di lavorazione ({{ invoices|length }})</h5>
+                <h5 class="mb-0">Coda di lavorazione ({{ invoices|length|format_int }})</h5>
                 <form class="d-flex align-items-center gap-2" method="get" action="{{ url_for('documents.review_list_view') }}">
                     <label for="legal_entity_id" class="small text-muted mb-0">Intestatario</label>
                     <select id="legal_entity_id" name="legal_entity_id" class="form-select form-select-sm" style="min-width: 220px;">
-                        <option value="">Tutti {% if le_counts.get(None) %}({{ le_counts.get(None) }}){% endif %}</option>
+                        <option value="">Tutti {% if le_counts.get(None) %}({{ le_counts.get(None)|format_int }}){% endif %}</option>
                         {% for le in legal_entities %}
                             {% set count = le_counts.get(le.id) %}
                             <option value="{{ le.id }}" {% if selected_legal_entity_id == le.id %}selected{% endif %}>
-                                {{ le.name }}{% if count %} ({{ count }}){% endif %}
+                                {{ le.name }}{% if count %} ({{ count|format_int }}){% endif %}
                             </option>
                         {% endfor %}
                     </select>
@@ -75,7 +75,7 @@
                                 <span class="text-muted small">-</span>
                               {% endif %}
                           </td>
-                          <td class="text-end fw-bold">{{ "%.2f"|format(doc.total_gross_amount or 0) }} €</td>
+                          <td class="text-end fw-bold">{{ (doc.total_gross_amount or 0)|format_amount }} €</td>
                           <td class="text-end">
                               <a href="{{ url_for('documents.review_loop_invoice_view', document_id=doc.id) }}"
                                  class="btn btn-sm btn-outline-primary">

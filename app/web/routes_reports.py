@@ -16,6 +16,7 @@ from app.services.reporting_service import (
     list_document_types,
     list_reporting_years,
 )
+from app.services.formatting_service import format_amount
 
 
 reports_bp = Blueprint("reports", __name__, url_prefix="/reports")
@@ -95,7 +96,7 @@ def _build_monthly_chart(values: List[float]) -> dict:
 
 
 def _format_amount(value: float) -> str:
-    return f"{value:.2f}"
+    return format_amount(value)
 
 def _build_type_options(document_types: list[str]) -> list[dict]:
     labels = {

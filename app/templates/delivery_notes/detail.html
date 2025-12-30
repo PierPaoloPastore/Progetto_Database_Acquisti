@@ -39,7 +39,7 @@
                         <dt class="col-5 text-muted">Intestatario</dt>
                         <dd class="col-7">{{ note.legal_entity.name if note.legal_entity else '-' }}</dd>
                         <dt class="col-5 text-muted">Totale</dt>
-                        <dd class="col-7">{{ "%.2f"|format(note.total_amount or 0) }} €</dd>
+                        <dd class="col-7">{{ (note.total_amount or 0)|format_amount }} €</dd>
                         <dt class="col-5 text-muted">Stato</dt>
                         <dd class="col-7"><span class="badge bg-secondary text-uppercase">{{ note.status }}</span></dd>
                         <dt class="col-5 text-muted">Origine</dt>

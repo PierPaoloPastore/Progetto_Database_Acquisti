@@ -21,7 +21,7 @@
         <div class="card shadow-sm h-100">
             <div class="card-header bg-white">
                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                    <h5 class="mb-0">Elenco DDT ({{ delivery_notes|length }})</h5>
+                    <h5 class="mb-0">Elenco DDT ({{ delivery_notes|length|format_int }})</h5>
                     <form class="d-flex flex-wrap align-items-center gap-2" method="get" action="{{ url_for('delivery_notes.list_view') }}">
                         <input type="search" class="form-control form-control-sm" name="q" placeholder="Cerca per numero/file" value="{{ search_term }}" style="min-width: 220px;">
                         <select name="supplier_id" class="form-select form-select-sm">
@@ -64,7 +64,7 @@
                                     <td class="fw-bold">{{ note.ddt_number }}</td>
                                     <td>{{ note.supplier.name if note.supplier else 'N/D' }}</td>
                                     <td>{{ note.legal_entity.name if note.legal_entity else '-' }}</td>
-                                    <td class="text-end">{{ "%.2f"|format(note.total_amount or 0) }} €</td>
+                                    <td class="text-end">{{ (note.total_amount or 0)|format_amount }} €</td>
                                     <td><span class="badge bg-secondary text-uppercase">{{ note.status }}</span></td>
                                     <td class="text-end">
                                         {% if note.file_path %}
