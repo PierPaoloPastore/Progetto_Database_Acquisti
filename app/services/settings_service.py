@@ -6,10 +6,39 @@ import os
 from flask import current_app
 
 def get_setting(key: str, default: str = "") -> str:
+    try:
+        from app.models import AppSetting
+
+        record = AppSetting.query.filter_by(setting_key=key).first()
+        if record and record.value is not None:
+            return record.value
+    except Exception:
+        pass
     return current_app.config.get(key, default)
 
 def set_setting(key: str, value: str) -> None:
     current_app.config[key] = value
+    try:
+        from app.extensions import db
+        from app.models import AppSetting
+
+        record = AppSetting.query.filter_by(setting_key=key).first()
+        if record:
+            record.value = value
+        else:
+            db.session.add(AppSetting(setting_key=key, value=value))
+        db.session.commit()
+    except Exception as exc:
+        try:
+            from app.extensions import db
+
+            db.session.rollback()
+        except Exception:
+            pass
+        current_app.logger.warning(
+            "Salvataggio impostazione fallito.",
+            extra={"setting_key": key, "error": str(exc)},
+        )
 
 def _resolve_path(config_value: str | None, default_parts: list[str]) -> str:
     if config_value:

@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+
+{% block title %}Scadenziario Pagamenti{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/payments.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div>
+            <h1 class="mb-0"><i class="bi bi-calendar-check"></i> Scadenziario Pagamenti</h1>
+            <small class="text-muted">Aggiornato al {{ today.strftime('%d/%m/%Y') }}</small>
+        </div>
+        <a href="{{ url_for('payments.inbox_view') }}#tab-new" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-plus-circle"></i> Nuovo pagamento
+        </a>
+    </div>
+
+    <div class="schedule-grid mb-3">
+        <div class="schedule-card">
+            <div class="schedule-card-label">Totale da pagare</div>
+            <div class="schedule-card-value">{{ "%.2f"|format(summary.total_amount) }} &euro;</div>
+            <div class="schedule-card-meta">{{ summary.total }} documenti</div>
+        </div>
+        <div class="schedule-card schedule-card-danger">
+            <div class="schedule-card-label">Scadute</div>
+            <div class="schedule-card-value">{{ summary.overdue_count }}</div>
+            <div class="schedule-card-meta">{{ "%.2f"|format(summary.overdue_amount) }} &euro;</div>
+        </div>
+        <div class="schedule-card schedule-card-warning">
+            <div class="schedule-card-label">In scadenza (7gg)</div>
+            <div class="schedule-card-value">{{ summary.soon_count }}</div>
+            <div class="schedule-card-meta">{{ "%.2f"|format(summary.soon_amount) }} &euro;</div>
+        </div>
+        <div class="schedule-card schedule-card-muted">
+            <div class="schedule-card-label">Senza scadenza</div>
+            <div class="schedule-card-value">{{ summary.no_due_count }}</div>
+            <div class="schedule-card-meta">Da completare</div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div>
+                <h5 class="mb-0">Fatture da saldare</h5>
+                <small class="text-muted">Gestisci le scadenze e registra i pagamenti</small>
+            </div>
+            <div class="schedule-filters d-flex flex-wrap gap-2">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="search" id="schedule-search" class="form-control" placeholder="Filtra per fornitore o documento">
+                </div>
+                <select id="schedule-status" class="form-select form-select-sm">
+                    <option value="all">Tutte</option>
+                    <option value="overdue">Scadute</option>
+                    <option value="due_soon">In scadenza</option>
+                    <option value="scheduled">Programmate</option>
+                    <option value="no_due">Senza scadenza</option>
+                </select>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive scrollable-list scrollable-list-flush">
+                <table class="table table-hover table-striped mb-0 align-middle sticky-header schedule-table">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Scadenza</th>
+                            <th>Fornitore</th>
+                            <th>Documento</th>
+                            <th class="text-end">Totale</th>
+                            <th class="text-end">Residuo</th>
+                            <th>Stato</th>
+                            <th class="text-end">Azioni</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for doc in documents %}
+                            {% set due_status = 'no_due' %}
+                            {% set status_label = 'Senza scadenza' %}
+                            {% set status_class = 'secondary' %}
+                            {% if doc.due_date %}
+                                {% if doc.due_date < today %}
+                                    {% set due_status = 'overdue' %}
+                                    {% set status_label = 'Scaduta' %}
+                                    {% set status_class = 'danger' %}
+                                {% elif doc.due_date <= soon_limit %}
+                                    {% set due_status = 'due_soon' %}
+                                    {% set status_label = 'In scadenza' %}
+                                    {% set status_class = 'warning' %}
+                                {% else %}
+                                    {% set due_status = 'scheduled' %}
+                                    {% set status_label = 'Programmato' %}
+                                    {% set status_class = 'info' %}
+                                {% endif %}
+                            {% endif %}
+                            {% set remaining_val = doc.remaining_amount if doc.remaining_amount is defined else doc.total_gross_amount %}
+                            <tr
+                                class="schedule-row schedule-{{ due_status }}"
+                                data-schedule-row
+                                data-status="{{ due_status }}"
+                                data-search="{{ doc.supplier.name }} {{ doc.document_number }}"
+                            >
+                                <td>
+                                    {% if doc.due_date %}
+                                        {{ doc.due_date.strftime('%d/%m/%Y') }}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('suppliers.detail_view', supplier_id=doc.supplier_id) }}" class="text-decoration-none fw-bold">
+                                        {{ doc.supplier.name }}
+                                    </a>
+                                </td>
+                                <td>
+                                    <div class="fw-semibold">{{ doc.document_number }}</div>
+                                    <small class="text-muted">ID {{ doc.id }}</small>
+                                </td>
+                                <td class="text-end">{{ "%.2f"|format(doc.total_gross_amount or 0) }} &euro;</td>
+                                <td class="text-end fw-semibold">{{ "%.2f"|format(remaining_val or 0) }} &euro;</td>
+                                <td>
+                                    <span class="badge bg-{{ status_class }} schedule-status-pill">{{ status_label }}</span>
+                                </td>
+                                <td class="text-end">
+                                    <div class="d-inline-flex gap-1">
+                                        <a href="{{ url_for('documents.detail_view', document_id=doc.id) }}" class="btn btn-sm btn-outline-secondary">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                        <a href="{{ url_for('payments.payment_index', document_id=doc.id, amount='%.2f'|format(remaining_val or 0)) }}#tab-new" class="btn btn-sm btn-primary">
+                                            <i class="bi bi-cash-coin"></i> Registra
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="7" class="text-center py-5 text-muted">
+                                    <i class="bi bi-check-circle fs-1 d-block mb-3 text-success"></i>
+                                    Ottimo! Non ci sono fatture in sospeso.
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        <tr id="schedule-empty" class="d-none">
+                            <td colspan="7" class="text-center py-4 text-muted">
+                                Nessun risultato con i filtri attuali.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/schedule.js') }}"></script>
+{% endblock %}

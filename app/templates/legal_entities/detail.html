@@ -197,7 +197,15 @@
                               {{ "%.2f"|format(doc.total_gross_amount or 0) }} &euro;
                           </td>
                           <td>
-                              <span class="badge bg-light text-dark border">{{ doc.doc_status }}</span>
+                              {% if doc.doc_status == 'pending_physical_copy' %}
+                                  <span class="badge bg-warning text-dark">Da revisionare</span>
+                              {% elif doc.doc_status == 'verified' %}
+                                  <span class="badge bg-success">Verificata</span>
+                              {% elif doc.doc_status == 'archived' %}
+                                  <span class="badge bg-secondary">Archiviata</span>
+                              {% else %}
+                                  <span class="badge bg-light text-dark border">{{ doc.doc_status }}</span>
+                              {% endif %}
                           </td>
                           <td class="text-end">
                               <a href="{{ url_for('documents.detail_view', document_id=doc.id) }}"

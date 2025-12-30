@@ -5,11 +5,15 @@ Dipendenze opzionali: pytesseract, Pillow, pdf2image, pypdf.
 
 from __future__ import annotations
 
+import json
 import os
 import tempfile
+import uuid
+import urllib.request
 from pathlib import Path
 from typing import Optional
 
+from app.services.settings_service import get_setting
 
 class OcrError(Exception):
     """Errore generico OCR."""
@@ -41,11 +45,20 @@ def extract_text_from_bytes(
     max_pages: int = 5,
     logger: Optional[object] = None,
 ) -> str:
+    provider = _get_ocr_provider()
     normalized = (suffix or "").lower()
     if normalized and not normalized.startswith("."):
         normalized = f".{normalized}"
     if not normalized or normalized not in SUPPORTED_EXTENSIONS:
         raise OcrError(f"Formato file non supportato: {normalized or 'sconosciuto'}")
+
+    if provider == "ocrspace":
+        return _extract_ocrspace_text_from_bytes(
+            data,
+            suffix=normalized,
+            lang=lang,
+            logger=logger,
+        )
 
     tmp_path = None
     try:
@@ -74,6 +87,15 @@ def extract_text(
     path = Path(file_path)
     if not path.is_file():
         raise OcrError(f"File non trovato: {path}")
+
+    provider = _get_ocr_provider()
+    if provider == "ocrspace":
+        return _extract_ocrspace_text_from_bytes(
+            path.read_bytes(),
+            suffix=path.suffix,
+            lang=lang,
+            logger=logger,
+        )
 
     suffix = path.suffix.lower()
     if suffix == ".pdf":
@@ -175,3 +197,106 @@ def _get_pdf2image():
     except Exception as exc:
         raise OcrDependencyError("pdf2image non installato") from exc
     return convert_from_path
+
+
+def _get_ocr_provider() -> str:
+    provider = (get_setting("OCR_PROVIDER", "local") or "local").strip().lower()
+    if provider not in {"local", "ocrspace"}:
+        return "local"
+    return provider
+
+
+def _extract_ocrspace_text_from_bytes(
+    data: bytes,
+    *,
+    suffix: str,
+    lang: str,
+    logger: Optional[object],
+) -> str:
+    api_key = (get_setting("OCRSPACE_API_KEY", "") or os.environ.get("OCRSPACE_API_KEY", "")).strip()
+    if not api_key:
+        raise OcrDependencyError("OCRSpace API key mancante")
+
+    endpoint = (
+        get_setting("OCRSPACE_ENDPOINT", "https://api.ocr.space/parse/image")
+        or "https://api.ocr.space/parse/image"
+    )
+
+    file_name = f"upload{suffix or ''}"
+    content_type = _mime_from_suffix(suffix)
+    fields = {
+        "apikey": api_key,
+        "language": lang or "ita",
+        "isOverlayRequired": "false",
+        "detectOrientation": "true",
+        "scale": "true",
+        "OCREngine": "2",
+    }
+    body, boundary = _build_multipart(fields, {"file": (file_name, data, content_type)})
+    request = urllib.request.Request(
+        endpoint,
+        data=body,
+        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=90) as response:
+            raw = response.read()
+    except Exception as exc:
+        raise OcrError(f"OCRSpace non disponibile: {exc}") from exc
+
+    try:
+        payload = json.loads(raw.decode("utf-8", errors="replace"))
+    except Exception as exc:
+        raise OcrError("Risposta OCRSpace non valida") from exc
+
+    if payload.get("IsErroredOnProcessing"):
+        error_message = payload.get("ErrorMessage") or payload.get("ErrorDetails") or "Errore OCRSpace"
+        raise OcrError(str(error_message))
+
+    results = payload.get("ParsedResults") or []
+    chunks: list[str] = []
+    for entry in results:
+        text = entry.get("ParsedText") if isinstance(entry, dict) else None
+        if text:
+            chunks.append(text)
+    output = "\n".join(chunks).strip()
+    if not output and logger:
+        logger.info("OCRSpace ha restituito testo vuoto", extra={"endpoint": endpoint})
+    return output
+
+
+def _build_multipart(fields: dict, files: dict) -> tuple[bytes, str]:
+    boundary = uuid.uuid4().hex
+    lines: list[bytes] = []
+
+    for name, value in fields.items():
+        lines.append(f"--{boundary}\r\n".encode("utf-8"))
+        lines.append(f'Content-Disposition: form-data; name="{name}"\r\n\r\n'.encode("utf-8"))
+        lines.append(f"{value}\r\n".encode("utf-8"))
+
+    for name, (filename, data, content_type) in files.items():
+        lines.append(f"--{boundary}\r\n".encode("utf-8"))
+        lines.append(
+            f'Content-Disposition: form-data; name="{name}"; filename="{filename}"\r\n'.encode("utf-8")
+        )
+        lines.append(f"Content-Type: {content_type}\r\n\r\n".encode("utf-8"))
+        lines.append(data)
+        lines.append(b"\r\n")
+
+    lines.append(f"--{boundary}--\r\n".encode("utf-8"))
+    return b"".join(lines), boundary
+
+
+def _mime_from_suffix(suffix: str) -> str:
+    normalized = (suffix or "").lower().lstrip(".")
+    if normalized in {"jpg", "jpeg"}:
+        return "image/jpeg"
+    if normalized == "png":
+        return "image/png"
+    if normalized in {"tif", "tiff"}:
+        return "image/tiff"
+    if normalized == "pdf":
+        return "application/pdf"
+    return "application/octet-stream"

@@ -94,6 +94,29 @@
                         <input type="file" id="document_pdf" name="document_pdf" accept="application/pdf" class="form-control">
                         <div class="form-text">Il PDF viene mostrato nell'anteprima a destra.</div>
                     </div>
+                    <div class="col-md-8">
+                        <div class="border rounded p-2 bg-light h-100">
+                            <label class="form-label fw-bold mb-1">OCR (opzionale)</label>
+                            <div class="d-flex align-items-center gap-2">
+                                <button
+                                    type="button"
+                                    class="btn btn-outline-secondary btn-sm"
+                                    id="manual-ocr-btn"
+                                    data-ocr-endpoint="{{ url_for('documents.ocr_map_view') }}"
+                                >
+                                    Esegui OCR
+                                </button>
+                                <span id="manual-ocr-status" class="text-muted small"></span>
+                            </div>
+                            <textarea
+                                id="manual-ocr-output"
+                                class="form-control mt-2"
+                                rows="3"
+                                placeholder="Testo OCR..."
+                                readonly
+                            ></textarea>
+                        </div>
+                    </div>
 
                     <div class="col-md-4">
                         <label for="document_number" class="form-label fw-bold">Numero documento</label>
@@ -390,6 +413,86 @@ document.addEventListener("DOMContentLoaded", () => {
             }, 500);
         });
     }
+
+    const ocrButton = document.getElementById("manual-ocr-btn");
+    const ocrStatus = document.getElementById("manual-ocr-status");
+    const ocrOutput = document.getElementById("manual-ocr-output");
+    if (ocrButton && ocrStatus && ocrOutput && fileInput) {
+        const endpoint = ocrButton.getAttribute("data-ocr-endpoint");
+        const setStatus = (message, isError = false) => {
+            ocrStatus.textContent = message || "";
+            ocrStatus.classList.toggle("text-danger", isError);
+            ocrStatus.classList.toggle("text-muted", !isError);
+        };
+
+        ocrButton.addEventListener("click", async () => {
+            const file = fileInput.files[0];
+            if (!file) {
+                setStatus("Carica prima un PDF.", true);
+                return;
+            }
+
+            ocrButton.disabled = true;
+            setStatus("OCR in corso...", false);
+
+            const payload = new FormData();
+            payload.append("file", file);
+
+            try {
+                const response = await fetch(endpoint, { method: "POST", body: payload });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok || !data.success) {
+                    setStatus(data.error || "OCR fallito.", true);
+                    ocrOutput.value = "";
+                    return;
+                }
+                ocrOutput.value = data.text || "";
+                applyManualMapping(data.fields || {});
+                setStatus("OCR completato.", false);
+            } catch (error) {
+                setStatus("Errore di rete durante OCR.", true);
+                ocrOutput.value = "";
+            } finally {
+                ocrButton.disabled = false;
+            }
+        });
+    }
 });
+
+function applyManualMapping(fields) {
+    if (!fields || typeof fields !== "object") return;
+    const badge = window.OcrBadge && window.OcrBadge.apply ? window.OcrBadge.apply : null;
+
+    const assign = (fieldKey, inputId) => {
+        if (!fields[fieldKey]) return;
+        const input = document.getElementById(inputId);
+        if (!input) return;
+        input.value = fields[fieldKey].value || "";
+        if (badge) badge(input, fields[fieldKey].confidence || 0, "OCR");
+    };
+
+    assign("document_number", "document_number");
+    assign("document_date", "document_date");
+    assign("due_date", "due_date");
+    assign("total_taxable_amount", "total_taxable_amount");
+    assign("total_vat_amount", "total_vat_amount");
+    assign("total_gross_amount", "total_gross_amount");
+    assign("supplier_id", "supplier_id");
+    assign("document_type", "document_type");
+    if (fields.document_type) {
+        const typeSelect = document.getElementById("document_type");
+        if (typeSelect) {
+            typeSelect.dispatchEvent(new Event("change"));
+        }
+    }
+
+    if (fields.note) {
+        const noteInput = document.getElementById("note");
+        if (noteInput) {
+            noteInput.value = fields.note.value || "";
+            if (badge) badge(noteInput, fields.note.confidence || 0, "OCR");
+        }
+    }
+}
 </script>
 {% endblock %}

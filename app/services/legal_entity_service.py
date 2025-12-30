@@ -82,7 +82,7 @@ def get_legal_entity_detail(
                 Supplier.name,
                 db.func.count(Document.id).label("document_count"),
             )
-            .outerjoin(
+            .join(
                 Document,
                 (Document.supplier_id == Supplier.id)
                 & (Document.legal_entity_id == legal_entity_id),

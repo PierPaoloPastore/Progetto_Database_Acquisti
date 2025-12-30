@@ -141,6 +141,62 @@
 
                         <hr>
 
+                        <div class="mb-4">
+                            <label for="ocr_provider" class="form-label fw-bold">OCR - Provider</label>
+                            <select id="ocr_provider" name="ocr_provider" class="form-select">
+                                <option value="local" {% if ocr_provider == 'local' %}selected{% endif %}>Locale (Tesseract)</option>
+                                <option value="ocrspace" {% if ocr_provider == 'ocrspace' %}selected{% endif %}>OCRSpace (API)</option>
+                            </select>
+                            <div class="form-text">
+                                Seleziona il motore OCR da usare per scansioni e PDF.
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="ocrspace_api_key" class="form-label fw-bold">OCRSpace API Key</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-key"></i></span>
+                                <input type="password" class="form-control font-monospace" id="ocrspace_api_key" name="ocrspace_api_key"
+                                       value="{{ ocrspace_api_key }}" placeholder="Inserisci la tua API key">
+                                <button class="btn btn-outline-secondary" type="button" data-clip-target="#ocrspace_api_key">
+                                    Incolla key
+                                </button>
+                            </div>
+                            <div class="form-text">
+                                Consigliato: salva la key via impostazioni, non nel codice.
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="ocrspace_endpoint" class="form-label fw-bold">OCRSpace Endpoint</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-link-45deg"></i></span>
+                                <input type="text" class="form-control font-monospace" id="ocrspace_endpoint" name="ocrspace_endpoint"
+                                       value="{{ ocrspace_endpoint }}" placeholder="https://api.ocr.space/parse/image">
+                            </div>
+                            <div class="form-text">
+                                Default: https://api.ocr.space/parse/image
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <label for="ocr_default_lang" class="form-label fw-bold">OCR lingua predefinita</label>
+                                <input type="text" class="form-control font-monospace" id="ocr_default_lang" name="ocr_default_lang"
+                                       value="{{ ocr_default_lang }}" placeholder="ita">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="ocr_max_pages" class="form-label fw-bold">OCR max pagine</label>
+                                <input type="number" class="form-control font-monospace" id="ocr_max_pages" name="ocr_max_pages"
+                                       value="{{ ocr_max_pages }}" placeholder="5" min="1" max="20">
+                            </div>
+                            <div class="form-text">
+                                Limite pagine usato per OCR locale; per OCRSpace potrebbe non essere applicato.
+                            </div>
+                        </div>
+
+                        <hr>
+
                         <div class="d-flex justify-content-end">
                             <button type="submit" class="btn btn-success">
                                 <i class="bi bi-save"></i> Salva Impostazioni

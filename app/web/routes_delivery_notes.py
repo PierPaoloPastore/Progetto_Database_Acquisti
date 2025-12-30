@@ -20,6 +20,7 @@ from app.services import (
     link_delivery_note_to_document,
     ocr_service,
 )
+from app.services.ocr_mapping_service import parse_ddt_fields
 from app.services.supplier_service import list_active_suppliers
 from app.services.document_service import search_documents
 from app.repositories.legal_entity_repo import list_legal_entities
@@ -123,6 +124,45 @@ def ocr_view():
         return jsonify({"success": False, "error": "OCR completato ma nessun testo estratto."}), 200
 
     return jsonify({"success": True, "text": text})
+
+
+@delivery_notes_bp.route("/ocr-map", methods=["POST"])
+def ocr_map_view():
+    file = request.files.get("file")
+    if file is None or not file.filename:
+        return jsonify({"success": False, "error": "File mancante."}), 400
+
+    suffix = Path(file.filename).suffix.lower()
+    if not suffix:
+        return jsonify({"success": False, "error": "Estensione file mancante."}), 400
+
+    from app.services.settings_service import get_setting
+    default_lang = get_setting("OCR_DEFAULT_LANG", "ita")
+    lang = (request.form.get("lang") or default_lang).strip() or default_lang
+    max_pages = ocr_service.normalize_max_pages(
+        request.form.get("max_pages"),
+        default=int(get_setting("OCR_MAX_PAGES", "5") or 5),
+    )
+
+    try:
+        text = ocr_service.extract_text_from_bytes(
+            file.read(),
+            suffix=suffix,
+            lang=lang,
+            max_pages=max_pages,
+            logger=current_app.logger,
+        )
+    except ocr_service.OcrDependencyError as exc:
+        return jsonify({"success": False, "error": f"OCR non disponibile: {exc}"}), 400
+    except ocr_service.OcrError as exc:
+        return jsonify({"success": False, "error": f"OCR fallito: {exc}"}), 400
+
+    text = (text or "").strip()
+    if not text:
+        return jsonify({"success": False, "error": "OCR completato ma nessun testo estratto."}), 200
+
+    fields = parse_ddt_fields(text)
+    return jsonify({"success": True, "text": text, "fields": fields})
 
 
 @delivery_notes_bp.route("/<int:delivery_note_id>/file", methods=["GET"])

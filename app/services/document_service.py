@@ -12,8 +12,6 @@ from typing import Optional, List, Any
 
 from app.services.unit_of_work import UnitOfWork
 from app.services import settings_service
-from app.services.settings_service import get_attachments_storage_path
-import json
 from app.services.dto import DocumentSearchFilters
 from app.models import Document
 
@@ -113,23 +111,7 @@ def get_document_detail(document_id: int) -> Optional[dict]:
             "payments": payments,
             "import_logs": doc.import_logs,
             "supplier": doc.supplier,
-            "attachments": list_document_attachments(document_id),
         }
-
-
-def list_document_attachments(document_id: int) -> list[dict]:
-    base_dir = get_attachments_storage_path()
-    meta_path = os.path.join(base_dir, str(document_id), "attachments.json")
-    if not os.path.exists(meta_path):
-        return []
-    try:
-        with open(meta_path, "r", encoding="utf-8") as fh:
-            data = json.load(fh)
-        if isinstance(data, list):
-            return data
-    except Exception:
-        return []
-    return []
 
 
 def create_manual_document(form_data: dict) -> tuple[bool, str, Optional[int]]:

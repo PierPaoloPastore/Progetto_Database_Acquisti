@@ -87,36 +87,6 @@
                 </div>
             </form>
 
-            <div class="mt-4">
-                <h6 class="text-muted">Allegati</h6>
-                <div class="table-wrapper scrollable-list" style="max-height: 200px;">
-                    <table class="table table-compact mb-0">
-                        <thead>
-                            <tr>
-                                <th>Nome</th>
-                                <th>Download</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for att in attachments %}
-                                <tr>
-                                    <td>{{ att.original_name or att.stored_name }}</td>
-                                    <td>
-                                        <a class="btn btn-sm btn-outline-primary"
-                                           href="{{ url_for('documents.download_attachment', document_id=invoice.id, filename=att.stored_name) }}">
-                                            Scarica
-                                        </a>
-                                    </td>
-                                </tr>
-                            {% else %}
-                                <tr>
-                                    <td colspan="2" class="text-center text-muted py-2">Nessun allegato</td>
-                                </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
         </div>
 
         <div class="col-md-7 p-0 bg-white d-flex flex-column" style="height: calc(100vh - 50px);">
@@ -142,7 +112,7 @@
             </div>
             <div class="d-flex flex-column flex-grow-1">
                 <iframe id="xsl-preview-frame"
-                        src="{{ url_for('documents.preview_visual', document_id=invoice.id, style=default_xsl or 'ordinaria') }}"
+                        src="{{ url_for('documents.preview_visual', document_id=invoice.id, style=default_xsl or 'asso') }}"
                         class="w-100 flex-grow-1 border-0"
                         style="display: block;"
                         title="Anteprima Documento">

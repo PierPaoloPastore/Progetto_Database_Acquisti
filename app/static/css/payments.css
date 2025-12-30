@@ -167,3 +167,70 @@
 #tab-new .form-text {
     font-size: 0.85rem;
 }
+
+/* --- Scadenziario --- */
+.schedule-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 1rem;
+}
+
+.schedule-card {
+    background: #ffffff;
+    border: 1px solid #dee2e6;
+    border-radius: 0.6rem;
+    padding: 0.9rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.schedule-card-label {
+    color: #6c757d;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.schedule-card-value {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: #212529;
+}
+
+.schedule-card-meta {
+    color: #6c757d;
+    font-size: 0.85rem;
+}
+
+.schedule-card-danger {
+    border-color: #f5c2c7;
+    background: #fff5f5;
+}
+
+.schedule-card-warning {
+    border-color: #ffe08a;
+    background: #fff8e5;
+}
+
+.schedule-card-muted {
+    border-color: #e2e3e5;
+    background: #f8f9fa;
+}
+
+.schedule-filters .input-group,
+.schedule-filters .form-select {
+    min-width: 200px;
+}
+
+.schedule-table .schedule-status-pill {
+    font-size: 0.75rem;
+}
+
+.schedule-row.schedule-overdue {
+    background: rgba(220, 53, 69, 0.08);
+}
+
+.schedule-row.schedule-due_soon {
+    background: rgba(255, 193, 7, 0.08);
+}

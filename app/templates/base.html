@@ -28,50 +28,82 @@
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('documents.list_view') }}">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-file-earmark-text me-1"></i>Documenti
                         </a>
+                        <ul class="dropdown-menu dropdown-menu-dark">
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('documents.list_view') }}">
+                                    <i class="bi bi-file-earmark-text me-1"></i>Elenco documenti
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('documents.review_list_view') }}">
+                                    <i class="bi bi-clipboard-check me-1"></i>Revisione
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('reports.index') }}">
+                                    <i class="bi bi-bar-chart-line me-1"></i>Reportistica
+                                </a>
+                            </li>
+                        </ul>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('documents.review_list_view') }}">
-                            <i class="bi bi-clipboard-check me-1"></i>Revisione
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-lightning-charge me-1"></i>Operazioni
                         </a>
+                        <ul class="dropdown-menu dropdown-menu-dark">
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('import.run_view') }}">
+                                    <i class="bi bi-cloud-arrow-up me-1"></i>Import
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('export.options_view') }}">
+                                    <i class="bi bi-cloud-arrow-down me-1"></i>Export
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('payments.inbox_view') }}">
+                                    <i class="bi bi-credit-card-2-front me-1"></i>Pagamenti
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('payments.schedule_view') }}">
+                                    <i class="bi bi-calendar-check me-1"></i>Scadenziario
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('delivery_notes.list_view') }}">
+                                    <i class="bi bi-truck me-1"></i>DDT
+                                </a>
+                            </li>
+                        </ul>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('import.run_view') }}">
-                            <i class="bi bi-cloud-arrow-up me-1"></i>Import
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-people me-1"></i>Anagrafiche
                         </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('export.options_view') }}">
-                            <i class="bi bi-cloud-arrow-down me-1"></i>Export
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('payments.inbox_view') }}">
-                            <i class="bi bi-credit-card-2-front me-1"></i>Pagamenti
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('delivery_notes.list_view') }}">
-                            <i class="bi bi-truck me-1"></i>DDT
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('suppliers.list_view') }}">
-                            <i class="bi bi-people me-1"></i>Fornitori
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('legal_entities.list_view') }}">
-                            <i class="bi bi-building me-1"></i>Intestazioni
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('categories.list_view') }}">
-                            <i class="bi bi-tags me-1"></i>Categorie
-                        </a>
+                        <ul class="dropdown-menu dropdown-menu-dark">
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('suppliers.list_view') }}">
+                                    <i class="bi bi-people me-1"></i>Fornitori
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('legal_entities.list_view') }}">
+                                    <i class="bi bi-building me-1"></i>Intestazioni
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('categories.list_view') }}">
+                                    <i class="bi bi-tags me-1"></i>Categorie
+                                </a>
+                            </li>
+                        </ul>
                     </li>
                 </ul>
                 <ul class="navbar-nav ms-auto">
@@ -108,6 +140,8 @@
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/select_open.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/ocr_badges.js') }}"></script>
     
     {% block extra_js %}{% endblock %}
 </body>

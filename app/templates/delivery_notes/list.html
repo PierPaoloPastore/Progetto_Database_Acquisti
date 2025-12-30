@@ -160,6 +160,7 @@
                                         class="btn btn-outline-secondary btn-sm"
                                         id="ddt-ocr-btn"
                                         data-ocr-endpoint="{{ url_for('delivery_notes.ocr_view') }}"
+                                        data-ocr-map-endpoint="{{ url_for('delivery_notes.ocr_map_view') }}"
                                     >
                                         Esegui OCR
                                     </button>
@@ -237,8 +238,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const ocrButton = document.getElementById("ddt-ocr-btn");
     const ocrStatus = document.getElementById("ddt-ocr-status");
     const ocrOutput = document.getElementById("ddt-ocr-output");
+    const numberInput = document.getElementById("ddt_number");
+    const dateInput = document.getElementById("ddt_date");
+    const totalInput = document.getElementById("total_amount");
+    const supplierSelect = document.getElementById("supplier_id");
     if (ocrButton && ocrStatus && ocrOutput && fileInput) {
         const endpoint = ocrButton.getAttribute("data-ocr-endpoint");
+        const mapEndpoint = ocrButton.getAttribute("data-ocr-map-endpoint") || endpoint;
         const setStatus = (message, isError = false) => {
             ocrStatus.textContent = message || "";
             ocrStatus.classList.toggle("text-danger", isError);
@@ -259,7 +265,7 @@ document.addEventListener("DOMContentLoaded", () => {
             payload.append("file", file);
 
             try {
-                const response = await fetch(endpoint, { method: "POST", body: payload });
+                const response = await fetch(mapEndpoint, { method: "POST", body: payload });
                 const data = await response.json().catch(() => ({}));
                 if (!response.ok || !data.success) {
                     setStatus(data.error || "OCR fallito.", true);
@@ -267,6 +273,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     return;
                 }
                 ocrOutput.value = data.text || "";
+                applyDdtMapping(data.fields || {}, numberInput, dateInput, totalInput, supplierSelect);
                 setStatus("OCR completato.", false);
             } catch (error) {
                 setStatus("Errore di rete durante OCR.", true);
@@ -277,6 +284,28 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 });
+
+function applyDdtMapping(fields, numberInput, dateInput, totalInput, supplierSelect) {
+    if (!fields || typeof fields !== "object") return;
+    const badge = window.OcrBadge && window.OcrBadge.apply ? window.OcrBadge.apply : null;
+
+    if (fields.ddt_number && numberInput) {
+        numberInput.value = fields.ddt_number.value || "";
+        if (badge) badge(numberInput, fields.ddt_number.confidence || 0, "OCR");
+    }
+    if (fields.ddt_date && dateInput) {
+        dateInput.value = fields.ddt_date.value || "";
+        if (badge) badge(dateInput, fields.ddt_date.confidence || 0, "OCR");
+    }
+    if (fields.total_amount && totalInput) {
+        totalInput.value = fields.total_amount.value || "";
+        if (badge) badge(totalInput, fields.total_amount.confidence || 0, "OCR");
+    }
+    if (fields.supplier_id && supplierSelect) {
+        supplierSelect.value = fields.supplier_id.value || "";
+        if (badge) badge(supplierSelect, fields.supplier_id.confidence || 0, "OCR");
+    }
+}
 
 document.addEventListener("DOMContentLoaded", () => {
     const buttons = document.querySelectorAll("[data-tab-target]");

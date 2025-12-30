@@ -2,12 +2,15 @@
 Route per la gestione dei Pagamenti.
 """
 from __future__ import annotations
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from flask import Blueprint, request, redirect, url_for, flash, render_template, jsonify, current_app
+from sqlalchemy.orm import joinedload
 
 from app.models import Document
 from app.services import payment_service, ocr_service
+from app.services.settings_service import get_setting
+from app.services.ocr_mapping_service import parse_payment_fields
 from app.services.payment_service import (
     add_payment,
     create_batch_payment,
@@ -15,7 +18,6 @@ from app.services.payment_service import (
     get_payment_event_detail,
     list_paid_payments,
     list_payments_by_document,
-    list_overdue_payments_for_ui,
 )
 from app.services.unit_of_work import UnitOfWork
 
@@ -25,15 +27,14 @@ payments_bp = Blueprint("payments", __name__)
 @payments_bp.route("/", methods=["GET"], endpoint="inbox_view")
 def payment_index():
     """
-    Mostra la dashboard dei pagamenti (Scadenzario / Inbox).
+    Mostra la dashboard dei pagamenti (Inbox).
     """
-    today = date.today()
-    overdue_invoices = list_overdue_payments_for_ui()
     payment_history = list_paid_payments()
 
     with UnitOfWork() as uow:
         all_unpaid_invoices = (
             uow.session.query(Document)
+            .options(joinedload(Document.supplier))
             .filter(
                 Document.document_type == "invoice",
                 Document.is_paid == False,
@@ -42,12 +43,81 @@ def payment_index():
             .all()
         )
 
+    payment_service.attach_payment_amounts(all_unpaid_invoices)
+
     return render_template(
         "payments/inbox.html",
-        overdue_invoices=overdue_invoices,
         all_unpaid_invoices=all_unpaid_invoices,
         payment_history=payment_history,
+    )
+
+
+@payments_bp.route("/schedule", methods=["GET"], endpoint="schedule_view")
+def schedule_view():
+    """
+    Scadenziario pagamenti in pagina dedicata.
+    """
+    today = date.today()
+    soon_days_raw = (get_setting("SCHEDULE_SOON_DAYS", "7") or "7").strip()
+    try:
+        soon_days = int(soon_days_raw)
+    except ValueError:
+        soon_days = 7
+    if soon_days < 1:
+        soon_days = 7
+
+    soon_limit = today + timedelta(days=soon_days)
+
+    with UnitOfWork() as uow:
+        documents = (
+            uow.session.query(Document)
+            .options(joinedload(Document.supplier))
+            .filter(
+                Document.document_type == "invoice",
+                Document.is_paid == False,
+            )
+            .order_by(Document.due_date.asc())
+            .all()
+        )
+
+    documents = sorted(
+        documents,
+        key=lambda doc: (doc.due_date is None, doc.due_date or date.max),
+    )
+
+    payment_service.attach_payment_amounts(documents)
+
+    summary = {
+        "total": 0,
+        "total_amount": 0.0,
+        "overdue_count": 0,
+        "overdue_amount": 0.0,
+        "soon_count": 0,
+        "soon_amount": 0.0,
+        "no_due_count": 0,
+    }
+
+    for doc in documents:
+        summary["total"] += 1
+        remaining = float(doc.remaining_amount if getattr(doc, "remaining_amount", None) is not None else (doc.total_gross_amount or 0))
+        summary["total_amount"] += remaining
+
+        if doc.due_date is None:
+            summary["no_due_count"] += 1
+        elif doc.due_date < today:
+            summary["overdue_count"] += 1
+            summary["overdue_amount"] += remaining
+        elif doc.due_date <= soon_limit:
+            summary["soon_count"] += 1
+            summary["soon_amount"] += remaining
+
+    return render_template(
+        "payments/schedule.html",
+        documents=documents,
+        summary=summary,
         today=today,
+        soon_limit=soon_limit,
+        soon_days=soon_days,
     )
 
 @payments_bp.route("/add/<int:document_id>", methods=["POST"])
@@ -166,8 +236,13 @@ def ocr_view():
     if not suffix:
         return jsonify({"success": False, "error": "Estensione file mancante."}), 400
 
-    lang = (request.form.get("lang") or "ita").strip() or "ita"
-    max_pages = ocr_service.normalize_max_pages(request.form.get("max_pages"))
+    from app.services.settings_service import get_setting
+    default_lang = get_setting("OCR_DEFAULT_LANG", "ita")
+    lang = (request.form.get("lang") or default_lang).strip() or default_lang
+    max_pages = ocr_service.normalize_max_pages(
+        request.form.get("max_pages"),
+        default=int(get_setting("OCR_MAX_PAGES", "5") or 5),
+    )
 
     try:
         text = ocr_service.extract_text_from_bytes(
@@ -187,6 +262,45 @@ def ocr_view():
         return jsonify({"success": False, "error": "OCR completato ma nessun testo estratto."}), 200
 
     return jsonify({"success": True, "text": text})
+
+
+@payments_bp.route("/ocr-map", methods=["POST"])
+def ocr_map_view():
+    file = request.files.get("file")
+    if file is None or not file.filename:
+        return jsonify({"success": False, "error": "File mancante."}), 400
+
+    suffix = Path(file.filename).suffix.lower()
+    if not suffix:
+        return jsonify({"success": False, "error": "Estensione file mancante."}), 400
+
+    from app.services.settings_service import get_setting
+    default_lang = get_setting("OCR_DEFAULT_LANG", "ita")
+    lang = (request.form.get("lang") or default_lang).strip() or default_lang
+    max_pages = ocr_service.normalize_max_pages(
+        request.form.get("max_pages"),
+        default=int(get_setting("OCR_MAX_PAGES", "5") or 5),
+    )
+
+    try:
+        text = ocr_service.extract_text_from_bytes(
+            file.read(),
+            suffix=suffix,
+            lang=lang,
+            max_pages=max_pages,
+            logger=current_app.logger,
+        )
+    except ocr_service.OcrDependencyError as exc:
+        return jsonify({"success": False, "error": f"OCR non disponibile: {exc}"}), 400
+    except ocr_service.OcrError as exc:
+        return jsonify({"success": False, "error": f"OCR fallito: {exc}"}), 400
+
+    text = (text or "").strip()
+    if not text:
+        return jsonify({"success": False, "error": "OCR completato ma nessun testo estratto."}), 200
+
+    fields = parse_payment_fields(text)
+    return jsonify({"success": True, "text": text, "fields": fields})
 
 
 @payments_bp.route("/history/<int:payment_id>", methods=["GET"], endpoint="payment_detail_view")

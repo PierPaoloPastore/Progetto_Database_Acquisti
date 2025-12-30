@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?><p:FatturaElettronica xmlns:p="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" versione="FPR12">
+  <FatturaElettronicaHeader>
+    <DatiTrasmissione>
+      <IdTrasmittente>
+        <IdPaese>IT</IdPaese>
+        <IdCodice>01533080675</IdCodice>
+      </IdTrasmittente>
+      <ProgressivoInvio>00CJS</ProgressivoInvio>
+      <FormatoTrasmissione>FPR12</FormatoTrasmissione>
+      <CodiceDestinatario>USAL8PV</CodiceDestinatario>
+    </DatiTrasmissione>
+    <CedentePrestatore>
+      <DatiAnagrafici>
+        <IdFiscaleIVA>
+          <IdPaese>IT</IdPaese>
+          <IdCodice>00170000657</IdCodice>
+        </IdFiscaleIVA>
+        <CodiceFiscale>00170000657</CodiceFiscale>
+        <Anagrafica>
+          <Denominazione>FERRO IRNO S.R.L.</Denominazione>
+        </Anagrafica>
+        <RegimeFiscale>RF01</RegimeFiscale>
+      </DatiAnagrafici>
+      <Sede>
+        <Indirizzo>VIA A. VESPUCCI, 43</Indirizzo>
+        <CAP>84098</CAP>
+        <Comune>PONTECAGNANO FAIANO</Comune>
+        <Provincia>SA</Provincia>
+        <Nazione>IT</Nazione>
+      </Sede>
+      <IscrizioneREA>
+        <Ufficio>SA</Ufficio>
+        <NumeroREA>119918</NumeroREA>
+        <CapitaleSociale>156000.00</CapitaleSociale>
+        <SocioUnico>SM</SocioUnico>
+        <StatoLiquidazione>LN</StatoLiquidazione>
+      </IscrizioneREA>
+      <Contatti>
+        <Telefono>089/381327</Telefono>
+        <Fax>089/385977</Fax>
+        <Email>ferroirno@libero.it</Email>
+      </Contatti>
+    </CedentePrestatore>
+    <CessionarioCommittente>
+      <DatiAnagrafici>
+        <IdFiscaleIVA>
+          <IdPaese>IT</IdPaese>
+          <IdCodice>04026780652</IdCodice>
+        </IdFiscaleIVA>
+        <CodiceFiscale>04026780652</CodiceFiscale>
+        <Anagrafica>
+          <Denominazione>LA FASANARA S.R.L. Azienda Agricola</Denominazione>
+        </Anagrafica>
+      </DatiAnagrafici>
+      <Sede>
+        <Indirizzo>Via Spineta , 90</Indirizzo>
+        <CAP>84091</CAP>
+        <Comune>BATTIPAGLIA</Comune>
+        <Provincia>SA</Provincia>
+        <Nazione>IT</Nazione>
+      </Sede>
+    </CessionarioCommittente>
+    <TerzoIntermediarioOSoggettoEmittente>
+      <DatiAnagrafici>
+        <IdFiscaleIVA>
+          <IdPaese>IT</IdPaese>
+          <IdCodice>01533080675</IdCodice>
+        </IdFiscaleIVA>
+        <Anagrafica>
+          <Denominazione>Alias Group S.r.l.</Denominazione>
+        </Anagrafica>
+      </DatiAnagrafici>
+    </TerzoIntermediarioOSoggettoEmittente>
+    <SoggettoEmittente>TZ</SoggettoEmittente>
+  </FatturaElettronicaHeader>
+  <FatturaElettronicaBody>
+    <DatiGenerali>
+      <DatiGeneraliDocumento>
+        <TipoDocumento>TD01</TipoDocumento>
+        <Divisa>EUR</Divisa>
+        <Data>2023-06-07</Data>
+        <Numero>1717</Numero>
+        <ImportoTotaleDocumento>701.50</ImportoTotaleDocumento>
+        <Causale>Vendita</Causale>
+      </DatiGeneraliDocumento>
+    </DatiGenerali>
+    <DatiBeniServizi>
+      <DettaglioLinee>
+        <NumeroLinea>1</NumeroLinea>
+        <Descrizione>LAMIERE P.MANDORL.ALLUM. 25/10</Descrizione>
+        <Quantita>115.00000000</Quantita>
+        <UnitaMisura>kg</UnitaMisura>
+        <PrezzoUnitario>5.00000000</PrezzoUnitario>
+        <PrezzoTotale>575.00000000</PrezzoTotale>
+        <AliquotaIVA>22.00</AliquotaIVA>
+        <AltriDatiGestionali>
+          <TipoDato>COD_BUS</TipoDato>
+          <RiferimentoTesto>LPMA2510</RiferimentoTesto>
+        </AltriDatiGestionali>
+      </DettaglioLinee>
+      <DettaglioLinee>
+        <NumeroLinea>2</NumeroLinea>
+        <Descrizione>Importo già incassato: 701.50</Descrizione>
+        <Quantita>0.00000000</Quantita>
+        <PrezzoUnitario>0.00000000</PrezzoUnitario>
+        <PrezzoTotale>0.00000000</PrezzoTotale>
+        <AliquotaIVA>0.00</AliquotaIVA>
+        <Natura>N2.2</Natura>
+      </DettaglioLinee>
+      <DatiRiepilogo>
+        <AliquotaIVA>0.00</AliquotaIVA>
+        <Natura>N2.2</Natura>
+        <ImponibileImporto>0.00</ImponibileImporto>
+        <Imposta>0.00</Imposta>
+        <EsigibilitaIVA>I</EsigibilitaIVA>
+      </DatiRiepilogo>
+      <DatiRiepilogo>
+        <AliquotaIVA>22.00</AliquotaIVA>
+        <ImponibileImporto>575.00</ImponibileImporto>
+        <Imposta>126.50</Imposta>
+        <EsigibilitaIVA>I</EsigibilitaIVA>
+        <RiferimentoNormativo>IVA 22% DPR 633/72</RiferimentoNormativo>
+      </DatiRiepilogo>
+    </DatiBeniServizi>
+  </FatturaElettronicaBody>
+<ds:Signature Id="MZZMRC74L18E058G_1-188b02679cd0" xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:SignedInfo><ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/><ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/><ds:Reference Type="http://uri.etsi.org/01903#SignedProperties" URI="#SignedProperties-MZZMRC74L18E058G_1-188b02679cd0-188b02679cd0"><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/><ds:DigestValue>BqBjSS522oHlLq3Ndp6tutpDUubhlzOrtHN1Qpe8kkI=</ds:DigestValue></ds:Reference><ds:Reference Id="Reference-MZZMRC74L18E058G_1-188b02679cd0-1" URI=""><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2002/06/xmldsig-filter2"><dsig-xpath:XPath xmlns:dsig-xpath="http://www.w3.org/2002/06/xmldsig-filter2" Filter="subtract">/descendant::ds:Signature</dsig-xpath:XPath></ds:Transform><ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/><ds:DigestValue>k7vDwlBLtxe/5scb+a1VDZE0IFVK/Chm6f5b5Zokuyc=</ds:DigestValue></ds:Reference></ds:SignedInfo><ds:SignatureValue Id="SignatureValue-MZZMRC74L18E058G_1-188b02679cd0">e7n4p0qarnp0fBJn0XooQaxmKMVCuOzbOGvQmM2QFLfoF4YTZlral3fQznDWHfs3dBKNbqUSmTlCRZ1qkYljnhTybTrwVWF4jjKoovvs8QxU4vWYietgCUKqY0FiSdmN7/eG3T+Va89upvb7RaSoNdaf1RcHhNWanDplZW24CmMRz1P/L7chllGcGQyt/dcVCSYO9FEVG9w98YKxCYo0DkE35EsjiOqLAZonRwjP1wKbPxpkHJhtQrp7d4r1KjyT8HFFts+nUh6Z8zgYV6pV9nLOZOtdXQmCmskFqKuMELsG+uC4VL+uCTZNA70fajKd/TPz3C0ev51zpIoEx+f5og==</ds:SignatureValue><ds:KeyInfo><ds:X509Data><ds:X509Certificate>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</ds:X509Certificate></ds:X509Data></ds:KeyInfo><ds:Object><xades:QualifyingProperties xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" Target="#MZZMRC74L18E058G_1-188b02679cd0"><xades:SignedProperties Id="SignedProperties-MZZMRC74L18E058G_1-188b02679cd0-188b02679cd0"><xades:SignedSignatureProperties><xades:SigningTime>2023-06-12T17:08:11+02:00</xades:SigningTime><xades:SigningCertificate><xades:Cert><xades:CertDigest><ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/><ds:DigestValue>+B4f+yTuNZt2JZ5lCQapoGPNTklhsyPhLMGvOs48D0Y=</ds:DigestValue></xades:CertDigest><xades:IssuerSerial><ds:X509IssuerName>CN=Intesi Group EU Qualified Electronic Signature CA G2,OU=Qualified Trust Service Provider,O=Intesi Group S.p.A.,organizationIdentifier=VATIT-02780480964,C=IT</ds:X509IssuerName><ds:X509SerialNumber>2403587300882875538</ds:X509SerialNumber></xades:IssuerSerial></xades:Cert></xades:SigningCertificate><xades:SignatureProductionPlace><xades:City>Tortoreto</xades:City><xades:StateOrProvince>TE</xades:StateOrProvince><xades:PostalCode>64018</xades:PostalCode><xades:CountryName>Italia</xades:CountryName></xades:SignatureProductionPlace></xades:SignedSignatureProperties></xades:SignedProperties></xades:QualifyingProperties></ds:Object></ds:Signature></p:FatturaElettronica>

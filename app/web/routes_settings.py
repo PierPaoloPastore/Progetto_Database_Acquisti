@@ -23,7 +23,12 @@ def index():
     xml_storage = get_setting("XML_STORAGE_PATH", "")
     payment_storage = get_setting("PAYMENT_FILES_STORAGE_PATH", "")
     ddt_storage = get_setting("DELIVERY_NOTE_STORAGE_PATH", "")
-    default_xsl = get_setting("DEFAULT_XSL_STYLE", "ordinaria")
+    default_xsl = get_setting("DEFAULT_XSL_STYLE", "asso")
+    ocr_provider = get_setting("OCR_PROVIDER", "local")
+    ocrspace_api_key = get_setting("OCRSPACE_API_KEY", "")
+    ocrspace_endpoint = get_setting("OCRSPACE_ENDPOINT", "https://api.ocr.space/parse/image")
+    ocr_default_lang = get_setting("OCR_DEFAULT_LANG", "ita")
+    ocr_max_pages = get_setting("OCR_MAX_PAGES", "5")
 
     return render_template(
         "settings/edit.html",
@@ -35,6 +40,11 @@ def index():
         payment_storage=payment_storage,
         ddt_storage=ddt_storage,
         default_xsl=default_xsl,
+        ocr_provider=ocr_provider,
+        ocrspace_api_key=ocrspace_api_key,
+        ocrspace_endpoint=ocrspace_endpoint,
+        ocr_default_lang=ocr_default_lang,
+        ocr_max_pages=ocr_max_pages,
     )
 
 
@@ -50,7 +60,12 @@ def save_settings():
     xml_storage = request.form.get("xml_storage", "").strip()
     payment_storage = request.form.get("payment_storage", "").strip()
     ddt_storage = request.form.get("ddt_storage", "").strip()
-    default_xsl = request.form.get("default_xsl", "ordinaria").strip() or "ordinaria"
+    default_xsl = request.form.get("default_xsl", "asso").strip() or "asso"
+    ocr_provider = request.form.get("ocr_provider", "local").strip() or "local"
+    ocrspace_api_key = request.form.get("ocrspace_api_key", "").strip()
+    ocrspace_endpoint = request.form.get("ocrspace_endpoint", "").strip()
+    ocr_default_lang = request.form.get("ocr_default_lang", "ita").strip() or "ita"
+    ocr_max_pages = request.form.get("ocr_max_pages", "").strip()
 
     set_setting("SCAN_INBOX_PATH", scan_inbox)
     set_setting("XML_INBOX_PATH", xml_inbox)
@@ -60,6 +75,11 @@ def save_settings():
     set_setting("PAYMENT_FILES_STORAGE_PATH", payment_storage)
     set_setting("DELIVERY_NOTE_STORAGE_PATH", ddt_storage)
     set_setting("DEFAULT_XSL_STYLE", default_xsl)
+    set_setting("OCR_PROVIDER", ocr_provider)
+    set_setting("OCRSPACE_API_KEY", ocrspace_api_key)
+    set_setting("OCRSPACE_ENDPOINT", ocrspace_endpoint)
+    set_setting("OCR_DEFAULT_LANG", ocr_default_lang)
+    set_setting("OCR_MAX_PAGES", ocr_max_pages)
 
     flash("Impostazioni salvate correttamente", "success")
     

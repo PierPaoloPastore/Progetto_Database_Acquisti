@@ -20,6 +20,16 @@
     {% set status_class = 'verified' %}
 {% endif %}
 {% set physical_status = invoice.physical_copy_status or 'missing' %}
+{% set supplier_email = (supplier.email or supplier.pec_email) if supplier else '' %}
+{% set doc_number_label = invoice.document_number or ('Documento #' ~ invoice.id) %}
+{% set doc_date_label = invoice.document_date.strftime('%d/%m/%Y') if invoice.document_date else '-' %}
+{% set legal_entity_label = invoice.legal_entity.name if invoice.legal_entity else 'intestatario' %}
+{% set mail_subject = 'Richiesta copia fisica documento ' ~ doc_number_label %}
+{% set supplier_label = supplier.name if supplier else '' %}
+{% set greeting = ('Gentili ' ~ supplier_label) if supplier_label else 'Gentili' %}
+{% set account_label = supplier_label if supplier_label else legal_entity_label %}
+{% set mail_body = greeting ~ ',\n\nper conto di ' ~ account_label ~ ' richiediamo la copia fisica del seguente documento di acquisto :' ~
+    '\n\nNumero documento: ' ~ doc_number_label ~ '\nData documento: ' ~ doc_date_label ~ '\n\nDistinti saluti,\n' ~ legal_entity_label %}
 
 <div class="document-detail container-fluid">
     <div class="page-header">
@@ -62,6 +72,11 @@
                         {% if invoice.physical_copy_file_path %}
                             <small class="text-muted d-block text-truncate">{{ invoice.physical_copy_file_path.split('/')[-1] }}</small>
                         {% endif %}
+                        <a class="btn btn-primary btn-sm copy-request-btn"
+                           href="mailto:{{ supplier_email }}?subject={{ mail_subject|urlencode }}&body={{ mail_body|urlencode }}"
+                           title="Richiedi copia fisica via email">
+                            <i class="bi bi-envelope"></i> Richiedi
+                        </a>
                     </span>
                 </div>
                 <div class="summary-item highlight">
@@ -206,6 +221,11 @@
                 <div class="accordion-body">
                     <div class="d-flex justify-content-end mb-2">
                         <a href="{{ url_for('payments.inbox_view') }}" class="btn-link btn-sm">Inbox pagamenti</a>
+                        {% if invoice.document_type == 'invoice' %}
+                            <a href="{{ url_for('payments.payment_index', document_id=invoice.id, amount='%.2f'|format(remaining_amount or 0)) }}#tab-new" class="btn btn-sm btn-primary ms-2">
+                                <i class="bi bi-cash-coin"></i> Registra pagamento
+                            </a>
+                        {% endif %}
                     </div>
                     <div class="table-wrapper scrollable-list">
                         <table class="table-compact">
@@ -230,49 +250,6 @@
                             {% else %}
                               <tr>
                                   <td colspan="4" class="text-center text-muted">Nessun pagamento</td>
-                              </tr>
-                            {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="accordion-item">
-            <h2 class="accordion-header" id="heading-attachments">
-                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-attachments" aria-expanded="false" aria-controls="collapse-attachments">
-                    Allegati ({{ attachments|list|length }})
-                </button>
-            </h2>
-            <div id="collapse-attachments" class="accordion-collapse collapse" aria-labelledby="heading-attachments" data-bs-parent="#document-detail-accordion">
-                <div class="accordion-body">
-                    <div class="table-wrapper scrollable-list">
-                        <table class="table-compact">
-                            <thead>
-                            <tr>
-                                <th>Nome</th>
-                                <th>Descrizione</th>
-                                <th>Formato</th>
-                                <th>Download</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            {% for att in attachments %}
-                              <tr>
-                                  <td>{{ att.original_name or att.stored_name }}</td>
-                                  <td>{{ att.description or '-' }}</td>
-                                  <td>{{ att.format or '-' }}</td>
-                                  <td>
-                                      <a class="btn btn-sm btn-outline-primary"
-                                         href="{{ url_for('documents.download_attachment', document_id=invoice.id, filename=att.stored_name) }}">
-                                        Scarica
-                                      </a>
-                                  </td>
-                              </tr>
-                            {% else %}
-                              <tr>
-                                  <td colspan="4" class="text-center text-muted">Nessun allegato</td>
                               </tr>
                             {% endfor %}
                             </tbody>
@@ -382,9 +359,9 @@
                         <div class="col-12">
                             <label for="preview-style" class="form-label small fw-bold">Foglio di stile</label>
                             <select id="preview-style" class="form-select form-select-sm">
-                                <option value="ordinaria" selected>Fattura Ordinaria (AE)</option>
-                                <option value="vfsm10">Fattura Semplificata VFSM10 (AE)</option>
-                                <option value="asso">Foglio AssoSoftware</option>
+                                <option value="ordinaria" {% if default_xsl == 'ordinaria' %}selected{% endif %}>Fattura Ordinaria (AE)</option>
+                                <option value="vfsm10" {% if default_xsl == 'vfsm10' %}selected{% endif %}>Fattura Semplificata VFSM10 (AE)</option>
+                                <option value="asso" {% if default_xsl == 'asso' %}selected{% endif %}>Foglio AssoSoftware</option>
                             </select>
                         </div>
                         <div class="col-6">

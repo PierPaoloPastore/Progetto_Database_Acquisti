@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% block title %}Reportistica - Gestionale Acquisti{% endblock %}
+
+{% block extra_css %}
+<style>
+    .report-card { border: 1px solid #e3e6ea; border-radius: 12px; }
+    .report-card .card-header { background: #ffffff; border-bottom: 1px solid #eef1f4; }
+    .chart-bar { fill: #1f6f43; }
+    .chart-bar.chart-negative { fill: #b42318; }
+    .chart-axis { stroke: #cbd5e1; stroke-width: 1; }
+    .chart-label { fill: #475569; font-size: 12px; }
+    .chart-value { fill: #111827; font-size: 12px; font-weight: 600; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row g-3 align-items-center mb-3">
+        <div class="col-lg-6">
+            <h1 class="h3 mb-1">Reportistica</h1>
+            <div class="text-muted small">Sintesi operativa e trend dei documenti.</div>
+        </div>
+        <div class="col-lg-6">
+            <form method="get" class="d-flex flex-wrap justify-content-center align-items-center gap-2">
+                <label for="year" class="form-label mb-0 small text-muted">Anno</label>
+                <select id="year" name="year" class="form-select form-select-sm" onchange="this.form.submit()">
+                    {% if years %}
+                        {% for y in years %}
+                            <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+                        {% endfor %}
+                    {% else %}
+                        <option value="{{ year }}" selected>{{ year }}</option>
+                    {% endif %}
+                </select>
+                <label for="type" class="form-label mb-0 small text-muted">Tipo</label>
+                <select id="type" name="type" class="form-select form-select-sm" onchange="this.form.submit()">
+                    {% for opt in type_options %}
+                        <option value="{{ opt.value }}" {% if opt.value == doc_type_filter %}selected{% endif %}>{{ opt.label }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-lg-3">
+            <div class="card report-card shadow-sm">
+                <div class="card-body">
+                    <div class="text-muted small">Totale netto</div>
+                    <div class="h4 mb-0">&euro; {{ total_net }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card report-card shadow-sm">
+                <div class="card-body">
+                    <div class="text-muted small">Documenti</div>
+                    <div class="h4 mb-0">{{ total_documents }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card report-card shadow-sm">
+                <div class="card-body">
+                    <div class="text-muted small">Da revisionare</div>
+                    <div class="h4 mb-0">{{ status_counts.pending_physical_copy }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card report-card shadow-sm">
+                <div class="card-body">
+                    <div class="text-muted small">Verificati</div>
+                    <div class="h4 mb-0">{{ status_counts.verified }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card report-card shadow-sm mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Totale netto per mese</h5>
+            <span class="badge bg-light text-dark">Max {{ chart.max_value }}</span>
+        </div>
+        <div class="card-body">
+            <div class="mb-2 small text-muted">Valori negativi in rosso.</div>
+            <div class="w-100 overflow-auto">
+                <svg viewBox="0 0 {{ chart.width }} {{ chart.height + 28 }}" class="w-100" role="img" aria-label="Totale netto per mese">
+                    <line x1="0" y1="{{ chart.base_y }}" x2="{{ chart.width }}" y2="{{ chart.base_y }}" class="chart-axis"></line>
+                    {% for bar in chart.bars %}
+                        <rect
+                            class="chart-bar {% if bar.is_negative %}chart-negative{% endif %}"
+                            x="{{ bar.x }}"
+                            y="{{ bar.y }}"
+                            width="{{ bar.width }}"
+                            height="{{ bar.height }}"
+                            rx="4"
+                        ></rect>
+                        <text x="{{ bar.x + (bar.width / 2) }}" y="{{ chart.base_y + 16 }}" text-anchor="middle" class="chart-label">{{ bar.label }}</text>
+                    {% endfor %}
+                </svg>
+            </div>
+        </div>
+    </div>
+
+    <div class="card report-card shadow-sm mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Spesa per categoria</h5>
+            <span class="text-muted small">Top {{ category_chart.bars|length }}</span>
+        </div>
+        <div class="card-body">
+            <div class="mb-2 small text-muted">Valori negativi in rosso.</div>
+            <div class="w-100 overflow-auto">
+                <svg viewBox="0 0 {{ category_chart.width }} {{ category_chart.height }}" class="w-100" role="img" aria-label="Spesa per categoria">
+                    {% for bar in category_chart.bars %}
+                        <text x="0" y="{{ bar.y + 15 }}" class="chart-label">
+                            <title>{{ bar.full_label }}</title>
+                            {{ bar.label }}
+                        </text>
+                        <rect
+                            class="chart-bar {% if bar.is_negative %}chart-negative{% endif %}"
+                            x="{{ bar.x }}"
+                            y="{{ bar.y }}"
+                            width="{{ bar.width }}"
+                            height="{{ bar.height }}"
+                            rx="4"
+                        ></rect>
+                        <text x="{{ bar.x + bar.width + 8 }}" y="{{ bar.y + 15 }}" class="chart-value">&euro; {{ bar.value }}</text>
+                    {% else %}
+                        <text x="0" y="24" class="chart-label">Nessun dato disponibile.</text>
+                    {% endfor %}
+                </svg>
+            </div>
+        </div>
+    </div>
+
+    <div class="card report-card shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Top fornitori per importo</h5>
+            <span class="text-muted small">Top {{ top_suppliers|length }}</span>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                    <thead>
+                        <tr>
+                            <th>Fornitore</th>
+                            <th class="text-end">Totale</th>
+                            <th class="text-end">Documenti</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in top_suppliers %}
+                            <tr>
+                                <td>
+                                    <a href="{{ url_for('suppliers.detail_view', supplier_id=row.supplier_id) }}">{{ row.name }}</a>
+                                </td>
+                                <td class="text-end">&euro; {{ "%.2f"|format(row.total) }}</td>
+                                <td class="text-end">{{ row.documents }}</td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="3" class="text-center text-muted">Nessun dato disponibile.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -4,15 +4,17 @@ Route per la gestione dei Documenti.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from datetime import datetime, date
 from typing import Optional
 from flask import (
-    Blueprint, render_template, render_template_string, request, redirect, url_for, flash, abort, send_file, current_app
+    Blueprint, render_template, render_template_string, request, redirect, url_for, flash, abort, send_file, current_app, jsonify
 )
 
 from app.models import Document
-from app.services import document_service as doc_service
+from app.services import document_service as doc_service, ocr_service
 from app.services.document_service import DocumentService, render_invoice_html
+from app.services.ocr_mapping_service import parse_manual_document_fields
 from app.services.dto import DocumentSearchFilters
 
 # FIX: Import dai service invece che dai repo diretti dove possibile
@@ -211,7 +213,7 @@ def review_loop_invoice_view(document_id: int):
     document = DocumentService.get_document_by_id(document_id)
     if document is None: abort(404)
     from app.services.settings_service import get_setting
-    default_xsl = get_setting("DEFAULT_XSL_STYLE", "ordinaria")
+    default_xsl = get_setting("DEFAULT_XSL_STYLE", "asso")
 
     # DDT candidati e collegati
     ddt_candidates = []
@@ -225,8 +227,6 @@ def review_loop_invoice_view(document_id: int):
             exclude_document_ids=[document_id],
         )
     linked_ddt = list_delivery_notes_by_document(document_id) if document else []
-    attachments = doc_service.list_document_attachments(document_id)
-
     return render_template(
         'documents/review.html',
         invoice=document,
@@ -234,7 +234,6 @@ def review_loop_invoice_view(document_id: int):
         default_xsl=default_xsl,
         ddt_candidates=ddt_candidates,
         linked_ddt=linked_ddt,
-        attachments=attachments,
     )
 
 @documents_bp.route("/review/<int:document_id>/delete", methods=["POST"])
@@ -287,7 +286,7 @@ def preview_visual(document_id: int):
         "ordinaria": "Foglio_di_stile_fattura_ordinaria_ver1.2.3.xsl",
         "vfsm10": "Foglio_di_stile_VFSM10_v1.0.2.xsl",
     }
-    style_key = request.args.get("style", "ordinaria")
+    style_key = request.args.get("style", "asso")
     xsl_name = style_map.get(style_key, style_map["ordinaria"])
     # resources/ vive alla radice del progetto (un livello sopra current_app.root_path)
     base_dir = os.path.abspath(os.path.join(current_app.root_path, os.pardir))
@@ -301,6 +300,45 @@ def preview_visual(document_id: int):
     except Exception as e:
         return f"<h1>Errore di visualizzazione</h1><p>{str(e)}</p>", 500
 
+
+@documents_bp.route("/ocr-map", methods=["POST"])
+def ocr_map_view():
+    file = request.files.get("file")
+    if file is None or not file.filename:
+        return jsonify({"success": False, "error": "File mancante."}), 400
+
+    suffix = Path(file.filename).suffix.lower()
+    if not suffix:
+        return jsonify({"success": False, "error": "Estensione file mancante."}), 400
+
+    from app.services.settings_service import get_setting
+    default_lang = get_setting("OCR_DEFAULT_LANG", "ita")
+    lang = (request.form.get("lang") or default_lang).strip() or default_lang
+    max_pages = ocr_service.normalize_max_pages(
+        request.form.get("max_pages"),
+        default=int(get_setting("OCR_MAX_PAGES", "5") or 5),
+    )
+
+    try:
+        text = ocr_service.extract_text_from_bytes(
+            file.read(),
+            suffix=suffix,
+            lang=lang,
+            max_pages=max_pages,
+            logger=current_app.logger,
+        )
+    except ocr_service.OcrDependencyError as exc:
+        return jsonify({"success": False, "error": f"OCR non disponibile: {exc}"}), 400
+    except ocr_service.OcrError as exc:
+        return jsonify({"success": False, "error": f"OCR fallito: {exc}"}), 400
+
+    text = (text or "").strip()
+    if not text:
+        return jsonify({"success": False, "error": "OCR completato ma nessun testo estratto."}), 200
+
+    fields = parse_manual_document_fields(text)
+    return jsonify({"success": True, "text": text, "fields": fields})
+
 @documents_bp.route("/<int:document_id>", methods=["GET"])
 def detail_view(document_id: int):
     detail = doc_service.get_document_detail(document_id)
@@ -308,24 +346,23 @@ def detail_view(document_id: int):
         flash("Documento non trovato.", "warning")
         return redirect(url_for("documents.list_view"))
 
+    from app.services.settings_service import get_setting
+    detail["default_xsl"] = get_setting("DEFAULT_XSL_STYLE", "asso")
+
     # DDT collegati a questa fattura (match manuale)
     from app.services.delivery_note_service import (
         list_delivery_notes_by_document,
     )
     detail["linked_delivery_notes"] = list_delivery_notes_by_document(document_id)
+    payments = detail.get("payments") or []
+    paid_total = sum(float(p.paid_amount or 0) for p in payments)
+    gross_total = float(detail["invoice"].total_gross_amount or 0)
+    remaining_amount = gross_total - paid_total
+    if remaining_amount < 0:
+        remaining_amount = 0.0
+    detail["remaining_amount"] = remaining_amount
 
     return render_template("documents/detail.html", **detail)
-
-
-@documents_bp.route("/<int:document_id>/attachments/<path:filename>", methods=["GET"])
-def download_attachment(document_id: int, filename: str):
-    from app.services.settings_service import get_attachments_storage_path
-    safe_name = os.path.basename(filename)
-    base_dir = get_attachments_storage_path()
-    full_path = os.path.join(base_dir, str(document_id), safe_name)
-    if not os.path.exists(full_path):
-        abort(404)
-    return send_file(full_path, as_attachment=True, download_name=safe_name)
 
 
 @documents_bp.route("/<int:document_id>/match-ddt", methods=["GET", "POST"])
@@ -381,7 +418,16 @@ def update_status_view(document_id: int):
         flash("Documento non trovato.", "danger")
     else:
         flash("Stato aggiornato con successo.", "success")
+
+    next_url = request.form.get("next") or request.args.get("next")
+    if next_url and _is_safe_next(next_url):
+        return redirect(next_url)
     return redirect(url_for("documents.detail_view", document_id=document_id))
+
+
+def _is_safe_next(target: str) -> bool:
+    parsed = urlparse(target)
+    return parsed.scheme == "" and parsed.netloc == ""
 
 @documents_bp.route("/<int:document_id>/physical-copy/upload", methods=["POST"], endpoint="upload_physical_copy")
 def upload_physical_copy_view(document_id: int):

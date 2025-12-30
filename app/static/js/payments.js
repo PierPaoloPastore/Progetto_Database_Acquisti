@@ -3,11 +3,15 @@ document.addEventListener("DOMContentLoaded", () => {
     setupInvoiceFilter();
     setupPdfPreview();
     setupPaymentOcr();
+    applyPresetPayment();
 });
 
 function setupTabSwitching() {
     const tabButtons = document.querySelectorAll("[data-tab-target]");
     const sections = document.querySelectorAll(".tab-section");
+    const params = new URLSearchParams(window.location.search);
+    const forcedTab = params.get("tab");
+    const presetDocId = params.get("document_id");
 
     const activateTab = (targetId) => {
         let found = false;
@@ -38,6 +42,8 @@ function setupTabSwitching() {
 
     const initialHash = window.location.hash ? window.location.hash.replace("#", "") : "";
     const defaultTarget =
+        (presetDocId ? "tab-new" : "") ||
+        forcedTab ||
         initialHash ||
         document.querySelector("[data-tab-target].active")?.getAttribute("data-tab-target") ||
         sections[0]?.id;
@@ -52,6 +58,29 @@ function setupTabSwitching() {
             activateTab(target);
         }
     });
+}
+
+function applyPresetPayment() {
+    const params = new URLSearchParams(window.location.search);
+    const docId = params.get("document_id");
+    if (!docId) return;
+
+    const amount = params.get("amount");
+    const checkbox = document.querySelector(`input[name="payment_id"][value="${docId}"]`);
+    const amountInput = document.querySelector(`input[name="amount_${docId}"]`);
+
+    if (checkbox) {
+        checkbox.checked = true;
+        const row = checkbox.closest(".invoice-row");
+        if (row) {
+            row.classList.add("border", "border-primary", "rounded");
+            row.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+    }
+
+    if (amountInput && amount) {
+        amountInput.value = amount;
+    }
 }
 
 function setupInvoiceFilter() {
@@ -158,12 +187,15 @@ function setupPaymentOcr() {
     const status = document.getElementById("payment-ocr-status");
     const output = document.getElementById("payment-ocr-output");
     const fileInput = document.getElementById("pdf-file");
+    const methodSelect = document.getElementById("payment_method");
+    const notesInput = document.getElementById("notes");
 
     if (!button || !status || !output || !fileInput) {
         return;
     }
 
     const endpoint = button.getAttribute("data-ocr-endpoint");
+    const mapEndpoint = button.getAttribute("data-ocr-map-endpoint") || endpoint;
     if (!endpoint) {
         return;
     }
@@ -188,7 +220,7 @@ function setupPaymentOcr() {
         payload.append("file", file);
 
         try {
-            const response = await fetch(endpoint, {
+            const response = await fetch(mapEndpoint, {
                 method: "POST",
                 body: payload,
             });
@@ -201,6 +233,7 @@ function setupPaymentOcr() {
             }
 
             output.value = data.text || "";
+            applyPaymentMapping(data.fields || {}, methodSelect, notesInput);
             setStatus("OCR completato.", false);
         } catch (error) {
             setStatus("Errore di rete durante OCR.", true);
@@ -209,4 +242,44 @@ function setupPaymentOcr() {
             button.disabled = false;
         }
     });
+}
+
+function applyPaymentMapping(fields, methodSelect, notesInput) {
+    if (!fields || typeof fields !== "object") return;
+
+    const badge = window.OcrBadge && window.OcrBadge.apply ? window.OcrBadge.apply : null;
+    const docIdParam = new URLSearchParams(window.location.search).get("document_id");
+
+    if (fields.payment_method && methodSelect) {
+        const methodValue = fields.payment_method.value;
+        if (methodValue) {
+            methodSelect.value = methodValue;
+            if (badge) badge(methodSelect, fields.payment_method.confidence || 0, "OCR");
+        }
+    }
+
+    if (fields.notes && notesInput) {
+        notesInput.value = fields.notes.value || "";
+        if (badge) badge(notesInput, fields.notes.confidence || 0, "OCR");
+    }
+
+    if (fields.amount) {
+        const amountValue = fields.amount.value;
+        let targetDocId = docIdParam;
+
+        if (!targetDocId) {
+            const selected = document.querySelectorAll('input[name="payment_id"]:checked');
+            if (selected.length === 1) {
+                targetDocId = selected[0].value;
+            }
+        }
+
+        if (targetDocId) {
+            const amountInput = document.querySelector(`input[name="amount_${targetDocId}"]`);
+            if (amountInput && amountValue) {
+                amountInput.value = amountValue;
+                if (badge) badge(amountInput, fields.amount.confidence || 0, "OCR");
+            }
+        }
+    }
 }

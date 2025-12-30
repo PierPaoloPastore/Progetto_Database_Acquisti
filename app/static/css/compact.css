@@ -176,6 +176,30 @@
     font-weight: 600;
 }
 
+/* OCR badges */
+.ocr-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.1rem 0.45rem;
+    margin-left: 0.4rem;
+    border-radius: 999px;
+    background: #e0f2fe;
+    color: #0369a1;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.ocr-badge-low {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.ocr-filled {
+    border-color: #38bdf8 !important;
+    box-shadow: 0 0 0 0.15rem rgba(56, 189, 248, 0.2);
+}
+
 /* -------------------- COMPACT FILTERS -------------------- */
 .compact-filters {
     margin-bottom: 1.5rem;

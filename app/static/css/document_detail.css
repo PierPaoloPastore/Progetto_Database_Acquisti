@@ -66,6 +66,17 @@
     font-weight: 400;
 }
 
+.document-detail .copy-request-btn {
+    padding: 0.25rem 0.65rem;
+    font-size: 0.75rem;
+    line-height: 1.1;
+    margin-left: 0.35rem;
+    vertical-align: middle;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
 .document-detail .summary-item.highlight {
     border-color: #cfe3d6;
     background: #f2fbf6;

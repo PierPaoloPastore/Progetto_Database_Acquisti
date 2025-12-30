@@ -10,6 +10,7 @@ from decimal import Decimal
 from typing import List, Optional, Sequence
 
 from sqlalchemy.orm import joinedload
+from sqlalchemy import func
 
 from werkzeug.utils import secure_filename
 
@@ -102,6 +103,37 @@ def list_paid_payments() -> List[Payment]:
             .all()
         )
         return payments
+
+
+def attach_payment_amounts(documents: Sequence[Document]) -> None:
+    """Aggiunge campi runtime paid_amount e remaining_amount ai documenti."""
+    doc_ids = [doc.id for doc in documents if doc and doc.id]
+    if not doc_ids:
+        return
+
+    with UnitOfWork() as uow:
+        rows = (
+            uow.session.query(
+                Payment.document_id,
+                func.coalesce(func.sum(Payment.paid_amount), 0),
+            )
+            .filter(Payment.document_id.in_(doc_ids))
+            .group_by(Payment.document_id)
+            .all()
+        )
+
+    totals = {doc_id: float(total or 0) for doc_id, total in rows}
+
+    for doc in documents:
+        if not doc:
+            continue
+        paid = totals.get(doc.id, 0.0)
+        gross = float(doc.total_gross_amount or 0)
+        remaining = gross - paid
+        if remaining < 0:
+            remaining = 0.0
+        doc.paid_amount = paid
+        doc.remaining_amount = remaining
 
 
 def get_payment_event_detail(payment_id: int) -> Optional[dict]:

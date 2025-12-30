@@ -9,13 +9,14 @@
     <div class="card mb-4">
         <div class="card-body">
             <p>
-                Cartella di import configurata: <code>{{ default_folder }}</code>
+                Archivio XML predefinito: <code>{{ default_folder }}</code>
             </p>
             
-            <form method="POST">
+            <form method="POST" enctype="multipart/form-data">
                 <div class="mb-3">
-                    <label for="folder" class="form-label">Cartella personalizzata (opzionale)</label>
-                    <input type="text" class="form-control" id="folder" name="folder" placeholder="Es: /tmp/fatture_extra">
+                    <label for="files" class="form-label">Cartella da importare</label>
+                    <input type="file" class="form-control" id="files" name="files" webkitdirectory directory multiple accept=".xml,.p7m" required>
+                    <div class="form-text">Seleziona una cartella: verranno importati solo i file XML/P7M.</div>
                 </div>
                 <button type="submit" class="btn btn-primary">
                     <i class="bi bi-play-circle"></i> Avvia Importazione

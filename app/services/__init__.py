@@ -8,7 +8,7 @@ I servizi orchestrano:
 - logging strutturato
 """
 
-from .import_service import run_import
+from .import_service import run_import, run_import_files
 from .document_service import (
     search_documents,
     get_document_detail,
@@ -66,6 +66,7 @@ from .delivery_note_service import (
 __all__ = [
     # Import
     "run_import",
+    "run_import_files",
     # Documents (ex Invoices)
     "search_documents",
     "get_document_detail",

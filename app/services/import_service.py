@@ -8,14 +8,14 @@ from __future__ import annotations
 import hashlib
 import os
 import shutil
+import tempfile
 from pathlib import Path
-import base64
-import json
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Sequence
 from datetime import date, datetime
 
 from lxml import etree
 from flask import current_app
+from werkzeug.datastructures import FileStorage
 
 from app.models import LegalEntity
 from app.parsers.fatturapa_parser_v2 import (
@@ -28,8 +28,6 @@ from app.repositories.import_log_repo import create_import_log
 from app.services.unit_of_work import UnitOfWork
 from app.services.logging import log_structured_event
 from app.services import settings_service
-from app.services.settings_service import get_attachments_storage_path
-from werkzeug.utils import secure_filename
 
 
 def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = None) -> Dict:
@@ -51,8 +49,63 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
     }
     xml_files = _select_import_files(xml_files_set)
 
+    return _run_import_paths(
+        xml_files=xml_files,
+        import_source=str(import_folder),
+        archive_base=import_folder,
+        legal_entity_id=legal_entity_id,
+        logger=logger,
+        validate_xsd=validate_xsd,
+    )
+
+def run_import_files(files: Sequence[FileStorage], legal_entity_id: Optional[int] = None) -> Dict:
+    app = current_app._get_current_object()
+    logger = app.logger
+    validate_xsd = bool(app.config.get("FATTURAPA_VALIDATE_XSD_WARN", False))
+
+    archive_base = Path(settings_service.get_xml_inbox_path())
+    if not archive_base.exists():
+        archive_base.mkdir(parents=True, exist_ok=True)
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_root = Path(temp_dir)
+        xml_files_set: set[Path] = set()
+
+        for storage in files:
+            if not storage or not storage.filename:
+                continue
+            file_name = Path(storage.filename).name
+            if not file_name:
+                continue
+            lower_name = file_name.lower()
+            if not (lower_name.endswith(".xml") or lower_name.endswith(".p7m")):
+                continue
+            safe_name = settings_service.ensure_unique_filename(str(temp_root), file_name)
+            dest_path = temp_root / safe_name
+            storage.save(str(dest_path))
+            xml_files_set.add(dest_path.resolve())
+
+        xml_files = _select_import_files(xml_files_set)
+        return _run_import_paths(
+            xml_files=xml_files,
+            import_source="upload",
+            archive_base=archive_base,
+            legal_entity_id=legal_entity_id,
+            logger=logger,
+            validate_xsd=validate_xsd,
+        )
+
+
+def _run_import_paths(
+    xml_files: List[Path],
+    import_source: str,
+    archive_base: Path,
+    legal_entity_id: Optional[int],
+    logger,
+    validate_xsd: bool,
+) -> Dict:
     summary = {
-        "folder": str(import_folder),
+        "folder": import_source,
         "total_files": len(xml_files),
         "processed": 0,
         "imported": 0,
@@ -72,10 +125,10 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
             _log_skip(logger, file_name, None, summary, reason=str(exc))
             continue
         except P7MExtractionError as exc:
-            _log_error_p7m(logger, file_name, exc, summary, str(import_folder))
+            _log_error_p7m(logger, file_name, exc, summary, import_source)
             continue
         except Exception as exc:
-            _log_error_parsing(logger, file_name, exc, summary, str(import_folder))
+            _log_error_parsing(logger, file_name, exc, summary, import_source)
             continue
 
         file_hash = _compute_file_hash(xml_path)
@@ -86,7 +139,7 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
         try:
             stored_rel_path = _store_import_file(xml_path, archive_year)
         except Exception as exc:
-            _log_error_storage(logger, file_name, exc, summary, str(import_folder))
+            _log_error_storage(logger, file_name, exc, summary, import_source)
             continue
 
         for idx, invoice_dto in enumerate(invoice_dtos, start=1):
@@ -127,7 +180,7 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
                         invoice_dto=invoice_dto,
                         supplier_id=supplier_id,
                         legal_entity_id=current_legal_entity_id,
-                        import_source=str(import_folder),
+                        import_source=import_source,
                     )
                     
                     if not created:
@@ -136,8 +189,6 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
                     document.file_path = stored_rel_path
 
                     uow.commit()
-
-                    _store_attachments(logger, document.id, invoice_dto)
 
                     _log_success(
                         logger,
@@ -152,13 +203,13 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
             continue
 
         try:
-            _archive_original_file(xml_path, archive_year, import_folder)
+            _archive_original_file(xml_path, archive_year, archive_base)
         except Exception as exc:
-            _log_error_storage(logger, file_name, exc, summary, str(import_folder))
+            _log_error_storage(logger, file_name, exc, summary, import_source)
 
     log_structured_event(
         action="run_import_completed",
-        folder=str(import_folder),
+        folder=import_source,
         total_files=summary["total_files"],
         imported=summary["imported"],
         skipped=summary["skipped"],
@@ -166,55 +217,6 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
     )
 
     return summary
-
-
-def _store_attachments(logger, document_id: int, invoice_dto: InvoiceDTO):
-    attachments = getattr(invoice_dto, "attachments", None) or []
-    if not attachments:
-        return
-
-    base_dir = Path(get_attachments_storage_path())
-    doc_dir = base_dir / str(document_id)
-    doc_dir.mkdir(parents=True, exist_ok=True)
-
-    metadata = []
-    for idx, att in enumerate(attachments, start=1):
-        if not getattr(att, "data_base64", None):
-            continue
-
-        original_name = att.filename or f"allegato_{idx}"
-        safe_name = secure_filename(original_name) or f"allegato_{idx}"
-        stored_name = f"{idx:02d}_{safe_name}"
-        if "." not in stored_name and att.format:
-            stored_name = f"{stored_name}.{att.format.lower()}"
-
-        try:
-            data = base64.b64decode(att.data_base64, validate=False)
-        except Exception as exc:
-            logger.warning(
-                "Allegato non decodificabile",
-                extra={"document_id": document_id, "attachment": original_name, "error": str(exc)},
-            )
-            continue
-
-        out_path = doc_dir / stored_name
-        out_path.write_bytes(data)
-
-        metadata.append(
-            {
-                "original_name": original_name,
-                "stored_name": stored_name,
-                "description": att.description,
-                "format": att.format,
-                "compression": att.compression,
-                "encryption": att.encryption,
-                "size_bytes": len(data),
-            }
-        )
-
-    if metadata:
-        meta_path = doc_dir / "attachments.json"
-        meta_path.write_text(json.dumps(metadata, ensure_ascii=True, indent=2), encoding="utf-8")
 
 
 def _extract_header_data(xml_path: Path) -> Dict:
@@ -474,8 +476,8 @@ def _store_import_file(xml_path: Path, year: int) -> str:
 
     return os.path.join(str(year), target_name)
 
-def _archive_original_file(xml_path: Path, year: int, import_folder: Path) -> None:
-    archive_dir = Path(settings_service.get_xml_archive_path(year, base_path=str(import_folder)))
+def _archive_original_file(xml_path: Path, year: int, archive_base: Path) -> None:
+    archive_dir = Path(settings_service.get_xml_archive_path(year, base_path=str(archive_base)))
     target_name = settings_service.ensure_unique_filename(str(archive_dir), xml_path.name)
     dest_path = archive_dir / target_name
     shutil.move(str(xml_path), str(dest_path))
