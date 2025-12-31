@@ -141,7 +141,7 @@ body > main > div > div.d-flex.justify-content-between.align-items-center.mb-2 >
                 <div class="col">
                     <label class="form-label fw-bold small">Anno</label>
                     <select name="year" class="form-select form-select-sm">
-                        <option value="">Tutti gli anni</option>
+                        <option value="">Tutti</option>
                         {% for y in accounting_years %}
                         <option value="{{ y }}" {% if filters.accounting_year == y %}selected{% endif %}>{{ y }}</option>
                         {% endfor %}
@@ -179,11 +179,8 @@ body > main > div > div.d-flex.justify-content-between.align-items-center.mb-2 >
                     <select name="payment_status" class="form-select form-select-sm">
                         <option value="">Tutti gli stati</option>
                         <option value="unpaid" {% if filters.payment_status == 'unpaid' %}selected{% endif %}>Non pagato</option>
-                        <option value="planned" {% if filters.payment_status == 'planned' %}selected{% endif %}>Pianificato</option>
-                        <option value="pending" {% if filters.payment_status == 'pending' %}selected{% endif %}>In attesa</option>
                         <option value="partial" {% if filters.payment_status == 'partial' %}selected{% endif %}>Parziale</option>
                         <option value="paid" {% if filters.payment_status == 'paid' %}selected{% endif %}>Pagato</option>
-                        <option value="overdue" {% if filters.payment_status == 'overdue' %}selected{% endif %}>Scaduto</option>
                     </select>
                 </div>
                 <div class="col">

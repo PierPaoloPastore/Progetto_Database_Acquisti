@@ -13,218 +13,262 @@
 
             <div class="card shadow-sm">
                 <div class="card-header bg-white">
-                    <h5 class="mb-0"><i class="bi bi-folder2-open"></i> Percorsi File System</h5>
+                    <h5 class="mb-0"><i class="bi bi-gear"></i> Impostazioni</h5>
                 </div>
                 <div class="card-body">
                     <form method="post">
+                        <div class="accordion" id="settings-accordion">
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="settings-filesystem-heading">
+                                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#settings-filesystem" aria-expanded="true" aria-controls="settings-filesystem">
+                                        <i class="bi bi-folder2-open me-2"></i> Percorsi File System
+                                    </button>
+                                </h2>
+                                <div id="settings-filesystem" class="accordion-collapse collapse show" aria-labelledby="settings-filesystem-heading" data-bs-parent="#settings-accordion">
+                                    <div class="accordion-body">
+                                        <div class="mb-4">
+                                            <label for="xml_inbox" class="form-label fw-bold">Cartella Inbox XML (Fatture)</label>
+                                            <div class="input-group">
+                                                <span class="input-group-text"><i class="bi bi-inbox"></i></span>
+                                                <input type="text" class="form-control font-monospace" id="xml_inbox" name="xml_inbox"
+                                                       value="{{ xml_inbox }}" placeholder="/percorso/assoluto/inbox/xml">
+                                                <button class="btn btn-outline-secondary" type="button" data-clip-target="#xml_inbox">
+                                                    Incolla percorso
+                                                </button>
+                                            </div>
+                                            <div class="form-text">
+                                                Cartella di input per i file XML/P7M. Gli originali vengono archiviati in Archivio/XML/AAAA.
+                                            </div>
+                                        </div>
 
-                        <div class="mb-4">
-                            <label for="xml_inbox" class="form-label fw-bold">Cartella Inbox XML (Fatture)</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-inbox"></i></span>
-                                <input type="text" class="form-control font-monospace" id="xml_inbox" name="xml_inbox"
-                                       value="{{ xml_inbox }}" placeholder="/percorso/assoluto/inbox/xml">
-                                <button class="btn btn-outline-secondary" type="button" data-clip-target="#xml_inbox">
-                                    Incolla percorso
-                                </button>
+                                        <div class="mb-4">
+                                            <label for="scan_inbox" class="form-label fw-bold">Cartella Inbox Scansioni</label>
+                                            <div class="input-group">
+                                                <span class="input-group-text"><i class="bi bi-inbox"></i></span>
+                                                <input type="text" class="form-control font-monospace" id="scan_inbox" name="scan_inbox"
+                                                       value="{{ scan_inbox }}" placeholder="/percorso/assoluto/inbox">
+                                                <button class="btn btn-outline-secondary" type="button" data-clip-target="#scan_inbox">
+                                                    Incolla percorso
+                                                </button>
+                                            </div>
+                                            <div class="form-text">
+                                                Cartella di input per scansioni documenti/DDT. Gli originali vengono archiviati in Archivio/Documenti/AAAA e Archivio/DDT/AAAA.
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-4">
+                                            <label for="payment_inbox" class="form-label fw-bold">Cartella Inbox Pagamenti</label>
+                                            <div class="input-group">
+                                                <span class="input-group-text"><i class="bi bi-inbox"></i></span>
+                                                <input type="text" class="form-control font-monospace" id="payment_inbox" name="payment_inbox"
+                                                       value="{{ payment_inbox }}" placeholder="/percorso/assoluto/inbox/pagamenti">
+                                                <button class="btn btn-outline-secondary" type="button" data-clip-target="#payment_inbox">
+                                                    Incolla percorso
+                                                </button>
+                                            </div>
+                                            <div class="form-text">
+                                                Cartella di input per i documenti di pagamento. Gli originali vengono archiviati in Archivio/Pagamenti/AAAA.
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-4">
+                                            <label for="xml_storage" class="form-label fw-bold">Deposito XML</label>
+                                            <div class="input-group">
+                                                <span class="input-group-text"><i class="bi bi-folder"></i></span>
+                                                <input type="text" class="form-control font-monospace" id="xml_storage" name="xml_storage"
+                                                       value="{{ xml_storage }}" placeholder="/percorso/assoluto/storage/xml">
+                                                <button class="btn btn-outline-secondary" type="button" data-clip-target="#xml_storage">
+                                                    Incolla percorso
+                                                </button>
+                                            </div>
+                                            <div class="form-text">
+                                                Deposito interno per i file XML importati (AAAA).
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-4">
+                                            <label for="copy_storage" class="form-label fw-bold">Deposito Copie Fisiche</label>
+                                            <div class="input-group">
+                                                <span class="input-group-text"><i class="bi bi-archive"></i></span>
+                                                <input type="text" class="form-control font-monospace" id="copy_storage" name="copy_storage"
+                                                       value="{{ copy_storage }}" placeholder="/percorso/assoluto/storage">
+                                                <button class="btn btn-outline-secondary" type="button" data-clip-target="#copy_storage">
+                                                    Incolla percorso
+                                                </button>
+                                            </div>
+                                            <div class="form-text">
+                                                Deposito interno per i PDF dei documenti di acquisto (AAAA).
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-4">
+                                            <label for="payment_storage" class="form-label fw-bold">Deposito Pagamenti</label>
+                                            <div class="input-group">
+                                                <span class="input-group-text"><i class="bi bi-credit-card"></i></span>
+                                                <input type="text" class="form-control font-monospace" id="payment_storage" name="payment_storage"
+                                                       value="{{ payment_storage }}" placeholder="/percorso/assoluto/storage/pagamenti">
+                                                <button class="btn btn-outline-secondary" type="button" data-clip-target="#payment_storage">
+                                                    Incolla percorso
+                                                </button>
+                                            </div>
+                                            <div class="form-text">
+                                                Deposito interno per i PDF dei pagamenti (AAAA).
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-0">
+                                            <label for="ddt_storage" class="form-label fw-bold">Deposito DDT</label>
+                                            <div class="input-group">
+                                                <span class="input-group-text"><i class="bi bi-truck"></i></span>
+                                                <input type="text" class="form-control font-monospace" id="ddt_storage" name="ddt_storage"
+                                                       value="{{ ddt_storage }}" placeholder="/percorso/assoluto/storage/ddt">
+                                                <button class="btn btn-outline-secondary" type="button" data-clip-target="#ddt_storage">
+                                                    Incolla percorso
+                                                </button>
+                                            </div>
+                                            <div class="form-text">
+                                                Deposito interno per i DDT (AAAA).
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="form-text">
-                                Cartella di input per i file XML/P7M. Gli originali vengono archiviati in Archivio/XML/AAAA.
+
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="settings-format-heading">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#settings-format" aria-expanded="false" aria-controls="settings-format">
+                                        <i class="bi bi-sliders me-2"></i> Formattazione e Stile
+                                    </button>
+                                </h2>
+                                <div id="settings-format" class="accordion-collapse collapse" aria-labelledby="settings-format-heading" data-bs-parent="#settings-accordion">
+                                    <div class="accordion-body">
+                                        <div class="mb-4">
+                                            <label for="default_xsl" class="form-label fw-bold">Foglio di stile predefinito (preview documenti)</label>
+                                            <select id="default_xsl" name="default_xsl" class="form-select">
+                                                <option value="ordinaria" {% if default_xsl == 'ordinaria' %}selected{% endif %}>Fattura Ordinaria (AE)</option>
+                                                <option value="asso" {% if default_xsl == 'asso' %}selected{% endif %}>Foglio AssoSoftware</option>
+                                                <option value="vfsm10" {% if default_xsl == 'vfsm10' %}selected{% endif %}>Fattura Semplificata VFSM10 (AE)</option>
+                                            </select>
+                                            <div class="form-text">
+                                                Usato come default in revisione documenti; puo essere cambiato al volo nella pagina di review.
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-0">
+                                            <label for="format_thousands_separator" class="form-label fw-bold">Formato numeri - separatori migliaia</label>
+                                            <select id="format_thousands_separator" name="format_thousands_separator" class="form-select">
+                                                <option value="0" {% if not format_thousands_separator %}selected{% endif %}>Senza separatori</option>
+                                                <option value="1" {% if format_thousands_separator %}selected{% endif %}>Con separatori</option>
+                                            </select>
+                                            <div class="form-text">
+                                                Applica la formattazione alle cifre mostrate in UI e negli export.
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="settings-schedule-heading">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#settings-schedule" aria-expanded="false" aria-controls="settings-schedule">
+                                        <i class="bi bi-calendar-check me-2"></i> Scadenziario
+                                    </button>
+                                </h2>
+                                <div id="settings-schedule" class="accordion-collapse collapse" aria-labelledby="settings-schedule-heading" data-bs-parent="#settings-accordion">
+                                    <div class="accordion-body">
+                                        <div class="mb-4">
+                                            <label for="schedule_soon_days" class="form-label fw-bold">Scadenziario - giorni di preavviso</label>
+                                            <div class="input-group">
+                                                <span class="input-group-text"><i class="bi bi-calendar-check"></i></span>
+                                                <input type="number" class="form-control font-monospace" id="schedule_soon_days" name="schedule_soon_days"
+                                                       value="{{ schedule_soon_days }}" placeholder="7" min="1" max="60">
+                                            </div>
+                                            <div class="form-text">
+                                                Numero di giorni considerati "in scadenza" nello scadenziario.
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-0">
+                                            <label for="schedule_group_by_supplier" class="form-label fw-bold">Scadenziario - raggruppa per fornitore</label>
+                                            <select id="schedule_group_by_supplier" name="schedule_group_by_supplier" class="form-select">
+                                                <option value="0" {% if not schedule_group_by_supplier %}selected{% endif %}>Vista classica</option>
+                                                <option value="1" {% if schedule_group_by_supplier %}selected{% endif %}>Raggruppata con menu a tendina</option>
+                                            </select>
+                                            <div class="form-text">
+                                                Mostra i documenti per fornitore con elenco espandibile.
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="settings-ocr-heading">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#settings-ocr" aria-expanded="false" aria-controls="settings-ocr">
+                                        <i class="bi bi-eye me-2"></i> OCR
+                                    </button>
+                                </h2>
+                                <div id="settings-ocr" class="accordion-collapse collapse" aria-labelledby="settings-ocr-heading" data-bs-parent="#settings-accordion">
+                                    <div class="accordion-body">
+                                        <div class="mb-4">
+                                            <label for="ocr_provider" class="form-label fw-bold">OCR - Provider</label>
+                                            <select id="ocr_provider" name="ocr_provider" class="form-select">
+                                                <option value="local" {% if ocr_provider == 'local' %}selected{% endif %}>Locale (Tesseract)</option>
+                                                <option value="ocrspace" {% if ocr_provider == 'ocrspace' %}selected{% endif %}>OCRSpace (API)</option>
+                                            </select>
+                                            <div class="form-text">
+                                                Seleziona il motore OCR da usare per scansioni e PDF.
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-4">
+                                            <label for="ocrspace_api_key" class="form-label fw-bold">OCRSpace API Key</label>
+                                            <div class="input-group">
+                                                <span class="input-group-text"><i class="bi bi-key"></i></span>
+                                                <input type="password" class="form-control font-monospace" id="ocrspace_api_key" name="ocrspace_api_key"
+                                                       value="{{ ocrspace_api_key }}" placeholder="Inserisci la tua API key">
+                                                <button class="btn btn-outline-secondary" type="button" data-clip-target="#ocrspace_api_key">
+                                                    Incolla key
+                                                </button>
+                                            </div>
+                                            <div class="form-text">
+                                                Consigliato: salva la key via impostazioni, non nel codice.
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-4">
+                                            <label for="ocrspace_endpoint" class="form-label fw-bold">OCRSpace Endpoint</label>
+                                            <div class="input-group">
+                                                <span class="input-group-text"><i class="bi bi-link-45deg"></i></span>
+                                                <input type="text" class="form-control font-monospace" id="ocrspace_endpoint" name="ocrspace_endpoint"
+                                                       value="{{ ocrspace_endpoint }}" placeholder="https://api.ocr.space/parse/image">
+                                            </div>
+                                            <div class="form-text">
+                                                Default: https://api.ocr.space/parse/image
+                                            </div>
+                                        </div>
+
+                                        <div class="row g-3">
+                                            <div class="col-md-6">
+                                                <label for="ocr_default_lang" class="form-label fw-bold">OCR lingua predefinita</label>
+                                                <input type="text" class="form-control font-monospace" id="ocr_default_lang" name="ocr_default_lang"
+                                                       value="{{ ocr_default_lang }}" placeholder="ita">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label for="ocr_max_pages" class="form-label fw-bold">OCR max pagine</label>
+                                                <input type="number" class="form-control font-monospace" id="ocr_max_pages" name="ocr_max_pages"
+                                                       value="{{ ocr_max_pages }}" placeholder="5" min="1" max="20">
+                                            </div>
+                                            <div class="form-text">
+                                                Limite pagine usato per OCR locale; per OCRSpace potrebbe non essere applicato.
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
-                        <div class="mb-4">
-                            <label for="scan_inbox" class="form-label fw-bold">Cartella Inbox Scansioni</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-inbox"></i></span>
-                                <input type="text" class="form-control font-monospace" id="scan_inbox" name="scan_inbox" 
-                                       value="{{ scan_inbox }}" placeholder="/percorso/assoluto/inbox">
-                                <button class="btn btn-outline-secondary" type="button" data-clip-target="#scan_inbox">
-                                    Incolla percorso
-                                </button>
-                            </div>
-                            <div class="form-text">
-                                Cartella di input per scansioni documenti/DDT. Gli originali vengono archiviati in Archivio/Documenti/AAAA e Archivio/DDT/AAAA.
-                            </div>
-                        </div>
-
-                        <div class="mb-4">
-                            <label for="payment_inbox" class="form-label fw-bold">Cartella Inbox Pagamenti</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-inbox"></i></span>
-                                <input type="text" class="form-control font-monospace" id="payment_inbox" name="payment_inbox"
-                                       value="{{ payment_inbox }}" placeholder="/percorso/assoluto/inbox/pagamenti">
-                                <button class="btn btn-outline-secondary" type="button" data-clip-target="#payment_inbox">
-                                    Incolla percorso
-                                </button>
-                            </div>
-                            <div class="form-text">
-                                Cartella di input per i documenti di pagamento. Gli originali vengono archiviati in Archivio/Pagamenti/AAAA.
-                            </div>
-                        </div>
-
-                        <hr>
-
-                        <div class="mb-4">
-                            <label for="xml_storage" class="form-label fw-bold">Deposito XML</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-folder"></i></span>
-                                <input type="text" class="form-control font-monospace" id="xml_storage" name="xml_storage"
-                                       value="{{ xml_storage }}" placeholder="/percorso/assoluto/storage/xml">
-                                <button class="btn btn-outline-secondary" type="button" data-clip-target="#xml_storage">
-                                    Incolla percorso
-                                </button>
-                            </div>
-                            <div class="form-text">
-                                Deposito interno per i file XML importati (AAAA).
-                            </div>
-                        </div>
-
-                        <div class="mb-4">
-                            <label for="copy_storage" class="form-label fw-bold">Deposito Copie Fisiche</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-archive"></i></span>
-                                <input type="text" class="form-control font-monospace" id="copy_storage" name="copy_storage" 
-                                       value="{{ copy_storage }}" placeholder="/percorso/assoluto/storage">
-                                <button class="btn btn-outline-secondary" type="button" data-clip-target="#copy_storage">
-                                    Incolla percorso
-                                </button>
-                            </div>
-                            <div class="form-text">
-                                Deposito interno per i PDF dei documenti di acquisto (AAAA).
-                            </div>
-                        </div>
-
-                        <div class="mb-4">
-                            <label for="payment_storage" class="form-label fw-bold">Deposito Pagamenti</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-credit-card"></i></span>
-                                <input type="text" class="form-control font-monospace" id="payment_storage" name="payment_storage"
-                                       value="{{ payment_storage }}" placeholder="/percorso/assoluto/storage/pagamenti">
-                                <button class="btn btn-outline-secondary" type="button" data-clip-target="#payment_storage">
-                                    Incolla percorso
-                                </button>
-                            </div>
-                            <div class="form-text">
-                                Deposito interno per i PDF dei pagamenti (AAAA).
-                            </div>
-                        </div>
-
-                        <div class="mb-4">
-                            <label for="ddt_storage" class="form-label fw-bold">Deposito DDT</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-truck"></i></span>
-                                <input type="text" class="form-control font-monospace" id="ddt_storage" name="ddt_storage"
-                                       value="{{ ddt_storage }}" placeholder="/percorso/assoluto/storage/ddt">
-                                <button class="btn btn-outline-secondary" type="button" data-clip-target="#ddt_storage">
-                                    Incolla percorso
-                                </button>
-                            </div>
-                            <div class="form-text">
-                                Deposito interno per i DDT (AAAA).
-                            </div>
-                        </div>
-
-                        <hr>
-
-                        <div class="mb-4">
-                            <label for="default_xsl" class="form-label fw-bold">Foglio di stile predefinito (preview documenti)</label>
-                            <select id="default_xsl" name="default_xsl" class="form-select">
-                                <option value="ordinaria" {% if default_xsl == 'ordinaria' %}selected{% endif %}>Fattura Ordinaria (AE)</option>
-                                <option value="asso" {% if default_xsl == 'asso' %}selected{% endif %}>Foglio AssoSoftware</option>
-                                <option value="vfsm10" {% if default_xsl == 'vfsm10' %}selected{% endif %}>Fattura Semplificata VFSM10 (AE)</option>
-                            </select>
-                            <div class="form-text">
-                                Usato come default in revisione documenti; può essere cambiato al volo nella pagina di review.
-                            </div>
-                        </div>
-
-                        <hr>
-
-                        <div class="mb-4">
-                            <label for="format_thousands_separator" class="form-label fw-bold">Formato numeri - separatori migliaia</label>
-                            <select id="format_thousands_separator" name="format_thousands_separator" class="form-select">
-                                <option value="0" {% if not format_thousands_separator %}selected{% endif %}>Senza separatori</option>
-                                <option value="1" {% if format_thousands_separator %}selected{% endif %}>Con separatori</option>
-                            </select>
-                            <div class="form-text">
-                                Applica la formattazione alle cifre mostrate in UI e negli export.
-                            </div>
-                        </div>
-
-                        <hr>
-
-                        <div class="mb-4">
-                            <label for="schedule_soon_days" class="form-label fw-bold">Scadenziario - giorni di preavviso</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-calendar-check"></i></span>
-                                <input type="number" class="form-control font-monospace" id="schedule_soon_days" name="schedule_soon_days"
-                                       value="{{ schedule_soon_days }}" placeholder="7" min="1" max="60">
-                            </div>
-                            <div class="form-text">
-                                Numero di giorni considerati "in scadenza" nello scadenziario.
-                            </div>
-                        </div>
-
-                        <hr>
-
-                        <div class="mb-4">
-                            <label for="ocr_provider" class="form-label fw-bold">OCR - Provider</label>
-                            <select id="ocr_provider" name="ocr_provider" class="form-select">
-                                <option value="local" {% if ocr_provider == 'local' %}selected{% endif %}>Locale (Tesseract)</option>
-                                <option value="ocrspace" {% if ocr_provider == 'ocrspace' %}selected{% endif %}>OCRSpace (API)</option>
-                            </select>
-                            <div class="form-text">
-                                Seleziona il motore OCR da usare per scansioni e PDF.
-                            </div>
-                        </div>
-
-                        <div class="mb-4">
-                            <label for="ocrspace_api_key" class="form-label fw-bold">OCRSpace API Key</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-key"></i></span>
-                                <input type="password" class="form-control font-monospace" id="ocrspace_api_key" name="ocrspace_api_key"
-                                       value="{{ ocrspace_api_key }}" placeholder="Inserisci la tua API key">
-                                <button class="btn btn-outline-secondary" type="button" data-clip-target="#ocrspace_api_key">
-                                    Incolla key
-                                </button>
-                            </div>
-                            <div class="form-text">
-                                Consigliato: salva la key via impostazioni, non nel codice.
-                            </div>
-                        </div>
-
-                        <div class="mb-4">
-                            <label for="ocrspace_endpoint" class="form-label fw-bold">OCRSpace Endpoint</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-link-45deg"></i></span>
-                                <input type="text" class="form-control font-monospace" id="ocrspace_endpoint" name="ocrspace_endpoint"
-                                       value="{{ ocrspace_endpoint }}" placeholder="https://api.ocr.space/parse/image">
-                            </div>
-                            <div class="form-text">
-                                Default: https://api.ocr.space/parse/image
-                            </div>
-                        </div>
-
-                        <div class="row g-3 mb-4">
-                            <div class="col-md-6">
-                                <label for="ocr_default_lang" class="form-label fw-bold">OCR lingua predefinita</label>
-                                <input type="text" class="form-control font-monospace" id="ocr_default_lang" name="ocr_default_lang"
-                                       value="{{ ocr_default_lang }}" placeholder="ita">
-                            </div>
-                            <div class="col-md-6">
-                                <label for="ocr_max_pages" class="form-label fw-bold">OCR max pagine</label>
-                                <input type="number" class="form-control font-monospace" id="ocr_max_pages" name="ocr_max_pages"
-                                       value="{{ ocr_max_pages }}" placeholder="5" min="1" max="20">
-                            </div>
-                            <div class="form-text">
-                                Limite pagine usato per OCR locale; per OCRSpace potrebbe non essere applicato.
-                            </div>
-                        </div>
-
-                        <hr>
-
-                        <div class="d-flex justify-content-end">
+                        <div class="d-flex justify-content-end mt-4">
                             <button type="submit" class="btn btn-success">
                                 <i class="bi bi-save"></i> Salva Impostazioni
                             </button>
@@ -232,6 +276,7 @@
                     </form>
                 </div>
             </div>
+
 
         </div>
     </div>

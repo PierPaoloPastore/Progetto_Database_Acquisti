@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?><ns3:FatturaElettronica xmlns:ns3="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2" xmlns:ns2="http://www.w3.org/2000/09/xmldsig#" versione="FPR12">
+    <FatturaElettronicaHeader>
+        <DatiTrasmissione>
+            <IdTrasmittente>
+                <IdPaese>IT</IdPaese>
+                <IdCodice>01641790702</IdCodice>
+            </IdTrasmittente>
+            <ProgressivoInvio>1902110452</ProgressivoInvio>
+            <FormatoTrasmissione>FPR12</FormatoTrasmissione>
+            <CodiceDestinatario>0000000</CodiceDestinatario>
+            <ContattiTrasmittente>
+                <Telefono>0874-60561</Telefono>
+            </ContattiTrasmittente>
+        </DatiTrasmissione>
+        <CedentePrestatore>
+            <DatiAnagrafici>
+                <IdFiscaleIVA>
+                    <IdPaese>IT</IdPaese>
+                    <IdCodice>03522550650</IdCodice>
+                </IdFiscaleIVA>
+                <CodiceFiscale>03522550650</CodiceFiscale>
+                <Anagrafica>
+                    <Denominazione>EUROLAB S.r.l.</Denominazione>
+                </Anagrafica>
+                <RegimeFiscale>RF01</RegimeFiscale>
+            </DatiAnagrafici>
+            <Sede>
+                <Indirizzo>Via dei Valtorta, 48</Indirizzo>
+                <CAP>20127</CAP>
+                <Comune>MILANO</Comune>
+                <Provincia>MI</Provincia>
+                <Nazione>IT</Nazione>
+            </Sede>
+        </CedentePrestatore>
+        <CessionarioCommittente>
+            <DatiAnagrafici>
+                <IdFiscaleIVA>
+                    <IdPaese>IT</IdPaese>
+                    <IdCodice>03185040650</IdCodice>
+                </IdFiscaleIVA>
+                <CodiceFiscale>03185040650</CodiceFiscale>
+                <Anagrafica>
+                    <Denominazione>Azienda Agricola PASTORE MARIO</Denominazione>
+                </Anagrafica>
+            </DatiAnagrafici>
+            <Sede>
+                <Indirizzo>Via Spineta, B92</Indirizzo>
+                <CAP>84091</CAP>
+                <Comune>BATTIPAGLIA</Comune>
+                <Provincia>SA</Provincia>
+                <Nazione>IT</Nazione>
+            </Sede>
+        </CessionarioCommittente>
+        <TerzoIntermediarioOSoggettoEmittente>
+            <DatiAnagrafici>
+                <IdFiscaleIVA>
+                    <IdPaese>IT</IdPaese>
+                    <IdCodice>01641790702</IdCodice>
+                </IdFiscaleIVA>
+                <CodiceFiscale>01641790702</CodiceFiscale>
+                <Anagrafica>
+                    <Denominazione>TEAMSYSTEM SERVICE SRL</Denominazione>
+                </Anagrafica>
+            </DatiAnagrafici>
+        </TerzoIntermediarioOSoggettoEmittente>
+        <SoggettoEmittente>TZ</SoggettoEmittente>
+    </FatturaElettronicaHeader>
+    <FatturaElettronicaBody>
+        <DatiGenerali>
+            <DatiGeneraliDocumento>
+                <TipoDocumento>TD01</TipoDocumento>
+                <Divisa>EUR</Divisa>
+                <Data>2019-01-31</Data>
+                <Numero>00073</Numero>
+                <ImportoTotaleDocumento>61.00</ImportoTotaleDocumento>
+            </DatiGeneraliDocumento>
+        </DatiGenerali>
+        <DatiBeniServizi>
+            <DettaglioLinee>
+                <NumeroLinea>1</NumeroLinea>
+                <Descrizione>Analisi su Vs. campione ns. RdP n° 2631</Descrizione>
+                <Quantita>1.00</Quantita>
+                <PrezzoUnitario>50.0000</PrezzoUnitario>
+                <PrezzoTotale>50.0000</PrezzoTotale>
+                <AliquotaIVA>22.00</AliquotaIVA>
+            </DettaglioLinee>
+            <DatiRiepilogo>
+                <AliquotaIVA>22.00</AliquotaIVA>
+                <ImponibileImporto>50.00</ImponibileImporto>
+                <Imposta>11.00</Imposta>
+            </DatiRiepilogo>
+        </DatiBeniServizi>
+        <DatiPagamento>
+            <CondizioniPagamento>TP02</CondizioniPagamento>
+            <DettaglioPagamento>
+                <ModalitaPagamento>MP05</ModalitaPagamento>
+                <DataScadenzaPagamento>2019-01-31</DataScadenzaPagamento>
+                <ImportoPagamento>61.00</ImportoPagamento>
+                <IstitutoFinanziario>Banco di Napoli</IstitutoFinanziario>
+                <IBAN>IT83P0306976095615277172946</IBAN>
+            </DettaglioPagamento>
+        </DatiPagamento>
+    </FatturaElettronicaBody>
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Id="id-cef5a4035cfc13a182c4f8eae93afae5"><ds:SignedInfo><ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/><ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/><ds:Reference URI=""><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/><ds:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/><ds:DigestValue>WlMXaVcJRLKxPVi+mMChypOq0GWrRm7y/GaAN3YkQ4M=</ds:DigestValue></ds:Reference><ds:Reference Type="http://uri.etsi.org/01903#SignedProperties" URI="#xades-id-cef5a4035cfc13a182c4f8eae93afae5"><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/><ds:DigestValue>COEFp8MdxAN8qes2AqUeKkeHTeFbtpKkQ6ML84WCeOw=</ds:DigestValue></ds:Reference></ds:SignedInfo><ds:SignatureValue Id="value-id-cef5a4035cfc13a182c4f8eae93afae5">hWhzx+pIj/3q9Q/s1FCM5+fvr0nn/uYUqKypf36kyiyqeubcrSFUcXGEgpRhA+SiVqTIoGAnfN5ZvseWjcg/HVI7/TIRSzHjDw0DfwihYD0OxCxw9lLaUR6EruqBoNJgk6kumwzNzPAclTpwY+dc2yGckCBB3ho2fud2zBfqOP4R52JUkRPEXUfzVkn/PXQurqYhcp3pGZfb2Fhokk0Blm38GEVR80+HO5M8nbU9g7dCB7dbcYt3PLu4ALCZq/gOn2zhtbVJygk/YhXw6JiAP2vM4XHwSk+6hVhbzm9kQh8XiJAmkBzn6KET1aSA3Ea/dSOQ+b5i67q8F51pRDJBbA==</ds:SignatureValue><ds:KeyInfo><ds:X509Data><ds:X509Certificate>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</ds:X509Certificate></ds:X509Data></ds:KeyInfo><ds:Object><xades:QualifyingProperties xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" Target="#id-cef5a4035cfc13a182c4f8eae93afae5"><xades:SignedProperties Id="xades-id-cef5a4035cfc13a182c4f8eae93afae5"><xades:SignedSignatureProperties><xades:SigningTime>2019-02-11T11:36:43Z</xades:SigningTime><xades:SigningCertificateV2><xades:Cert><xades:CertDigest><ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/><ds:DigestValue>IoxqxvKlcid+Ul8y6xoggwfld+T1sTaesRXvY8sqO1o=</ds:DigestValue></xades:CertDigest><xades:IssuerSerialV2>MIGOMIGBpH8wfTELMAkGA1UEBhMCSVQxJDAiBgNVBAoMG05hbWlyaWFsIFMucC5BLi8wMjA0NjU3MDQyNjEgMB4GA1UECwwXQ2VydGlmaWNhdGlvbiBBdXRob3JpdHkxJjAkBgNVBAMMHU5hbWlyaWFsIENBIEZpcm1hIFF1YWxpZmljYXRhAgh4ZkpnSDVI6A==</xades:IssuerSerialV2></xades:Cert></xades:SigningCertificateV2></xades:SignedSignatureProperties><xades:SignedDataObjectProperties><xades:DataObjectFormat ObjectReference="#null"><xades:MimeType>application/octet-stream</xades:MimeType></xades:DataObjectFormat></xades:SignedDataObjectProperties></xades:SignedProperties></xades:QualifyingProperties></ds:Object></ds:Signature></ns3:FatturaElettronica>

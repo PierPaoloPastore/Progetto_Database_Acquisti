@@ -50,7 +50,10 @@ def format_number(value: Any, decimals: int = 2, use_grouping: Optional[bool] = 
         pass
 
     format_spec = f",.{decimals}f" if use_grouping else f".{decimals}f"
-    return format(number, format_spec)
+    formatted = format(number, format_spec)
+    if use_grouping:
+        formatted = formatted.replace(",", "X").replace(".", ",").replace("X", ".")
+    return formatted
 
 
 def format_amount(value: Any, use_grouping: Optional[bool] = None) -> str:

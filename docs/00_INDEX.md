@@ -1,4 +1,4 @@
-Last updated: 2025-12-15
+Last updated: 2025-12-30
 
 # Documentazione - Indice
 
@@ -9,6 +9,8 @@ Benvenuto nel centro documentazione del Gestionale Acquisti. Usa questo indice c
 - Guide
   - [Troubleshooting import P7M](guides/p7m_troubleshooting.md)
   - [UI Pagamenti (scroll/compattazione)](guides/payments_ui.md)
+- Aggiornamenti recenti
+  - [Aggiornamenti 2025-12-30](updates/2025-12-30.md)
 - Piani
   - [Cleaning Plan](../Cleaning_Plan.md)
 - Roadmap

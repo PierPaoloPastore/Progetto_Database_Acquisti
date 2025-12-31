@@ -23,6 +23,15 @@ from app.services.unit_of_work import UnitOfWork
 
 payments_bp = Blueprint("payments", __name__)
 
+def _resolve_due_status(due_date: date | None, today: date, soon_limit: date) -> tuple[str, str, str]:
+    if due_date is None:
+        return "no_due", "Senza scadenza", "secondary"
+    if due_date < today:
+        return "overdue", "Scaduta", "danger"
+    if due_date <= soon_limit:
+        return "due_soon", "In scadenza", "warning"
+    return "scheduled", "Programmato", "info"
+
 @payments_bp.route("/", methods=["GET"], endpoint="payment_index")
 @payments_bp.route("/", methods=["GET"], endpoint="inbox_view")
 def payment_index():
@@ -58,6 +67,8 @@ def schedule_view():
     Scadenziario pagamenti in pagina dedicata.
     """
     today = date.today()
+    group_by_supplier_raw = (get_setting("SCHEDULE_GROUP_BY_SUPPLIER", "0") or "0").strip().lower()
+    group_by_supplier = group_by_supplier_raw in {"1", "true", "yes", "on"}
     soon_days_raw = (get_setting("SCHEDULE_SOON_DAYS", "7") or "7").strip()
     try:
         soon_days = int(soon_days_raw)
@@ -87,6 +98,7 @@ def schedule_view():
 
     payment_service.attach_payment_amounts(documents)
 
+    schedule_rows = []
     summary = {
         "total": 0,
         "total_amount": 0.0,
@@ -98,22 +110,81 @@ def schedule_view():
     }
 
     for doc in documents:
-        summary["total"] += 1
         remaining = float(doc.remaining_amount if getattr(doc, "remaining_amount", None) is not None else (doc.total_gross_amount or 0))
-        summary["total_amount"] += remaining
+        due_status, status_label, status_class = _resolve_due_status(doc.due_date, today, soon_limit)
+        due_iso = doc.due_date.strftime("%Y-%m-%d") if doc.due_date else ""
+        supplier_name = doc.supplier.name if doc.supplier else "Senza fornitore"
+        schedule_rows.append(
+            {
+                "doc": doc,
+                "due_status": due_status,
+                "status_label": status_label,
+                "status_class": status_class,
+                "remaining_amount": remaining,
+                "remaining_amount_raw": f"{remaining:.2f}",
+                "due_iso": due_iso,
+                "supplier_name": supplier_name,
+                "supplier_id": doc.supplier_id,
+            }
+        )
 
-        if doc.due_date is None:
+        summary["total"] += 1
+        summary["total_amount"] += remaining
+        if due_status == "no_due":
             summary["no_due_count"] += 1
-        elif doc.due_date < today:
+        elif due_status == "overdue":
             summary["overdue_count"] += 1
             summary["overdue_amount"] += remaining
-        elif doc.due_date <= soon_limit:
+        elif due_status == "due_soon":
             summary["soon_count"] += 1
             summary["soon_amount"] += remaining
 
+    supplier_groups = []
+    if group_by_supplier:
+        group_map = {}
+        for row in schedule_rows:
+            key = row["supplier_id"] or f"none-{row['doc'].id}"
+            if key not in group_map:
+                group_map[key] = {
+                    "name": row["supplier_name"],
+                    "supplier_id": row["supplier_id"],
+                    "rows": [],
+                    "total_count": 0,
+                    "total_amount": 0.0,
+                    "overdue_count": 0,
+                    "due_soon_count": 0,
+                    "scheduled_count": 0,
+                    "no_due_count": 0,
+                }
+            group = group_map[key]
+            group["rows"].append(row)
+            group["total_count"] += 1
+            group["total_amount"] += row["remaining_amount"]
+            if row["due_status"] == "overdue":
+                group["overdue_count"] += 1
+            elif row["due_status"] == "due_soon":
+                group["due_soon_count"] += 1
+            elif row["due_status"] == "scheduled":
+                group["scheduled_count"] += 1
+            elif row["due_status"] == "no_due":
+                group["no_due_count"] += 1
+
+        supplier_groups = list(group_map.values())
+        supplier_groups.sort(key=lambda group: (group["name"] or "").lower())
+        for group in supplier_groups:
+            group["rows"].sort(
+                key=lambda row: (
+                    row["doc"].due_date is None,
+                    row["doc"].due_date or date.max,
+                    row["doc"].id,
+                )
+            )
+
     return render_template(
         "payments/schedule.html",
-        documents=documents,
+        schedule_rows=schedule_rows,
+        supplier_groups=supplier_groups,
+        group_by_supplier=group_by_supplier,
         summary=summary,
         today=today,
         soon_limit=soon_limit,

@@ -218,17 +218,39 @@
     background: #f8f9fa;
 }
 
-.schedule-filters .input-group,
+.schedule-filters {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: flex-end;
+    gap: 0.45rem;
+    overflow-x: auto;
+}
+
+.schedule-filters .col {
+    flex: 0 0 auto;
+    width: auto;
+}
+
+.schedule-filters .form-label {
+    font-weight: 700;
+    font-size: 0.75rem;
+    margin-bottom: 0.1rem;
+    line-height: 1.1;
+    white-space: nowrap;
+}
+
+.schedule-filters .form-control,
 .schedule-filters .form-select {
-    min-width: 200px;
+    padding: 0.2rem 0.45rem;
+    font-size: 0.8rem;
 }
 
-.schedule-date-filter {
-    min-width: 210px;
+.schedule-filters #schedule-search {
+    width: 220px;
 }
 
-.schedule-amount-filter {
-    min-width: 170px;
+.schedule-filters #schedule-status {
+    width: 150px;
 }
 
 .schedule-table .schedule-status-pill {
@@ -241,4 +263,17 @@
 
 .schedule-row.schedule-due_soon {
     background: rgba(255, 193, 7, 0.08);
+}
+
+.schedule-accordion .accordion-button {
+    background: #f8f9fa;
+    padding: 0.75rem 1rem;
+}
+
+.schedule-accordion .accordion-button:not(.collapsed) {
+    background: #eef2f7;
+}
+
+.schedule-accordion .accordion-item {
+    border: 1px solid #dee2e6;
 }

@@ -6,6 +6,56 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/payments.css') }}">
 {% endblock %}
 
+{% macro render_schedule_row(row, show_supplier=True) %}
+    {% set doc = row.doc %}
+    <tr
+        class="schedule-row schedule-{{ row.due_status }}"
+        data-schedule-row
+        data-status="{{ row.due_status }}"
+        data-search="{{ row.supplier_name }} {{ doc.document_number or '' }} {{ doc.id }}"
+        data-due-date="{{ row.due_iso }}"
+        data-amount="{{ row.remaining_amount_raw }}"
+    >
+        <td>
+            {% if doc.due_date %}
+                {{ doc.due_date.strftime('%d/%m/%Y') }}
+            {% else %}
+                <span class="text-muted">-</span>
+            {% endif %}
+        </td>
+        {% if show_supplier %}
+            <td>
+                {% if row.supplier_id %}
+                    <a href="{{ url_for('suppliers.detail_view', supplier_id=row.supplier_id) }}" class="text-decoration-none fw-bold">
+                        {{ row.supplier_name }}
+                    </a>
+                {% else %}
+                    <span class="text-muted">{{ row.supplier_name }}</span>
+                {% endif %}
+            </td>
+        {% endif %}
+        <td>
+            <div class="fw-semibold">{{ doc.document_number or 'N/D' }}</div>
+            <small class="text-muted">ID {{ doc.id }}</small>
+        </td>
+        <td class="text-end">{{ (doc.total_gross_amount or 0)|format_amount }} &euro;</td>
+        <td class="text-end fw-semibold">{{ row.remaining_amount|format_amount }} &euro;</td>
+        <td>
+            <span class="badge bg-{{ row.status_class }} schedule-status-pill">{{ row.status_label }}</span>
+        </td>
+        <td class="text-end">
+            <div class="d-inline-flex gap-1">
+                <a href="{{ url_for('documents.detail_view', document_id=doc.id) }}" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-eye"></i>
+                </a>
+                <a href="{{ url_for('payments.payment_index', document_id=doc.id, amount=row.remaining_amount_raw) }}#tab-new" class="btn btn-sm btn-primary">
+                    <i class="bi bi-cash-coin"></i> Registra
+                </a>
+            </div>
+        </td>
+    </tr>
+{% endmacro %}
+
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
@@ -47,128 +97,114 @@
                 <h5 class="mb-0">Fatture da saldare</h5>
                 <small class="text-muted">Gestisci le scadenze e registra i pagamenti</small>
             </div>
-            <div class="schedule-filters d-flex flex-wrap gap-2">
-                <div class="input-group input-group-sm">
-                    <span class="input-group-text"><i class="bi bi-search"></i></span>
-                    <input type="search" id="schedule-search" class="form-control" placeholder="Filtra per fornitore o documento">
+            <div class="schedule-filters">
+                <div class="col">
+                    <label class="form-label fw-bold small">Ricerca</label>
+                    <input type="search" id="schedule-search" class="form-control form-control-sm" placeholder="Fornitore o documento">
                 </div>
-                <select id="schedule-status" class="form-select form-select-sm">
-                    <option value="all">Tutte</option>
-                    <option value="overdue">Scadute</option>
-                    <option value="due_soon">In scadenza</option>
-                    <option value="scheduled">Programmate</option>
-                    <option value="no_due">Senza scadenza</option>
-                </select>
-                <div class="input-group input-group-sm schedule-date-filter">
-                    <span class="input-group-text">Dal</span>
-                    <input type="date" id="schedule-date-from" class="form-control">
-                </div>
-                <div class="input-group input-group-sm schedule-date-filter">
-                    <span class="input-group-text">Al</span>
-                    <input type="date" id="schedule-date-to" class="form-control">
-                </div>
-                <div class="input-group input-group-sm schedule-amount-filter">
-                    <span class="input-group-text">&euro; Min</span>
-                    <input type="number" id="schedule-amount-min" class="form-control" step="0.01" min="0">
-                </div>
-                <div class="input-group input-group-sm schedule-amount-filter">
-                    <span class="input-group-text">&euro; Max</span>
-                    <input type="number" id="schedule-amount-max" class="form-control" step="0.01" min="0">
+                <div class="col">
+                    <label class="form-label fw-bold small">Stato</label>
+                    <select id="schedule-status" class="form-select form-select-sm">
+                        <option value="all">Tutte</option>
+                        <option value="overdue">Scadute</option>
+                        <option value="due_soon">In scadenza</option>
+                        <option value="scheduled">Programmate</option>
+                    </select>
                 </div>
             </div>
         </div>
         <div class="card-body p-0">
-            <div class="table-responsive scrollable-list scrollable-list-flush">
-                <table class="table table-hover table-striped mb-0 align-middle sticky-header schedule-table">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Scadenza</th>
-                            <th>Fornitore</th>
-                            <th>Documento</th>
-                            <th class="text-end">Totale</th>
-                            <th class="text-end">Residuo</th>
-                            <th>Stato</th>
-                            <th class="text-end">Azioni</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for doc in documents %}
-                            {% set due_status = 'no_due' %}
-                            {% set status_label = 'Senza scadenza' %}
-                            {% set status_class = 'secondary' %}
-                            {% if doc.due_date %}
-                                {% if doc.due_date < today %}
-                                    {% set due_status = 'overdue' %}
-                                    {% set status_label = 'Scaduta' %}
-                                    {% set status_class = 'danger' %}
-                                {% elif doc.due_date <= soon_limit %}
-                                    {% set due_status = 'due_soon' %}
-                                    {% set status_label = 'In scadenza' %}
-                                    {% set status_class = 'warning' %}
-                                {% else %}
-                                    {% set due_status = 'scheduled' %}
-                                    {% set status_label = 'Programmato' %}
-                                    {% set status_class = 'info' %}
-                                {% endif %}
-                            {% endif %}
-                            {% set remaining_val = doc.remaining_amount if doc.remaining_amount is defined else doc.total_gross_amount %}
-                            {% set due_iso = doc.due_date.strftime('%Y-%m-%d') if doc.due_date else '' %}
-                            <tr
-                                class="schedule-row schedule-{{ due_status }}"
-                                data-schedule-row
-                                data-status="{{ due_status }}"
-                                data-search="{{ doc.supplier.name }} {{ doc.document_number }}"
-                                data-due-date="{{ due_iso }}"
-                                data-amount="{{ "%.2f"|format(remaining_val or 0) }}"
-                            >
-                                <td>
-                                    {% if doc.due_date %}
-                                        {{ doc.due_date.strftime('%d/%m/%Y') }}
-                                    {% else %}
-                                        <span class="text-muted">-</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <a href="{{ url_for('suppliers.detail_view', supplier_id=doc.supplier_id) }}" class="text-decoration-none fw-bold">
-                                        {{ doc.supplier.name }}
-                                    </a>
-                                </td>
-                                <td>
-                                    <div class="fw-semibold">{{ doc.document_number }}</div>
-                                    <small class="text-muted">ID {{ doc.id }}</small>
-                                </td>
-                                <td class="text-end">{{ (doc.total_gross_amount or 0)|format_amount }} &euro;</td>
-                                <td class="text-end fw-semibold">{{ (remaining_val or 0)|format_amount }} &euro;</td>
-                                <td>
-                                    <span class="badge bg-{{ status_class }} schedule-status-pill">{{ status_label }}</span>
-                                </td>
-                                <td class="text-end">
-                                    <div class="d-inline-flex gap-1">
-                                        <a href="{{ url_for('documents.detail_view', document_id=doc.id) }}" class="btn btn-sm btn-outline-secondary">
-                                            <i class="bi bi-eye"></i>
-                                        </a>
-                                        <a href="{{ url_for('payments.payment_index', document_id=doc.id, amount='%.2f'|format(remaining_val or 0)) }}#tab-new" class="btn btn-sm btn-primary">
-                                            <i class="bi bi-cash-coin"></i> Registra
-                                        </a>
+            {% if group_by_supplier %}
+                <div class="accordion schedule-accordion" id="schedule-suppliers">
+                    {% for group in supplier_groups %}
+                        <div class="accordion-item schedule-supplier" data-schedule-group>
+                            <h2 class="accordion-header" id="schedule-supplier-heading-{{ loop.index }}">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#schedule-supplier-{{ loop.index }}" aria-expanded="false" aria-controls="schedule-supplier-{{ loop.index }}">
+                                    <div class="d-flex flex-wrap align-items-center gap-2 w-100">
+                                        <div class="fw-semibold">
+                                            {% if group.supplier_id %}
+                                                <a href="{{ url_for('suppliers.detail_view', supplier_id=group.supplier_id) }}" class="text-decoration-none">
+                                                    {{ group.name }}
+                                                </a>
+                                            {% else %}
+                                                <span class="text-muted">{{ group.name }}</span>
+                                            {% endif %}
+                                        </div>
+                                        <span class="badge bg-light text-dark border">{{ group.total_count|format_int }} totali</span>
+                                        <span class="badge bg-warning text-dark">{{ group.due_soon_count|format_int }} in scadenza</span>
+                                        <span class="badge bg-danger">{{ group.overdue_count|format_int }} scadute</span>
+                                        <span class="ms-auto text-muted fw-semibold">{{ group.total_amount|format_amount }} &euro;</span>
                                     </div>
-                                </td>
-                            </tr>
-                        {% else %}
+                                </button>
+                            </h2>
+                            <div id="schedule-supplier-{{ loop.index }}" class="accordion-collapse collapse" data-bs-parent="#schedule-suppliers">
+                                <div class="accordion-body p-0">
+                                    <div class="table-responsive scrollable-list scrollable-list-flush">
+                                        <table class="table table-hover table-striped mb-0 align-middle schedule-table">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>Scadenza</th>
+                                                    <th>Documento</th>
+                                                    <th class="text-end">Totale</th>
+                                                    <th class="text-end">Residuo</th>
+                                                    <th>Stato</th>
+                                                    <th class="text-end">Azioni</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for row in group.rows %}
+                                                    {{ render_schedule_row(row, false) }}
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5 text-muted">
+                            <i class="bi bi-check-circle fs-1 d-block mb-3 text-success"></i>
+                            Ottimo! Non ci sono fatture in sospeso.
+                        </div>
+                    {% endfor %}
+                </div>
+                <div id="schedule-empty" class="text-center py-4 text-muted d-none">
+                    Nessun risultato con i filtri attuali.
+                </div>
+            {% else %}
+                <div class="table-responsive scrollable-list scrollable-list-flush">
+                    <table class="table table-hover table-striped mb-0 align-middle sticky-header schedule-table">
+                        <thead class="table-light">
                             <tr>
-                                <td colspan="7" class="text-center py-5 text-muted">
-                                    <i class="bi bi-check-circle fs-1 d-block mb-3 text-success"></i>
-                                    Ottimo! Non ci sono fatture in sospeso.
+                                <th>Scadenza</th>
+                                <th>Fornitore</th>
+                                <th>Documento</th>
+                                <th class="text-end">Totale</th>
+                                <th class="text-end">Residuo</th>
+                                <th>Stato</th>
+                                <th class="text-end">Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in schedule_rows %}
+                                {{ render_schedule_row(row, true) }}
+                            {% else %}
+                                <tr>
+                                    <td colspan="7" class="text-center py-5 text-muted">
+                                        <i class="bi bi-check-circle fs-1 d-block mb-3 text-success"></i>
+                                        Ottimo! Non ci sono fatture in sospeso.
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                            <tr id="schedule-empty" class="d-none">
+                                <td colspan="7" class="text-center py-4 text-muted">
+                                    Nessun risultato con i filtri attuali.
                                 </td>
                             </tr>
-                        {% endfor %}
-                        <tr id="schedule-empty" class="d-none">
-                            <td colspan="7" class="text-center py-4 text-muted">
-                                Nessun risultato con i filtri attuali.
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+                        </tbody>
+                    </table>
+                </div>
+            {% endif %}
         </div>
     </div>
 </div>

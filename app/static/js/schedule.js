@@ -6,6 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const amountMinInput = document.getElementById("schedule-amount-min");
     const amountMaxInput = document.getElementById("schedule-amount-max");
     const rows = document.querySelectorAll("[data-schedule-row]");
+    const groups = document.querySelectorAll("[data-schedule-group]");
     const emptyRow = document.getElementById("schedule-empty");
 
     if (!searchInput && !statusSelect) return;
@@ -56,6 +57,14 @@ document.addEventListener("DOMContentLoaded", () => {
             row.classList.toggle("d-none", !visible);
             if (visible) visibleCount += 1;
         });
+
+        if (groups.length) {
+            groups.forEach((group) => {
+                const groupRows = group.querySelectorAll("[data-schedule-row]");
+                const hasVisible = Array.from(groupRows).some((row) => !row.classList.contains("d-none"));
+                group.classList.toggle("d-none", !hasVisible);
+            });
+        }
 
         if (emptyRow) {
             emptyRow.classList.toggle("d-none", visibleCount !== 0);

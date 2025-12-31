@@ -30,6 +30,8 @@ def index():
     ocr_default_lang = get_setting("OCR_DEFAULT_LANG", "ita")
     ocr_max_pages = get_setting("OCR_MAX_PAGES", "5")
     schedule_soon_days = get_setting("SCHEDULE_SOON_DAYS", "7")
+    schedule_group_by_supplier = get_setting("SCHEDULE_GROUP_BY_SUPPLIER", "0")
+    schedule_group_by_supplier = str(schedule_group_by_supplier).strip().lower() in {"1", "true", "yes", "on"}
     format_thousands_separator = get_setting("FORMAT_THOUSANDS_SEPARATOR", "0")
     format_thousands_separator = str(format_thousands_separator).strip().lower() in {"1", "true", "yes", "on"}
 
@@ -49,6 +51,7 @@ def index():
         ocr_default_lang=ocr_default_lang,
         ocr_max_pages=ocr_max_pages,
         schedule_soon_days=schedule_soon_days,
+        schedule_group_by_supplier=schedule_group_by_supplier,
         format_thousands_separator=format_thousands_separator,
     )
 
@@ -72,6 +75,8 @@ def save_settings():
     ocr_default_lang = request.form.get("ocr_default_lang", "ita").strip() or "ita"
     ocr_max_pages = request.form.get("ocr_max_pages", "").strip()
     schedule_soon_days = request.form.get("schedule_soon_days", "").strip()
+    schedule_group_by_supplier = request.form.get("schedule_group_by_supplier", "0").strip()
+    schedule_group_by_supplier = "1" if schedule_group_by_supplier == "1" else "0"
     format_thousands_separator = request.form.get("format_thousands_separator", "0").strip()
     format_thousands_separator = "1" if format_thousands_separator == "1" else "0"
 
@@ -89,6 +94,7 @@ def save_settings():
     set_setting("OCR_DEFAULT_LANG", ocr_default_lang)
     set_setting("OCR_MAX_PAGES", ocr_max_pages)
     set_setting("SCHEDULE_SOON_DAYS", schedule_soon_days)
+    set_setting("SCHEDULE_GROUP_BY_SUPPLIER", schedule_group_by_supplier)
     set_setting("FORMAT_THOUSANDS_SEPARATOR", format_thousands_separator)
 
     flash("Impostazioni salvate correttamente", "success")
