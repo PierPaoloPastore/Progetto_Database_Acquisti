@@ -1,15 +1,17 @@
 /* Layout for the split view in Payments */
 .split-container {
-    display: grid;
+    display: flex;
     grid-template-columns: 1.6fr 1fr; /* il pannello form è più largo, viewer ~25% più stretto */
-    gap: 1.25rem;
+    gap: 0;
     align-items: stretch;
     min-height: 70vh;
+    --payments-viewer-width: 38%;
 }
 
 @media (max-width: 991px) {
     .split-container {
-        grid-template-columns: 1fr;
+        flex-direction: column;
+        gap: 1.25rem;
     }
 }
 
@@ -18,6 +20,49 @@
     border: 1px solid #dee2e6;
     border-radius: 0.5rem;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.split-section-left {
+    flex: 1 1 auto;
+    min-width: 360px;
+}
+
+.split-section-right {
+    flex: 0 0 var(--payments-viewer-width, 38%);
+    min-width: 320px;
+    max-width: 70%;
+}
+
+.splitter {
+    flex: 0 0 8px;
+    margin: 0 0.4rem;
+    cursor: col-resize;
+    background: #e5e5e5;
+    border-radius: 4px;
+    touch-action: none;
+}
+
+.splitter:hover {
+    background: #c9c9c9;
+}
+
+.splitter::after {
+    content: "";
+    display: block;
+    width: 2px;
+    height: 48px;
+    margin: 8px auto;
+    background: #a9a9a9;
+    border-radius: 2px;
+}
+
+.payments-resizing {
+    cursor: col-resize;
+    user-select: none;
+}
+
+.payments-resizing #pdf-preview {
+    pointer-events: none;
 }
 
 .split-section .card-body {
@@ -146,6 +191,16 @@
     .invoice-row {
         grid-template-columns: 38px 100px minmax(120px, 1fr) 120px 95px 130px;
         gap: 0.3rem;
+    }
+
+    .split-section-right {
+        flex: 1 1 auto;
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .splitter {
+        display: none;
     }
 }
 

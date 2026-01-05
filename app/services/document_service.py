@@ -13,7 +13,7 @@ from typing import Optional, List, Any
 from app.services.unit_of_work import UnitOfWork
 from app.services import settings_service
 from app.services.dto import DocumentSearchFilters
-from app.models import Document
+from app.models import Document, LegalEntity
 
 class DocumentService:
     """
@@ -41,6 +41,20 @@ class DocumentService:
             doc.registration_date = _parse_date(form_data.get("registration_date"))
             doc.due_date = _parse_date(form_data.get("due_date"))
             doc.note = form_data.get("note") or None
+
+            legal_entity_id = _parse_int(form_data.get("legal_entity_id"))
+            legal_entity_name = (form_data.get("legal_entity_name") or "").strip() or None
+            legal_entity = None
+            if legal_entity_id is not None:
+                legal_entity = uow.session.get(LegalEntity, legal_entity_id)
+                if legal_entity:
+                    doc.legal_entity_id = legal_entity_id
+            if legal_entity_name:
+                target_entity = legal_entity
+                if target_entity is None and doc.legal_entity_id:
+                    target_entity = uow.session.get(LegalEntity, doc.legal_entity_id)
+                if target_entity and target_entity.name != legal_entity_name:
+                    target_entity.name = legal_entity_name
 
             # Importi
             doc.total_taxable_amount = _parse_decimal(form_data.get("total_taxable_amount"))

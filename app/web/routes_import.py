@@ -15,12 +15,20 @@ from flask import (
     redirect,
     url_for,
     flash,
+    jsonify,
 )
 
 from app.services import run_import_files
 from app.services.settings_service import get_xml_inbox_path
 
 import_bp = Blueprint("import", __name__)
+
+
+def _wants_json_response() -> bool:
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return True
+    accept = request.headers.get("Accept", "") or ""
+    return "application/json" in accept.lower()
 
 
 @import_bp.route("/run", methods=["GET", "POST"])
@@ -55,6 +63,8 @@ def run_view():
 
     # salvo in sessione per riuscire a rivederlo al reload
     session["last_import_summary"] = summary
+    if _wants_json_response():
+        return jsonify(summary)
 
     flash(
         f"Import completato. File totali: {summary['total_files']}, "

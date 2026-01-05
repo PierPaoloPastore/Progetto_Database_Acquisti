@@ -462,7 +462,10 @@ document.addEventListener("DOMContentLoaded", () => {
         const buildUrl = () => {
             const base = trigger.getAttribute("data-preview-url");
             const style = styleSelect.value || "ordinaria";
-            return `${base}?style=${encodeURIComponent(style)}`;
+            const url = new URL(base, window.location.origin);
+            url.searchParams.set("style", style);
+            url.searchParams.set("highlight", "1");
+            return url.toString();
         };
 
         modal.addEventListener("show.bs.modal", () => {

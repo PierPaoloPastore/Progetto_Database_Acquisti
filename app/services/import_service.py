@@ -24,6 +24,7 @@ from app.parsers.fatturapa_parser_v2 import (
     P7MExtractionError,
     FatturaPASkipFile,
 )
+from app.parsers.fatturapa_parser import _clean_xml_bytes, _extract_xml_from_p7m
 from app.repositories.import_log_repo import create_import_log
 from app.services.unit_of_work import UnitOfWork
 from app.services.logging import log_structured_event
@@ -231,24 +232,39 @@ def _extract_header_data(xml_path: Path) -> Dict:
             return value or None
         return None
 
+    def _parse_xml_bytes(xml_bytes: bytes):
+        try:
+            parser = etree.XMLParser(recover=True)
+            return etree.fromstring(xml_bytes, parser=parser)
+        except etree.XMLSyntaxError as exc:
+            if "not proper UTF-8" in str(exc):
+                enc_attempts = [
+                    ("cp1252", "strict", False),
+                    ("latin-1", "strict", False),
+                    ("cp1252", "replace", True),
+                    ("latin-1", "replace", True),
+                ]
+                for enc, mode, use_recover in enc_attempts:
+                    try:
+                        text = xml_bytes.decode(enc, errors=mode)
+                        utf8_bytes = _clean_xml_bytes(text.encode("utf-8", errors="strict"))
+                        if use_recover:
+                            parser_recover = etree.XMLParser(recover=True)
+                            return etree.fromstring(utf8_bytes, parser=parser_recover)
+                        return etree.fromstring(utf8_bytes)
+                    except Exception:
+                        continue
+            raise
+
     header_data: Dict[str, Dict[str, Optional[str]]] = {}
 
     try:
-        if xml_path.suffix.lower() in ['.p7m']:
-            from app.parsers.fatturapa_parser import _extract_xml_from_p7m
-            import tempfile
+        if xml_path.suffix.lower() in [".p7m"]:
             xml_content = _extract_xml_from_p7m(xml_path)
-            with tempfile.NamedTemporaryFile(mode='wb', suffix='.xml', delete=False) as tmp:
-                tmp.write(xml_content)
-                tmp_path = tmp.name
-            try:
-                tree = etree.parse(tmp_path)
-            finally:
-                Path(tmp_path).unlink(missing_ok=True)
         else:
-            tree = etree.parse(str(xml_path))
-        
-        root = tree.getroot()
+            xml_content = xml_path.read_bytes()
+        xml_content = _clean_xml_bytes(xml_content)
+        root = _parse_xml_bytes(xml_content)
     except Exception:
         return header_data
 

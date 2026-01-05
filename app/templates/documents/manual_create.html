@@ -5,16 +5,60 @@
 {% block extra_css %}
 <style>
 .manual-doc-split {
-    display: grid;
-    grid-template-columns: 1.6fr 1fr;
-    gap: 1.25rem;
+    display: flex;
+    gap: 0;
     align-items: stretch;
+    --manual-viewer-width: 38%;
 }
 
 @media (max-width: 991px) {
     .manual-doc-split {
-        grid-template-columns: 1fr;
+        flex-direction: column;
+        gap: 1.25rem;
     }
+}
+
+.manual-doc-left {
+    flex: 1 1 auto;
+    min-width: 360px;
+}
+
+.manual-doc-right {
+    flex: 0 0 var(--manual-viewer-width, 38%);
+    min-width: 320px;
+    max-width: 70%;
+}
+
+.manual-doc-splitter {
+    flex: 0 0 8px;
+    margin: 0 0.4rem;
+    cursor: col-resize;
+    background: #e5e5e5;
+    border-radius: 4px;
+    touch-action: none;
+}
+
+.manual-doc-splitter:hover {
+    background: #c9c9c9;
+}
+
+.manual-doc-splitter::after {
+    content: "";
+    display: block;
+    width: 2px;
+    height: 48px;
+    margin: 8px auto;
+    background: #a9a9a9;
+    border-radius: 2px;
+}
+
+.manual-resizing {
+    cursor: col-resize;
+    user-select: none;
+}
+
+.manual-resizing #manual-pdf-preview {
+    pointer-events: none;
 }
 
 .manual-preview-frame {
@@ -40,6 +84,18 @@
     text-align: center;
     padding: 1rem;
 }
+
+@media (max-width: 991px) {
+    .manual-doc-right {
+        flex: 1 1 auto;
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .manual-doc-splitter {
+        display: none;
+    }
+}
 </style>
 {% endblock %}
 
@@ -54,7 +110,7 @@
     </div>
 
     <div class="manual-doc-split">
-        <div class="card shadow-sm">
+        <div class="card shadow-sm manual-doc-left">
             <div class="card-body">
                 <form method="post" enctype="multipart/form-data">
                 <div class="row g-3">
@@ -317,7 +373,9 @@
             </div>
         </div>
 
-        <div class="card shadow-sm">
+        <div class="manual-doc-splitter" aria-hidden="true"></div>
+
+        <div class="card shadow-sm manual-doc-right">
             <div class="card-header bg-white">
                 <h5 class="mb-0">Anteprima PDF</h5>
             </div>
@@ -414,6 +472,46 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    const split = document.querySelector(".manual-doc-split");
+    const splitter = document.querySelector(".manual-doc-splitter");
+    if (split && splitter) {
+        let dragging = false;
+        let activePointerId = null;
+        const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+        const updateWidth = (clientX) => {
+            const rect = split.getBoundingClientRect();
+            const rightWidth = rect.right - clientX;
+            const pct = rightWidth / rect.width;
+            const clamped = clamp(pct, 0.35, 0.7);
+            split.style.setProperty("--manual-viewer-width", `${Math.round(clamped * 100)}%`);
+        };
+
+        splitter.addEventListener("pointerdown", (event) => {
+            dragging = true;
+            activePointerId = event.pointerId;
+            document.body.classList.add("manual-resizing");
+            splitter.setPointerCapture(event.pointerId);
+            updateWidth(event.clientX);
+            event.preventDefault();
+        });
+
+        splitter.addEventListener("pointermove", (event) => {
+            if (!dragging || event.pointerId !== activePointerId) return;
+            updateWidth(event.clientX);
+        });
+
+        const stopDragging = (event) => {
+            if (!dragging || event.pointerId !== activePointerId) return;
+            dragging = false;
+            activePointerId = null;
+            document.body.classList.remove("manual-resizing");
+            splitter.releasePointerCapture(event.pointerId);
+        };
+
+        splitter.addEventListener("pointerup", stopDragging);
+        splitter.addEventListener("pointercancel", stopDragging);
+    }
+
     const ocrButton = document.getElementById("manual-ocr-btn");
     const ocrStatus = document.getElementById("manual-ocr-status");
     const ocrOutput = document.getElementById("manual-ocr-output");
@@ -493,6 +591,7 @@ function applyManualMapping(fields) {
             if (badge) badge(noteInput, fields.note.confidence || 0, "OCR");
         }
     }
+
 }
 </script>
 {% endblock %}

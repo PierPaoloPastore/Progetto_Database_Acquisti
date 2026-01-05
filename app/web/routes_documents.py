@@ -3,6 +3,7 @@ Route per la gestione dei Documenti.
 """
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from datetime import datetime, date
@@ -15,6 +16,7 @@ from app.models import Document
 from app.services import document_service as doc_service, ocr_service
 from app.services.document_service import DocumentService, render_invoice_html
 from app.services.ocr_mapping_service import parse_manual_document_fields
+from app.services.formatting_service import format_amount
 from app.services.dto import DocumentSearchFilters
 
 # FIX: Import dai service invece che dai repo diretti dove possibile
@@ -29,6 +31,7 @@ from app.services.delivery_note_service import (
 documents_bp = Blueprint("documents", __name__)
 
 ALLOWED_PHYSICAL_COPY_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "tif", "tiff"}
+_HIGHLIGHT_TRUE_VALUES = {"1", "true", "yes", "on"}
 
 def _is_allowed_file(filename: str) -> bool:
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_PHYSICAL_COPY_EXTENSIONS
@@ -37,6 +40,140 @@ def _parse_date(value: str) -> Optional[datetime.date]:
     if not value: return None
     try: return datetime.strptime(value, "%Y-%m-%d").date()
     except ValueError: return None
+
+
+def _parse_highlight_flag(raw_value: Optional[str]) -> bool:
+    return (raw_value or "").strip().lower() in _HIGHLIGHT_TRUE_VALUES
+
+
+def _build_preview_highlights(document: Document) -> list[str]:
+    highlights: list[str] = []
+
+    def _push(value: Optional[str]) -> None:
+        cleaned = (value or "").strip()
+        if cleaned and cleaned not in highlights:
+            highlights.append(cleaned)
+
+    supplier_name = document.supplier.name if document.supplier else ""
+    _push(supplier_name)
+    _push(document.document_number or "")
+
+    if document.total_gross_amount is not None:
+        _push(format_amount(document.total_gross_amount, use_grouping=True))
+        _push(format_amount(document.total_gross_amount, use_grouping=False))
+        _push(str(document.total_gross_amount))
+
+    return highlights
+
+
+def _inject_preview_highlights(html_content: str, highlights: list[str]) -> str:
+    if not highlights:
+        return html_content
+
+    payload = json.dumps({"values": highlights}, ensure_ascii=False)
+    injection = f"""
+<style>
+.preview-highlight {{
+    background: #fff3b0;
+    border-radius: 2px;
+    box-shadow: inset 0 0 0 1px #f2c94c;
+    padding: 0 2px;
+}}
+</style>
+<script id="preview-highlight-data" type="application/json">{payload}</script>
+<script>
+(() => {{
+    const dataEl = document.getElementById("preview-highlight-data");
+    if (!dataEl) return;
+    let values = [];
+    try {{
+        const data = JSON.parse(dataEl.textContent || "{{}}");
+        values = Array.isArray(data.values) ? data.values : [];
+    }} catch (err) {{
+        return;
+    }}
+
+    values = values
+        .map((val) => String(val || "").trim())
+        .filter((val) => val.length > 0)
+        .sort((a, b) => b.length - a.length);
+    if (!values.length) return;
+
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {{
+        acceptNode: (node) => {{
+            if (!node || !node.parentNode) return NodeFilter.FILTER_REJECT;
+            const parent = node.parentNode;
+            const tag = parent.nodeName ? parent.nodeName.toLowerCase() : "";
+            if (tag === "script" || tag === "style") return NodeFilter.FILTER_REJECT;
+            if (parent.classList && parent.classList.contains("preview-highlight")) {{
+                return NodeFilter.FILTER_REJECT;
+            }}
+            return NodeFilter.FILTER_ACCEPT;
+        }},
+    }});
+
+    const nodes = [];
+    while (walker.nextNode()) {{
+        nodes.push(walker.currentNode);
+    }}
+
+    const applyHighlights = (text) => {{
+        const parts = [];
+        let index = 0;
+
+        while (index < text.length) {{
+            let matchIndex = -1;
+            let matchValue = "";
+            for (const value of values) {{
+                const found = text.indexOf(value, index);
+                if (found !== -1 && (matchIndex === -1 || found < matchIndex)) {{
+                    matchIndex = found;
+                    matchValue = value;
+                }}
+            }}
+            if (matchIndex === -1) {{
+                parts.push(document.createTextNode(text.slice(index)));
+                break;
+            }}
+            if (matchIndex > index) {{
+                parts.push(document.createTextNode(text.slice(index, matchIndex)));
+            }}
+            const span = document.createElement("span");
+            span.className = "preview-highlight";
+            span.textContent = matchValue;
+            parts.push(span);
+            index = matchIndex + matchValue.length;
+        }}
+
+        return parts;
+    }};
+
+    nodes.forEach((node) => {{
+        const text = node.nodeValue || "";
+        if (!text) return;
+        const parts = applyHighlights(text);
+        if (
+            parts.length === 1 &&
+            parts[0].nodeType === Node.TEXT_NODE &&
+            parts[0].nodeValue === text
+        ) {{
+            return;
+        }}
+        const frag = document.createDocumentFragment();
+        parts.forEach((part) => frag.appendChild(part));
+        node.parentNode.replaceChild(frag, node);
+    }});
+}})();
+</script>
+"""
+
+    lowered = html_content.lower()
+    insert_at = lowered.rfind("</body>")
+    if insert_at == -1:
+        insert_at = lowered.rfind("</html>")
+    if insert_at == -1:
+        return html_content + injection
+    return html_content[:insert_at] + injection + html_content[insert_at:]
 
 
 @documents_bp.route("/", methods=["GET"])
@@ -227,6 +364,7 @@ def review_loop_invoice_view(document_id: int):
             exclude_document_ids=[document_id],
         )
     linked_ddt = list_delivery_notes_by_document(document_id) if document else []
+    legal_entities = list_legal_entities(include_inactive=False)
     return render_template(
         'documents/review.html',
         invoice=document,
@@ -234,6 +372,7 @@ def review_loop_invoice_view(document_id: int):
         default_xsl=default_xsl,
         ddt_candidates=ddt_candidates,
         linked_ddt=linked_ddt,
+        legal_entities=legal_entities,
     )
 
 @documents_bp.route("/review/<int:document_id>/delete", methods=["POST"])
@@ -294,6 +433,9 @@ def preview_visual(document_id: int):
 
     try:
         html_content = render_invoice_html(xml_full_path, xsl_full_path)
+        if _parse_highlight_flag(request.args.get("highlight")):
+            highlights = _build_preview_highlights(document)
+            html_content = _inject_preview_highlights(html_content, highlights)
         return render_template_string(html_content)
     except FileNotFoundError:
         return f"<h1>File non trovato</h1><p>Il sistema ha cercato qui:<br><code>{xml_full_path}</code><br>Ma il file non esiste.</p>", 404

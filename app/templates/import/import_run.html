@@ -12,21 +12,58 @@
                 Archivio XML predefinito: <code>{{ default_folder }}</code>
             </p>
             
-            <form method="POST" enctype="multipart/form-data">
+            <form id="import-form" method="POST" enctype="multipart/form-data">
                 <div class="mb-3">
                     <label for="files" class="form-label">Cartella da importare</label>
                     <input type="file" class="form-control" id="files" name="files" webkitdirectory directory multiple accept=".xml,.p7m" required>
                     <div class="form-text">Seleziona una cartella: verranno importati solo i file XML/P7M.</div>
                 </div>
-                <button type="submit" class="btn btn-primary">
+                <button type="submit" class="btn btn-primary" id="import-submit-btn">
                     <i class="bi bi-play-circle"></i> Avvia Importazione
                 </button>
             </form>
+            <div id="import-progress" class="alert alert-info d-none mt-3" role="status" aria-live="polite">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span id="import-progress-text">Preparazione batch...</span>
+                    <span id="import-progress-count" class="small text-muted"></span>
+                </div>
+                <div class="progress">
+                    <div id="import-progress-bar" class="progress-bar" role="progressbar" style="width: 0%;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="import-summary-live" class="card d-none">
+        <div class="card-header">
+            Risultati import batch
+        </div>
+        <div class="card-body">
+            <ul class="list-group list-group-flush mb-3">
+                <li class="list-group-item">File totali: <strong id="import-summary-total">0</strong></li>
+                <li class="list-group-item text-success">Importati con successo: <strong id="import-summary-imported">0</strong></li>
+                <li class="list-group-item text-warning">Saltati (gia presenti): <strong id="import-summary-skipped">0</strong></li>
+                <li class="list-group-item text-danger">Errori: <strong id="import-summary-errors">0</strong></li>
+            </ul>
+            <div id="import-summary-errors-list" class="d-none">
+                <h5>Dettaglio errori:</h5>
+                <div class="table-responsive scrollable-list">
+                    <table class="table table-sm table-striped">
+                        <thead>
+                            <tr>
+                                <th>File</th>
+                                <th>Messaggio</th>
+                            </tr>
+                        </thead>
+                        <tbody id="import-summary-errors-body"></tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 
     {% if summary %}
-    <div class="card">
+    <div class="card" id="import-summary-server">
         <div class="card-header">
             Risultati ultimo import
         </div>
@@ -76,4 +113,8 @@
     </div>
     {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/import_batch.js') }}"></script>
 {% endblock %}

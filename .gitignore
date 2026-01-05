@@ -80,3 +80,4 @@ logs/
 /data/fatture_xml
 *.xml
 /data/fatture_xml
+/storage

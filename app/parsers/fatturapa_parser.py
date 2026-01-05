@@ -457,7 +457,7 @@ def _load_xml_root(xml_path: Path, original_file_name: str):
         # Tentativo di fallback ripulendo i control char
         try:
             data = xml_path.read_bytes()
-            clean = bytes(b for b in data if b in (9, 10, 13) or b >= 32)
+            clean = _clean_xml_bytes(data)
             removed = len(data) - len(clean)
         except Exception as read_exc:
             raise FatturaPAParseError(
@@ -758,7 +758,165 @@ def _clean_xml_bytes(data: bytes) -> bytes:
         if b < 0x20 and b not in allowed_ctrl:
             continue
         cleaned.append(b)
-    return _strip_invalid_tag_bytes(bytes(cleaned))
+    cleaned_bytes = _strip_invalid_tag_bytes(bytes(cleaned))
+    return _fix_broken_attributes(cleaned_bytes)
+
+
+def _fix_broken_attributes(data: bytes) -> bytes:
+    """
+    Rimuove attributi senza valore e normalizza nomi attributo corrotti.
+    """
+    allowed_name = set(b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_:.-")
+    out = bytearray()
+    i = 0
+    length = len(data)
+
+    while i < length:
+        b = data[i]
+        if b != 0x3C:  # '<'
+            out.append(b)
+            i += 1
+            continue
+
+        start = i
+        i += 1
+        in_quote: Optional[int] = None
+        while i < length:
+            current = data[i]
+            if in_quote:
+                if current == in_quote:
+                    in_quote = None
+            else:
+                if current in (0x22, 0x27):  # " or '
+                    in_quote = current
+                elif current == 0x3E:  # '>'
+                    break
+            i += 1
+
+        if i >= length:
+            out.extend(data[start:])
+            break
+
+        tag = data[start:i + 1]
+        out.extend(_sanitize_tag_attributes(tag, allowed_name))
+        i += 1
+
+    return bytes(out)
+
+
+def _sanitize_tag_attributes(tag: bytes, allowed_name: set[int]) -> bytes:
+    if tag.startswith((b"</", b"<?", b"<!")):
+        return tag
+
+    whitespace = b" \t\r\n"
+    end = len(tag) - 1
+    pos = 1
+
+    while pos < end and tag[pos] in whitespace:
+        pos += 1
+
+    while pos < end and tag[pos] not in whitespace + b"/>":
+        pos += 1
+
+    out = bytearray()
+    out.extend(tag[:pos])
+
+    def _skip_value(position: int) -> int:
+        while position < end and tag[position] in whitespace:
+            position += 1
+        if position >= end:
+            return position
+        if tag[position] in (0x22, 0x27):
+            quote = tag[position]
+            position += 1
+            while position < end and tag[position] != quote:
+                position += 1
+            if position < end:
+                position += 1
+            return position
+        while position < end and tag[position] not in whitespace + b"/>":
+            position += 1
+        return position
+
+    while pos < end:
+        ws_start = pos
+        while pos < end and tag[pos] in whitespace:
+            pos += 1
+        ws = tag[ws_start:pos]
+
+        if pos >= end:
+            break
+        if tag[pos] == 0x2F:  # '/'
+            out.extend(ws)
+            out.extend(tag[pos:end + 1])
+            return bytes(out)
+        if tag[pos] == 0x3E:  # '>'
+            break
+
+        name_start = pos
+        while pos < end and tag[pos] not in whitespace + b"=/>":
+            pos += 1
+        raw_name = tag[name_start:pos]
+        clean_name = bytes(b for b in raw_name if b in allowed_name)
+
+        ws_after_start = pos
+        while pos < end and tag[pos] in whitespace:
+            pos += 1
+        has_equal = pos < end and tag[pos] == 0x3D  # '='
+
+        if not clean_name:
+            if has_equal:
+                pos += 1
+                pos = _skip_value(pos)
+            had_space = bool(ws) or (ws_after_start < pos)
+            if had_space and pos < end and tag[pos] not in (0x2F, 0x3E):
+                out.extend(b" ")
+            continue
+
+        if not has_equal:
+            had_space = bool(ws) or (ws_after_start < pos)
+            if had_space and pos < end and tag[pos] not in (0x2F, 0x3E):
+                out.extend(b" ")
+            continue
+
+        out.extend(ws)
+        out.extend(clean_name)
+        out.extend(tag[ws_after_start:pos + 1])
+        pos += 1
+
+        value_ws_start = pos
+        while pos < end and tag[pos] in whitespace:
+            pos += 1
+        out.extend(tag[value_ws_start:pos])
+
+        if pos >= end or tag[pos] in (0x2F, 0x3E):
+            out.extend(b'""')
+            continue
+
+        if tag[pos] in (0x22, 0x27):
+            quote = tag[pos]
+            out.append(quote)
+            pos += 1
+            while pos < end:
+                out.append(tag[pos])
+                if tag[pos] == quote:
+                    pos += 1
+                    break
+                pos += 1
+        else:
+            value_start = pos
+            while pos < end and tag[pos] not in whitespace + b"/>":
+                pos += 1
+            value = tag[value_start:pos]
+            if value:
+                out.extend(b'"')
+                out.extend(value)
+                out.extend(b'"')
+            else:
+                out.extend(b'""')
+
+    out.append(0x3E)
+    return bytes(out)
 
 
 def _strip_invalid_tag_bytes(data: bytes) -> bytes:

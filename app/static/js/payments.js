@@ -2,6 +2,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setupTabSwitching();
     setupInvoiceFilter();
     setupPdfPreview();
+    setupPaymentsSplitter();
     setupPaymentOcr();
     applyPresetPayment();
 });
@@ -180,6 +181,48 @@ function setupPdfPreview() {
             }
         }, 500);
     });
+}
+
+function setupPaymentsSplitter() {
+    const split = document.querySelector(".split-container");
+    const splitter = document.querySelector(".splitter");
+    if (!split || !splitter) return;
+
+    let dragging = false;
+    let activePointerId = null;
+    const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+    const updateWidth = (clientX) => {
+        const rect = split.getBoundingClientRect();
+        const rightWidth = rect.right - clientX;
+        const pct = rightWidth / rect.width;
+        const clamped = clamp(pct, 0.35, 0.7);
+        split.style.setProperty("--payments-viewer-width", `${Math.round(clamped * 100)}%`);
+    };
+
+    splitter.addEventListener("pointerdown", (event) => {
+        dragging = true;
+        activePointerId = event.pointerId;
+        document.body.classList.add("payments-resizing");
+        splitter.setPointerCapture(event.pointerId);
+        updateWidth(event.clientX);
+        event.preventDefault();
+    });
+
+    splitter.addEventListener("pointermove", (event) => {
+        if (!dragging || event.pointerId !== activePointerId) return;
+        updateWidth(event.clientX);
+    });
+
+    const stopDragging = (event) => {
+        if (!dragging || event.pointerId !== activePointerId) return;
+        dragging = false;
+        activePointerId = null;
+        document.body.classList.remove("payments-resizing");
+        splitter.releasePointerCapture(event.pointerId);
+    };
+
+    splitter.addEventListener("pointerup", stopDragging);
+    splitter.addEventListener("pointercancel", stopDragging);
 }
 
 function setupPaymentOcr() {

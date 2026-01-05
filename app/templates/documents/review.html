@@ -34,6 +34,7 @@
     flex: 0 0 6px;
     cursor: col-resize;
     background: #e5e5e5;
+    touch-action: none;
 }
 .review-splitter:hover {
     background: #c9c9c9;
@@ -50,6 +51,9 @@
 .review-resizing {
     cursor: col-resize;
     user-select: none;
+}
+.review-resizing #xsl-preview-frame {
+    pointer-events: none;
 }
 @media (max-width: 992px) {
     .review-split {
@@ -96,6 +100,20 @@
                 <input type="hidden" name="invoice_id" value="{{ invoice.id }}">
 
                 <div class="row g-2">
+                    <div class="col-12 col-lg-6">
+                        <label class="form-label fw-bold">Intestatario</label>
+                        <select name="legal_entity_id" id="legal-entity-id" class="form-select form-select-sm">
+                            <option value="">Seleziona intestatario</option>
+                            {% for le in legal_entities %}
+                                <option value="{{ le.id }}" {% if invoice.legal_entity_id == le.id %}selected{% endif %}>{{ le.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-12 col-lg-6">
+                        <label class="form-label fw-bold">Nome intestatario</label>
+                        <input type="text" name="legal_entity_name" id="legal-entity-name" class="form-control form-control-sm" value="{{ invoice.legal_entity.name if invoice.legal_entity else '' }}">
+                        <div class="form-text small">Aggiorna il nome dell'intestatario selezionato.</div>
+                    </div>
                     <div class="col-12 col-lg-6">
                         <label class="form-label fw-bold">Numero Documento</label>
                         <input type="text" name="document_number" class="form-control form-control-sm" value="{{ invoice.document_number or '' }}" required>
@@ -238,7 +256,7 @@
 
         <div class="review-pane-right p-0 bg-white d-flex flex-column" style="height: calc(100vh - 50px);">
             <iframe id="xsl-preview-frame"
-                    src="{{ url_for('documents.preview_visual', document_id=invoice.id, style=default_xsl or 'asso') }}"
+                    src="{{ url_for('documents.preview_visual', document_id=invoice.id, style=default_xsl or 'asso', highlight=1) }}"
                     class="w-100 flex-grow-1 border-0"
                     style="display: block;"
                     title="Anteprima Documento">
@@ -258,6 +276,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const style = selector.value || "ordinaria";
         const url = new URL(frame.src, window.location.origin);
         url.searchParams.set("style", style);
+        url.searchParams.set("highlight", "1");
         frame.src = url.toString();
     });
 
@@ -266,6 +285,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!split || !splitter) return;
 
     let dragging = false;
+    let activePointerId = null;
     const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
     const updateWidth = (clientX) => {
         const rect = split.getBoundingClientRect();
@@ -275,22 +295,40 @@ document.addEventListener("DOMContentLoaded", () => {
         split.style.setProperty("--review-viewer-width", `${Math.round(clamped * 100)}%`);
     };
 
-    splitter.addEventListener("mousedown", (event) => {
+    splitter.addEventListener("pointerdown", (event) => {
         dragging = true;
+        activePointerId = event.pointerId;
         document.body.classList.add("review-resizing");
+        splitter.setPointerCapture(event.pointerId);
+        updateWidth(event.clientX);
         event.preventDefault();
     });
 
-    window.addEventListener("mousemove", (event) => {
-        if (!dragging) return;
+    splitter.addEventListener("pointermove", (event) => {
+        if (!dragging || event.pointerId !== activePointerId) return;
         updateWidth(event.clientX);
     });
 
-    window.addEventListener("mouseup", () => {
-        if (!dragging) return;
+    const stopDragging = (event) => {
+        if (!dragging || event.pointerId !== activePointerId) return;
         dragging = false;
+        activePointerId = null;
         document.body.classList.remove("review-resizing");
-    });
+        splitter.releasePointerCapture(event.pointerId);
+    };
+
+    splitter.addEventListener("pointerup", stopDragging);
+    splitter.addEventListener("pointercancel", stopDragging);
+
+    const entitySelect = document.getElementById("legal-entity-id");
+    const entityName = document.getElementById("legal-entity-name");
+    if (entitySelect && entityName) {
+        entitySelect.addEventListener("change", () => {
+            const selected = entitySelect.options[entitySelect.selectedIndex];
+            if (!selected || !selected.value) return;
+            entityName.value = (selected.textContent || "").trim();
+        });
+    }
 });
 </script>
 {% endblock %}
