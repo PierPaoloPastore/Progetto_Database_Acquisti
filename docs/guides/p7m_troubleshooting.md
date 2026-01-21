@@ -8,12 +8,21 @@
 - ✅ Rimozione byte non ASCII nei nomi dei tag (es. `<\x82\xe8Indirizzo>`)
 - ✅ Gestione encoding windows-1252 e UTF-8
 - ✅ Fallback per XML malformati (parser con `recover=True`)
+- ✅ OpenSSL come estrazione primaria (smime/cms) con rilevamento automatico binario
+- ✅ Supporto varianti DER/PEM e log dettagliato dei tentativi
 
 ### 2. Validazione robusta
 - ✅ Fallback per supplier name vuoto
 - ✅ Gestione legal_entity da P7M
 - ✅ Error handling per parsing failures
 - ✅ Fallback parser legacy se xsdata fallisce o non trova body
+
+### 3. Sanificazione XML avanzata (fix 2026-01)
+- ✅ Escape di `<` e `&` non validi nel contenuto
+- ✅ Correzione attributi tronchi o con valore mancante
+- ✅ Correzione tag tronchi (es. `DataInizioPer` -> `DataInizioPeriodo`)
+- ✅ Correzione tag di chiusura con spazi (es. `</Prezzo Totale>` -> `</PrezzoTotale>`)
+- ✅ Chiusura automatica del root in XML troncati
 
 ---
 
@@ -123,6 +132,7 @@ Alcuni file P7M potrebbero essere troppo corrotti per essere recuperati.
 ```bash
 # Con OpenSSL
 openssl smime -verify -in file.p7m -inform DER -noverify -out file.xml
+openssl cms -verify -in file.p7m -inform DER -noverify -out file.xml
 
 # Con dike (tool italiano)
 # GUI disponibile su https://www.firmacerta.it
@@ -175,6 +185,16 @@ ORDER BY created_at DESC
 LIMIT 20;
 ```
 
+### Report import (CSV)
+
+Ogni import genera un report in `import_debug/import_reports/` con:
+- file_name
+- status
+- stage (precheck/parsing/p7m_extract/db_commit/etc.)
+- error_type
+- message
+- invoice_id
+
 ---
 
 ## 📊 Statistiche import
@@ -203,6 +223,16 @@ ORDER BY tipo_file, status;
 - [ ] Verifica che non ci siano conflitti con codice custom
 - [ ] Testa su un subset di file P7M problematici
 - [ ] Monitora i log dopo il deploy
+
+---
+
+## Prossimi passi (TODO)
+
+- Rendere l'estrazione P7M atomica (temp + `os.replace`) con check rc/stderr e timeout openssl.
+- Aggiungere sanity check pre-parse (size minima, `<?xml`, root `FatturaElettronica`, chiusura root).
+- Tenere parse strict come default e usare recover solo in modalita' diagnostica.
+- Script diagnostico per cartelle P7M con report (rc, stderr, size, hash, esito parse).
+- Test automatici per XML tronco e collisioni su output temporaneo.
 
 ---
 

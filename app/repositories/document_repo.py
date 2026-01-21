@@ -4,7 +4,7 @@ Gestisce tutte le operazioni CRUD e di ricerca su tabella 'documents'.
 """
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Dict, List, Optional, Tuple
 from calendar import monthrange
@@ -62,6 +62,18 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
         if file_hash:
             return self.get_by_file_hash(file_hash)
         return None
+
+    def find_existing_by_file_base(self, file_name: str) -> Optional[Document]:
+        """Trova un documento con lo stesso file base, inclusi body multipli."""
+        if not file_name:
+            return None
+        pattern = f"{file_name}#body%"
+        return (
+            self.session.query(Document)
+            .filter((Document.file_name == file_name) | (Document.file_name.like(pattern)))
+            .order_by(Document.id.asc())
+            .first()
+        )
 
     def search(
         self,
@@ -318,6 +330,34 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
             )
 
         return doc, True
+
+    def create_import_placeholder(
+        self,
+        *,
+        file_name: str,
+        file_hash: Optional[str],
+        file_path: Optional[str],
+        import_source: Optional[str],
+        legal_entity_id: Optional[int],
+        note: Optional[str],
+    ) -> Document:
+        """
+        Crea un documento minimo per revisione quando il parsing fallisce.
+        """
+        doc = Document(
+            supplier_id=None,
+            legal_entity_id=legal_entity_id,
+            document_type="invoice",
+            doc_status="pending_physical_copy",
+            file_name=file_name,
+            file_path=file_path,
+            import_source=import_source,
+            note=note,
+            imported_at=datetime.utcnow(),
+        )
+        self.add(doc)
+        self.session.flush()
+        return doc
 
     def _create_line(self, doc_id: int, dto: InvoiceLineDTO, sign: int = 1):
         line = DocumentLine(

@@ -22,6 +22,13 @@
                     <i class="bi bi-play-circle"></i> Avvia Importazione
                 </button>
             </form>
+            <form id="server-import-form" method="POST" action="{{ url_for('import.run_view') }}" class="mt-3">
+                <input type="hidden" name="import_action" value="server_folder">
+                <button type="submit" id="server-import-btn" class="btn btn-outline-secondary">
+                    <i class="bi bi-folder"></i> Importa da cartella predefinita
+                </button>
+                <div class="form-text">Usa i file gia presenti nella cartella server indicata sopra.</div>
+            </form>
             <div id="import-progress" class="alert alert-info d-none mt-3" role="status" aria-live="polite">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <span id="import-progress-text">Preparazione batch...</span>
@@ -43,15 +50,25 @@
                 <li class="list-group-item">File totali: <strong id="import-summary-total">0</strong></li>
                 <li class="list-group-item text-success">Importati con successo: <strong id="import-summary-imported">0</strong></li>
                 <li class="list-group-item text-warning">Saltati (gia presenti): <strong id="import-summary-skipped">0</strong></li>
+                <li class="list-group-item text-warning">Warning: <strong id="import-summary-warnings">0</strong></li>
                 <li class="list-group-item text-danger">Errori: <strong id="import-summary-errors">0</strong></li>
             </ul>
+            <p id="import-summary-report" class="small text-muted d-none">
+                Report: <code id="import-summary-report-path"></code>
+                <a id="import-summary-report-link"
+                   class="btn btn-sm btn-outline-secondary ms-2 d-none"
+                   data-report-url="{{ url_for('import.report_view') }}"
+                   target="_blank"
+                   rel="noopener">Apri report CSV</a>
+            </p>
             <div id="import-summary-errors-list" class="d-none">
-                <h5>Dettaglio errori:</h5>
+                <h5>Dettaglio errori/warning:</h5>
                 <div class="table-responsive scrollable-list">
                     <table class="table table-sm table-striped">
                         <thead>
                             <tr>
                                 <th>File</th>
+                                <th>Fase</th>
                                 <th>Messaggio</th>
                             </tr>
                         </thead>
@@ -72,8 +89,18 @@
                 <li class="list-group-item">File totali: <strong>{{ summary.total_files }}</strong></li>
                 <li class="list-group-item text-success">Importati con successo: <strong>{{ summary.imported }}</strong></li>
                 <li class="list-group-item text-warning">Saltati (già presenti): <strong>{{ summary.skipped }}</strong></li>
+                <li class="list-group-item text-warning">Warning: <strong>{{ summary.warnings or 0 }}</strong></li>
                 <li class="list-group-item text-danger">Errori: <strong>{{ summary.errors }}</strong></li>
             </ul>
+            {% if summary.report_path %}
+            <p class="small text-muted">
+                Report: <code>{{ summary.report_path }}</code>
+                <a class="btn btn-sm btn-outline-secondary ms-2"
+                   href="{{ url_for('import.report_view', path=summary.report_path) }}"
+                   target="_blank"
+                   rel="noopener">Apri report CSV</a>
+            </p>
+            {% endif %}
 
             {% if summary.details %}
             <h5>Dettaglio file:</h5>
@@ -83,6 +110,7 @@
                         <tr>
                             <th>File</th>
                             <th>Stato</th>
+                            <th>Fase</th>
                             <th>Messaggio</th>
                             <th>Link</th>
                         </tr>
@@ -92,10 +120,17 @@
                         <tr>
                             <td>{{ d.file_name }}</td>
                             <td>
-                                <span class="badge bg-{{ 'success' if d.status=='success' else 'warning' if d.status=='skipped' else 'danger' }}">
-                                    {{ d.status }}
-                                </span>
+                                {% if d.status == 'warning' %}
+                                    <span class="badge bg-warning text-dark">warning</span>
+                                {% elif d.status == 'skipped' %}
+                                    <span class="badge bg-warning">skipped</span>
+                                {% elif d.status == 'success' %}
+                                    <span class="badge bg-success">success</span>
+                                {% else %}
+                                    <span class="badge bg-danger">{{ d.status }}</span>
+                                {% endif %}
                             </td>
+                            <td>{{ d.stage or '-' }}</td>
                             <td>{{ d.message }}</td>
                             <td>
                                 {% if d.invoice_id %}

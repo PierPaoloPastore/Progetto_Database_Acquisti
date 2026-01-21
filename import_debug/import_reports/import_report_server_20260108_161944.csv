@@ -1,0 +1,2 @@
+file_name,status,stage,error_type,message,invoice_id
+-,error,scan,FileNotFound,Nessun file XML/P7M trovato nella cartella: D:\Progetto_Database_Acquisti\data\fatture_xml,

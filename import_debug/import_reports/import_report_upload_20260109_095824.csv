@@ -1,0 +1,103 @@
+file_name,status,stage,error_type,message,invoice_id
+IT00146089990KBM1L_HUA5T.xml,success,import,,Import completato,2386
+IT01533080675_5yNyj.xml,success,import,,Import completato,2387
+IT01533080675_7qnuU.xml,success,import,,Import completato,2388
+IT01533080675_89Vpv.xml,success,import,,Import completato,2389
+IT01558670780_SSY7T.xml.p7m,success,import,,Import completato,2390
+IT016417907022023j_0b2Uo.xml,success,import,,Import completato,2391
+IT016417907022024r_0bWkq.xml,success,import,,Import completato,2392
+IT016417907022025G_0aeBm.xml,success,import,,Import completato,2393
+IT016417907022025L_0b7jv.xml,success,import,,Import completato,2394
+IT016417907022025Z_00m7x.xml,success,import,,Import completato,2395
+IT01879020517A2023_f5DjN.xml.p7m,success,import,,Import completato,2396
+IT01879020517A2023_fKSTK.xml.p7m,success,import,,Import completato,2397
+IT01879020517A2024_an62P.xml.p7m,success,import,,Import completato,2398
+IT01879020517A2024_bw4wc.xml.p7m,success,import,,Import completato,2399
+IT01879020517A2024_bZuxb.xml.p7m,success,import,,Import completato,2400
+IT01879020517A2024_ewz8j.xml.p7m,success,import,,Import completato,2401
+IT01879020517A2024_gWJaz.xml.p7m,success,import,,Import completato,2402
+IT01879020517A2024_hqxgS.xml.p7m,success,import,,Import completato,2403
+IT01879020517A2025_aUmRL.xml.p7m,success,import,,Import completato,2404
+IT01879020517A2025_bp5PI.xml.p7m,success,import,,Import completato,2405
+IT01879020517A2025_cD43o.xml.p7m,success,import,,Import completato,2406
+IT01879020517A2025_cm9sI.xml.p7m,success,import,,Import completato,2407
+IT01879020517A2025_daGr4.xml.p7m,success,import,,Import completato,2408
+IT01879020517A2025_dGHvt.xml.p7m,success,import,,Import completato,2409
+IT01879020517A2025_dkKqx.xml.p7m,success,import,,Import completato,2410
+IT01879020517A2025_dpPoF.xml.p7m,success,import,,Import completato,2411
+IT01879020517A2025_eEnGK.xml.p7m,success,import,,Import completato,2412
+IT01879020517A2025_fiXmp.xml.p7m,success,import,,Import completato,2413
+IT01879020517A2025_gdaDv.xml.p7m,success,import,,Import completato,2414
+IT01879020517A2025_gXz12.xml.p7m,skipped,precheck,,Duplicato per file_hash (pre-parse),123
+IT01879020517A2025_gXZYb.xml.p7m,success,import,,Import completato,2415
+IT01879020517A2025_hg4fp.xml - Copia.p7m,success,import,,Import completato,2416
+IT01879020517A2025_hg4fp.xml.p7m,skipped,precheck,,Duplicato per file_hash (pre-parse),2416
+IT0200275048300000_9ODZL.xml.p7m,success,import,,Import completato,2417
+IT02046570426_687p1.xml.p7m,success,import,,Import completato,2418
+IT02366780803A2023_AMOBC.xml.p7m,success,import,,Import completato,2419
+IT02624490658_I0hxt.xml,success,import,,Import completato,2420
+IT02624490658_I0l2k.xml,success,import,,Import completato,2421
+IT02624490658_I0lhp.xml,success,import,,Import completato,2422
+IT02624490658_I0obs.xml,success,import,,Import completato,2423
+IT02624490658_I0qes - Copia.xml,skipped,precheck,,Duplicato per file_hash (pre-parse),538
+IT03336420967_ungd8.xml.p7m,skipped,precheck,,Duplicato per file_hash (pre-parse),137
+IT03618500403_0dTCX.xml.p7m,success,import,,Import completato,2424
+IT03618500403_11MJx.xml.p7m,success,import,,Import completato,2425
+IT03759480654_002XP.xml - Copia.p7m,skipped,precheck,,Duplicato per file_hash (pre-parse),2035
+IT04217620659_0007Z.xml,success,import,,Import completato,2426
+IT04398860652BNXBB_008HC.xml.p7m,success,import,,Import completato,2427
+IT04398860652BNXBB_008Q9.xml.p7m,success,import,,Import completato,2428
+IT04419270659_HV9SC.xml.p7m,success,import,,Import completato,2429
+IT04530950486R0000_02UUJ.xml,success,import,,Import completato,2430
+IT04697260653_00257.xml,success,import,,Import completato,2431
+IT04839740489_Op8t1.xml,success,import,,Import completato,2432
+IT04839740489_P7YQv.xml.p7m,success,import,,Import completato,2433
+IT04884410657BNXBB_00097.xml.p7m,success,import,,Import completato,2434
+IT05376570650_000MH.xml,success,import,,Import completato,2435
+IT05499920659_00AWW - Copia.xml,skipped,precheck,,Duplicato per file_hash (pre-parse),1569
+IT06628860964_abXsK.xml.p7m,success,import,,Import completato,2436
+IT06628860964_bvgat.xml.p7m,success,import,,Import completato,2437
+IT06655971007_DvpzT.xml.p7m,success,import,,Import completato,2438
+IT06655971007_MrhxY.xml.p7m,success,import,,Import completato,2439
+IT06655971007_oETwp.xml.p7m,success,import,,Import completato,2440
+IT06655971007_vF3xU.xml.p7m,success,import,,Import completato,2441
+IT06655971007_w9Apw.xml.p7m,success,import,,Import completato,2442
+IT06888411003_DUYVE.xml.p7m,success,import,,Import completato,2443
+IT07155170157_ri0i6.xml,success,import,,Import completato,2444
+IT07155170157_xnldb.xml,success,import,,Import completato,2445
+IT07383490633_013W0.xml - Copia.p7m,skipped,precheck,,Duplicato per file_hash (pre-parse),1259
+IT08567210961_yfKHN.xml,success,import,,Import completato,2446
+IT08973230967_749bw.xml,success,import,,Import completato,2447
+IT09252150017_33O7O.xml,success,import,,Import completato,2448
+IT11359591002_1ls8S.xml,success,import,,Import completato,2449
+ITCGGPLA64H44A717Z_0007J.xml,success,import,,Import completato,2450
+ITPSTFNC58T01F481P_0006H.xml,success,import,,Import completato,2451
+ITPSTFNC58T01F481P_0006L.xml,success,import,,Import completato,2452
+ITPSTFNC58T01F481P_0007Y.xml,success,import,,Import completato,2453
+ITPSTFNC58T01F481P_00080.xml,success,import,,Import completato,2454
+ITPSTMRA66A19F481R_000C8.xml,success,import,,Import completato,2455
+ITPSTMRA66A19F481R_000ET.xml,success,import,,Import completato,2456
+ITPSTMRA66A19F481R_000EX.xml,success,import,,Import completato,2457
+NL10209790152_I2KZv.xml.p7m,success,import,,Import completato,2458
+NL10209790152_IB8AH.xml.p7m,success,import,,Import completato,2459
+NL10209790152_IL5CH.xml.p7m,success,import,,Import completato,2460
+NL10209790152_KJDmc.xml.p7m,success,import,,Import completato,2461
+NL10209790152_L2hjM.xml,success,import,,Import completato,2462
+SM03473_9bOhK.xml,success,import,,Import completato,2463
+SM03473_9CRjw.xml.p7m,success,import,,Import completato,2464
+SM03473_9l0Vg.xml.p7m,success,import,,Import completato,2465
+SM03473_9SiD8.xml,success,import,,Import completato,2466
+SM03473_9UhN0.xml,success,import,,Import completato,2467
+SM03473_AnWKW.xml,success,import,,Import completato,2468
+SM03473_AnWMt.xml,success,import,,Import completato,2469
+SM03473_AvizT.xml,success,import,,Import completato,2470
+SM03473_CeEmL.xml.p7m,success,import,,Import completato,2471
+SM03473_CGKea.xml,success,import,,Import completato,2472
+SM03473_CT4iC.xml,success,import,,Import completato,2473
+SM03473_D0dTb.xml,success,import,,Import completato,2474
+SM03473_DjfKd.xml.p7m,success,import,,Import completato,2475
+SM03473_EBdiK.xml,success,import,,Import completato,2476
+SM03473_EHoOe.xml,success,import,,Import completato,2477
+SM03473_EnZRb.xml,success,import,,Import completato,2478
+SM03473_EqHx6.xml,success,import,,Import completato,2479
+SM03473_EZN34.xml,success,import,,Import completato,2480

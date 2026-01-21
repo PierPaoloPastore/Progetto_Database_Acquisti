@@ -85,14 +85,23 @@
 
     <div class="review-split flex-grow-1 m-0 overflow-hidden">
         <div class="review-pane-left bg-white overflow-auto p-4 review-compact" style="height: calc(100vh - 50px);">
-            <div class="d-flex align-items-center gap-2 mb-2">
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
                 <label class="form-label mb-0 small text-muted">Foglio di stile AE</label>
                 <select id="xsl-style-selector" class="form-select form-select-sm" style="max-width: 220px;">
                     <option value="asso" {% if default_xsl == 'asso' %}selected{% endif %}>Foglio AssoSoftware</option>
                     <option value="ordinaria" {% if default_xsl == 'ordinaria' %}selected{% endif %}>Fattura Ordinaria (AE)</option>
                     <option value="vfsm10" {% if default_xsl == 'vfsm10' %}selected{% endif %}>Fattura Semplificata VFSM10 (AE)</option>
                 </select>
+                <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('documents.download_source', document_id=invoice.id) }}">
+                    <i class="bi bi-download"></i> Scarica XML/P7M
+                </a>
             </div>
+
+            {% if invoice.note and invoice.note.startswith('IMPORT_WARNING:') %}
+            <div class="alert alert-warning py-1">
+                <small><i class="bi bi-exclamation-triangle"></i> Import incompleto: controllare tutti i dati prima di confermare.</small>
+            </div>
+            {% endif %}
 
             <form method="POST" action="{{ url_for('documents.review_loop_invoice_view', document_id=invoice.id) }}">
                 <input type="hidden" name="action" value="review">

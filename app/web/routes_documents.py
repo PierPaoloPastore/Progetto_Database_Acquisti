@@ -5,6 +5,10 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
+import subprocess
+import tempfile
+import io
 from pathlib import Path
 from datetime import datetime, date
 from typing import Optional
@@ -384,12 +388,7 @@ def delete_document(document_id: int):
     return redirect(url_for("documents.review_loop_redirect_view"))
 
     
-@documents_bp.route("/preview/<int:document_id>", methods=["GET"], endpoint="preview_visual")
-def preview_visual(document_id: int):
-    document = DocumentService.get_document_by_id(document_id)
-    if document is None:
-        abort(404)
-
+def _resolve_document_xml_path(document):
     from app.services.settings_service import get_xml_storage_path
     xml_storage = get_xml_storage_path()
     upload_folder = current_app.config.get("UPLOAD_FOLDER", "storage/uploads")
@@ -413,8 +412,96 @@ def preview_visual(document_id: int):
             xml_full_path = os.path.join(candidate_path, document.file_name)
         else:
             xml_full_path = candidate_path
-    
-    else:
+
+    return xml_full_path
+
+
+def _find_wkhtmltopdf_bin():
+    env_bin = os.environ.get("WKHTMLTOPDF_BIN")
+    if env_bin and os.path.isfile(env_bin):
+        return env_bin
+    bin_path = shutil.which("wkhtmltopdf")
+    if bin_path:
+        return bin_path
+    candidates = [
+        r"C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe",
+        r"C:\Program Files (x86)\wkhtmltopdf\bin\wkhtmltopdf.exe",
+    ]
+    for candidate in candidates:
+        if os.path.isfile(candidate):
+            return candidate
+    return None
+
+
+def _render_pdf_from_html(html_content: str, base_dir: str, logger):
+    wkhtmltopdf_bin = _find_wkhtmltopdf_bin()
+    if wkhtmltopdf_bin:
+        html_path = None
+        pdf_path = None
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".html", delete=False, mode="w", encoding="utf-8") as html_file:
+                html_file.write(html_content)
+                html_path = html_file.name
+            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as pdf_file:
+                pdf_path = pdf_file.name
+            result = subprocess.run(
+                [wkhtmltopdf_bin, "--encoding", "utf-8", html_path, pdf_path],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0 and pdf_path and os.path.exists(pdf_path):
+                with open(pdf_path, "rb") as handle:
+                    return handle.read()
+            if logger:
+                logger.warning(
+                    "wkhtmltopdf fallito",
+                    extra={
+                        "component": "documents",
+                        "stderr": (result.stderr or "").strip(),
+                        "stdout": (result.stdout or "").strip(),
+                    },
+                )
+        finally:
+            if html_path and os.path.exists(html_path):
+                os.unlink(html_path)
+            if pdf_path and os.path.exists(pdf_path):
+                os.unlink(pdf_path)
+
+    try:
+        from weasyprint import HTML  # type: ignore
+    except Exception:
+        return None
+    try:
+        return HTML(string=html_content, base_url=base_dir).write_pdf()
+    except Exception as exc:
+        if logger:
+            logger.warning(
+                "WeasyPrint fallito",
+                extra={"component": "documents", "error": str(exc)},
+            )
+        return None
+
+
+def _build_pdf_download_name(document_id: int, file_name: Optional[str]) -> str:
+    base_name = file_name or f"document_{document_id}"
+    lowered = base_name.lower()
+    if lowered.endswith(".xml.p7m"):
+        base_name = base_name[:-len(".xml.p7m")]
+    elif lowered.endswith(".p7m"):
+        base_name = base_name[:-len(".p7m")]
+    elif lowered.endswith(".xml"):
+        base_name = base_name[:-len(".xml")]
+    return f"{base_name}.pdf"
+
+
+@documents_bp.route("/preview/<int:document_id>", methods=["GET"], endpoint="preview_visual")
+def preview_visual(document_id: int):
+    document = DocumentService.get_document_by_id(document_id)
+    if document is None:
+        abort(404)
+
+    xml_full_path = _resolve_document_xml_path(document)
+    if not xml_full_path:
         return "<h1>Errore</h1><p>Nessun percorso file presente nel database.</p>", 404
 
     # Seleziona XSL da querystring (fogli di stile AE)
@@ -441,6 +528,71 @@ def preview_visual(document_id: int):
         return f"<h1>File non trovato</h1><p>Il sistema ha cercato qui:<br><code>{xml_full_path}</code><br>Ma il file non esiste.</p>", 404
     except Exception as e:
         return f"<h1>Errore di visualizzazione</h1><p>{str(e)}</p>", 500
+
+
+@documents_bp.route("/download/<int:document_id>", methods=["GET"], endpoint="download_source")
+def download_source(document_id: int):
+    document = DocumentService.get_document_by_id(document_id)
+    if document is None:
+        abort(404)
+
+    xml_full_path = _resolve_document_xml_path(document)
+    if not xml_full_path:
+        return "<h1>Errore</h1><p>Nessun percorso file presente nel database.</p>", 404
+    if not os.path.exists(xml_full_path):
+        return f"<h1>File non trovato</h1><p>Il sistema ha cercato qui:<br><code>{xml_full_path}</code><br>Ma il file non esiste.</p>", 404
+
+    download_name = document.file_name or os.path.basename(xml_full_path) or f"document_{document_id}.xml"
+    lower_name = download_name.lower()
+    if lower_name.endswith(".p7m") or lower_name.endswith(".xml.p7m"):
+        mimetype = "application/pkcs7-mime"
+    else:
+        mimetype = "application/xml"
+    return send_file(xml_full_path, mimetype=mimetype, as_attachment=True, download_name=download_name)
+
+
+@documents_bp.route("/pdf/<int:document_id>", methods=["GET"], endpoint="download_pdf")
+def download_pdf(document_id: int):
+    document = DocumentService.get_document_by_id(document_id)
+    if document is None:
+        abort(404)
+
+    xml_full_path = _resolve_document_xml_path(document)
+    if not xml_full_path:
+        return "<h1>Errore</h1><p>Nessun percorso file presente nel database.</p>", 404
+    if not os.path.exists(xml_full_path):
+        return f"<h1>File non trovato</h1><p>Il sistema ha cercato qui:<br><code>{xml_full_path}</code><br>Ma il file non esiste.</p>", 404
+
+    style_map = {
+        "asso": "FoglioStileAssoSoftware.xsl",
+        "ordinaria": "Foglio_di_stile_fattura_ordinaria_ver1.2.3.xsl",
+        "vfsm10": "Foglio_di_stile_VFSM10_v1.0.2.xsl",
+    }
+    style_key = request.args.get("style", "asso")
+    xsl_name = style_map.get(style_key, style_map["ordinaria"])
+    base_dir = os.path.abspath(os.path.join(current_app.root_path, os.pardir))
+    xsl_full_path = os.path.join(base_dir, "resources", "xsl", xsl_name)
+
+    try:
+        html_content = render_invoice_html(xml_full_path, xsl_full_path)
+    except Exception as exc:
+        return f"<h1>Errore generazione HTML</h1><p>{str(exc)}</p>", 500
+
+    pdf_bytes = _render_pdf_from_html(html_content, base_dir, current_app.logger)
+    if not pdf_bytes:
+        return (
+            "<h1>PDF non disponibile</h1>"
+            "<p>Installa wkhtmltopdf o weasyprint per abilitare la conversione.</p>",
+            501,
+        )
+
+    download_name = _build_pdf_download_name(document_id, document.file_name)
+    return send_file(
+        io.BytesIO(pdf_bytes),
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=download_name,
+    )
 
 
 @documents_bp.route("/ocr-map", methods=["POST"])

@@ -2,6 +2,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const form = document.getElementById("import-form");
     const fileInput = document.getElementById("files");
     const submitBtn = document.getElementById("import-submit-btn");
+    const serverForm = document.getElementById("server-import-form");
+    const serverBtn = document.getElementById("server-import-btn");
     const progressBox = document.getElementById("import-progress");
     const progressText = document.getElementById("import-progress-text");
     const progressCount = document.getElementById("import-progress-count");
@@ -11,7 +13,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const summaryTotal = document.getElementById("import-summary-total");
     const summaryImported = document.getElementById("import-summary-imported");
     const summarySkipped = document.getElementById("import-summary-skipped");
+    const summaryWarnings = document.getElementById("import-summary-warnings");
     const summaryErrors = document.getElementById("import-summary-errors");
+    const summaryReport = document.getElementById("import-summary-report");
+    const summaryReportPath = document.getElementById("import-summary-report-path");
+    const summaryReportLink = document.getElementById("import-summary-report-link");
     const summaryErrorsList = document.getElementById("import-summary-errors-list");
     const summaryErrorsBody = document.getElementById("import-summary-errors-body");
 
@@ -55,6 +61,9 @@ document.addEventListener("DOMContentLoaded", () => {
         if (submitBtn) {
             submitBtn.disabled = disabled;
         }
+        if (serverBtn) {
+            serverBtn.disabled = disabled;
+        }
         fileInput.disabled = disabled;
     };
 
@@ -71,6 +80,30 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     };
 
+    const startBusyProgress = (message) => {
+        if (!progressBox || !progressBar || !progressText) {
+            return;
+        }
+        progressBox.classList.remove("d-none");
+        progressText.textContent = message;
+        progressBar.style.width = "100%";
+        progressBar.classList.add("progress-bar-striped", "progress-bar-animated");
+        if (progressCount) {
+            progressCount.textContent = "In corso...";
+        }
+    };
+
+    const stopBusyProgress = (message) => {
+        if (!progressBox || !progressBar || !progressText) {
+            return;
+        }
+        progressText.textContent = message;
+        progressBar.classList.remove("progress-bar-striped", "progress-bar-animated");
+        if (progressCount) {
+            progressCount.textContent = "";
+        }
+    };
+
     const showError = (message) => {
         if (progressText) {
             progressText.textContent = message;
@@ -83,6 +116,16 @@ document.addEventListener("DOMContentLoaded", () => {
     const resetSummary = () => {
         if (summaryCard) {
             summaryCard.classList.add("d-none");
+        }
+        if (summaryReport) {
+            summaryReport.classList.add("d-none");
+        }
+        if (summaryReportPath) {
+            summaryReportPath.textContent = "";
+        }
+        if (summaryReportLink) {
+            summaryReportLink.classList.add("d-none");
+            summaryReportLink.removeAttribute("href");
         }
         if (summaryErrorsList) {
             summaryErrorsList.classList.add("d-none");
@@ -100,7 +143,25 @@ document.addEventListener("DOMContentLoaded", () => {
         if (summaryTotal) summaryTotal.textContent = summary.total_files;
         if (summaryImported) summaryImported.textContent = summary.imported;
         if (summarySkipped) summarySkipped.textContent = summary.skipped;
+        if (summaryWarnings) summaryWarnings.textContent = summary.warnings || 0;
         if (summaryErrors) summaryErrors.textContent = summary.errors;
+        if (summaryReport && summaryReportPath) {
+            if (summary.report_path) {
+                summaryReportPath.textContent = summary.report_path;
+                if (summaryReportLink) {
+                    const baseUrl = summaryReportLink.getAttribute("data-report-url");
+                    if (baseUrl) {
+                        const url = new URL(baseUrl, window.location.origin);
+                        url.searchParams.set("path", summary.report_path);
+                        summaryReportLink.href = url.toString();
+                        summaryReportLink.classList.remove("d-none");
+                    }
+                }
+                summaryReport.classList.remove("d-none");
+            } else {
+                summaryReport.classList.add("d-none");
+            }
+        }
 
         if (summaryErrorsList && summaryErrorsBody) {
             if (errorDetails.length > 0) {
@@ -109,17 +170,20 @@ document.addEventListener("DOMContentLoaded", () => {
                 errorDetails.slice(0, ERROR_LIST_LIMIT).forEach((item) => {
                     const row = document.createElement("tr");
                     const fileCell = document.createElement("td");
+                    const stageCell = document.createElement("td");
                     const msgCell = document.createElement("td");
                     fileCell.textContent = item.file_name || "-";
+                    stageCell.textContent = item.stage || "-";
                     msgCell.textContent = item.message || "Errore";
                     row.appendChild(fileCell);
+                    row.appendChild(stageCell);
                     row.appendChild(msgCell);
                     summaryErrorsBody.appendChild(row);
                 });
                 if (errorDetails.length > ERROR_LIST_LIMIT) {
                     const row = document.createElement("tr");
                     const cell = document.createElement("td");
-                    cell.colSpan = 2;
+                    cell.colSpan = 3;
                     cell.className = "text-muted";
                     cell.textContent = `Mostrati i primi ${ERROR_LIST_LIMIT} errori.`;
                     row.appendChild(cell);
@@ -191,6 +255,7 @@ document.addEventListener("DOMContentLoaded", () => {
             total_files: 0,
             imported: 0,
             skipped: 0,
+            warnings: 0,
             errors: 0,
             details: [],
         };
@@ -204,6 +269,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 aggregate.total_files += data.total_files || batch.length;
                 aggregate.imported += data.imported || 0;
                 aggregate.skipped += data.skipped || 0;
+                aggregate.warnings += data.warnings || 0;
                 aggregate.errors += data.errors || 0;
                 if (Array.isArray(data.details)) {
                     aggregate.details = aggregate.details.concat(data.details);
@@ -213,7 +279,7 @@ document.addEventListener("DOMContentLoaded", () => {
             updateProgress(batches.length, batches.length, 0);
             renderSummary(
                 aggregate,
-                aggregate.details.filter((item) => item.status === "error")
+                aggregate.details.filter((item) => item.status === "error" || item.status === "warning")
             );
         } catch (error) {
             showError("Errore durante l'import batch.");
@@ -221,4 +287,45 @@ document.addEventListener("DOMContentLoaded", () => {
             toggleDisabled(false);
         }
     });
+
+    if (serverForm) {
+        serverForm.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            toggleDisabled(true);
+            resetSummary();
+            if (summaryServer) {
+                summaryServer.classList.add("d-none");
+            }
+            if (progressBar) {
+                progressBar.classList.remove("bg-danger");
+            }
+            startBusyProgress("Import cartella server in corso...");
+
+            try {
+                const targetUrl = serverForm.getAttribute("action") || window.location.href;
+                const response = await fetch(targetUrl, {
+                    method: "POST",
+                    body: new FormData(serverForm),
+                    headers: {
+                        "X-Requested-With": "XMLHttpRequest",
+                        Accept: "application/json",
+                    },
+                    credentials: "same-origin",
+                });
+                if (!response.ok) {
+                    throw new Error(`Errore HTTP ${response.status}`);
+                }
+                const data = await response.json();
+                stopBusyProgress("Import cartella server completato.");
+                renderSummary(
+                    data,
+                    (data.details || []).filter((item) => item.status === "error" || item.status === "warning")
+                );
+            } catch (error) {
+                showError("Errore durante l'import da cartella server.");
+            } finally {
+                toggleDisabled(false);
+            }
+        });
+    }
 });

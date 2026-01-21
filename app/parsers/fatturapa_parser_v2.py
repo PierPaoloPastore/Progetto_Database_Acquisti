@@ -12,6 +12,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import List, Optional, Sequence
+import re
 
 from lxml import etree
 from xsdata.formats.dataclass.context import XmlContext
@@ -46,7 +47,7 @@ def parse_invoice_xml(
         raise FatturaPAParseError(f"File non trovato: {file_path}")
 
     if _is_p7m_file(file_path):
-        xml_bytes = _extract_xml_from_p7m(file_path)
+        xml_bytes = _extract_xml_from_p7m(file_path, logger=logger)
     else:
         xml_bytes = file_path.read_bytes()
 
@@ -300,7 +301,7 @@ def _map_lines(body) -> List[InvoiceLineDTO]:
         return result
 
     for ln in getattr(beni_servizi, "dettaglio_linee", []) or []:
-        line_number = getattr(ln, "numero_linea", None)
+        line_number = _to_int(getattr(ln, "numero_linea", None))
         description = getattr(ln, "descrizione", None)
         quantity = _to_decimal(getattr(ln, "quantita", None))
         unit_of_measure = getattr(ln, "unita_misura", None)
@@ -517,6 +518,21 @@ def _to_decimal(value) -> Optional[Decimal]:
         return Decimal(str(value))
     except (InvalidOperation, ValueError, TypeError):
         return None
+
+
+def _to_int(value) -> Optional[int]:
+    if value is None:
+        return None
+    try:
+        return int(str(value).strip())
+    except (ValueError, TypeError):
+        match = re.search(r"\d+", str(value))
+        if match:
+            try:
+                return int(match.group(0))
+            except ValueError:
+                return None
+    return None
 
 
 def _to_date(value) -> Optional[date]:

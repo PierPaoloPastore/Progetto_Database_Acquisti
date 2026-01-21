@@ -364,7 +364,7 @@
                                 <option value="asso" {% if default_xsl == 'asso' %}selected{% endif %}>Foglio AssoSoftware</option>
                             </select>
                         </div>
-                        <div class="col-6">
+                        <div class="col-12 col-md-4">
                             <button
                                 type="button"
                                 class="btn btn-outline-primary btn-sm w-100"
@@ -375,7 +375,7 @@
                                 <i class="bi bi-eye"></i> Apri anteprima XML
                             </button>
                         </div>
-                        <div class="col-6">
+                        <div class="col-12 col-md-4">
                             <button
                                 type="button"
                                 id="xml-print-btn"
@@ -384,6 +384,28 @@
                             >
                                 <i class="bi bi-printer"></i> Stampa XML
                             </button>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <button
+                                type="button"
+                                id="xml-share-btn"
+                                class="btn btn-outline-success btn-sm w-100"
+                                data-preview-url="{{ url_for('documents.preview_visual', document_id=invoice.id) }}"
+                                data-pdf-url="{{ url_for('documents.download_pdf', document_id=invoice.id) }}"
+                                data-download-url="{{ url_for('documents.download_source', document_id=invoice.id) }}"
+                                data-file-name="{{ invoice.file_name or ('document_' ~ invoice.id ~ '.xml') }}"
+                                data-share-title="Documento {{ doc_number_label }}"
+                            >
+                                <i class="bi bi-share"></i> Condividi PDF
+                            </button>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <a
+                                class="btn btn-outline-secondary btn-sm w-100"
+                                href="{{ url_for('documents.download_source', document_id=invoice.id) }}"
+                            >
+                                <i class="bi bi-download"></i> Scarica XML/P7M
+                            </a>
                         </div>
                     </div>
                 </div>
@@ -457,16 +479,21 @@ document.addEventListener("DOMContentLoaded", () => {
     const trigger = document.querySelector("[data-preview-url]");
     const printBtn = document.getElementById("xml-print-btn");
     const printFrame = document.getElementById("xml-print-frame");
+    const shareBtn = document.getElementById("xml-share-btn");
+
+    const buildPreviewUrl = (baseUrl, highlight) => {
+        if (!baseUrl) return "";
+        const style = styleSelect ? (styleSelect.value || "ordinaria") : "ordinaria";
+        const url = new URL(baseUrl, window.location.origin);
+        url.searchParams.set("style", style);
+        if (highlight) {
+            url.searchParams.set("highlight", "1");
+        }
+        return url.toString();
+    };
 
     if (modal && frame && styleSelect && trigger) {
-        const buildUrl = () => {
-            const base = trigger.getAttribute("data-preview-url");
-            const style = styleSelect.value || "ordinaria";
-            const url = new URL(base, window.location.origin);
-            url.searchParams.set("style", style);
-            url.searchParams.set("highlight", "1");
-            return url.toString();
-        };
+        const buildUrl = () => buildPreviewUrl(trigger.getAttribute("data-preview-url"), true);
 
         modal.addEventListener("show.bs.modal", () => {
             frame.src = buildUrl();
@@ -487,8 +514,7 @@ document.addEventListener("DOMContentLoaded", () => {
         printBtn.addEventListener("click", () => {
             const base = printBtn.getAttribute("data-preview-url");
             if (!base) return;
-            const style = styleSelect ? (styleSelect.value || "ordinaria") : "ordinaria";
-            const url = `${base}?style=${encodeURIComponent(style)}`;
+            const url = buildPreviewUrl(base, false);
             printFrame.onload = () => {
                 if (printFrame.contentWindow) {
                     printFrame.contentWindow.focus();
@@ -496,6 +522,83 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
             };
             printFrame.src = url;
+        });
+    }
+
+    if (shareBtn) {
+        shareBtn.addEventListener("click", async () => {
+            const base = shareBtn.getAttribute("data-preview-url");
+            const pdfUrl = shareBtn.getAttribute("data-pdf-url");
+            const downloadUrl = shareBtn.getAttribute("data-download-url");
+            if (!base) return;
+            const url = buildPreviewUrl(base, false);
+            if (!url) return;
+
+            const buildPdfUrl = () => {
+                if (!pdfUrl) return "";
+                const style = styleSelect ? (styleSelect.value || "ordinaria") : "ordinaria";
+                const pdf = new URL(pdfUrl, window.location.origin);
+                pdf.searchParams.set("style", style);
+                return pdf.toString();
+            };
+
+            const toPdfName = (name) => {
+                const lowered = name.toLowerCase();
+                if (lowered.endsWith(".xml.p7m")) {
+                    return `${name.slice(0, -8)}.pdf`;
+                }
+                if (lowered.endsWith(".p7m")) {
+                    return `${name.slice(0, -4)}.pdf`;
+                }
+                if (lowered.endsWith(".xml")) {
+                    return `${name.slice(0, -4)}.pdf`;
+                }
+                return name.endsWith(".pdf") ? name : `${name}.pdf`;
+            };
+
+            if (navigator.share) {
+                try {
+                    const pdfTarget = buildPdfUrl();
+                    if (pdfTarget) {
+                        const response = await fetch(pdfTarget, { credentials: "same-origin" });
+                        if (response.ok) {
+                            const blob = await response.blob();
+                            const name =
+                                toPdfName(
+                                    shareBtn.getAttribute("data-file-name") || `document_${Date.now()}`
+                                );
+                            const file = new File([blob], name, {
+                                type: blob.type || "application/octet-stream",
+                            });
+                            if (!navigator.canShare || navigator.canShare({ files: [file] })) {
+                                await navigator.share({
+                                    title: shareBtn.getAttribute("data-share-title") || "Documento",
+                                    files: [file],
+                                });
+                                return;
+                            }
+                        }
+                    }
+                } catch (err) {
+                    // fallback below
+                }
+            }
+            const pdfTarget = buildPdfUrl();
+            if (pdfTarget) {
+                window.open(pdfTarget, "_blank", "noopener");
+                return;
+            }
+            if (printFrame) {
+                printFrame.onload = () => {
+                    if (printFrame.contentWindow) {
+                        printFrame.contentWindow.focus();
+                        printFrame.contentWindow.print();
+                    }
+                };
+                printFrame.src = url;
+                return;
+            }
+            window.open(url, "_blank", "noopener");
         });
     }
 });

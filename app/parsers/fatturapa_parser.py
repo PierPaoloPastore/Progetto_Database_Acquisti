@@ -197,7 +197,7 @@ def parse_invoice_xml(path: str | Path, *, validate_xsd: bool = False, logger: O
 
     # Gestione file P7M
     if _is_p7m_file(file_path):
-        xml_content = _extract_xml_from_p7m(file_path)
+        xml_content = _extract_xml_from_p7m(file_path, logger=logger)
         try:
             invoices = _parse_xml_bytes(
                 xml_content,
@@ -210,7 +210,7 @@ def parse_invoice_xml(path: str | Path, *, validate_xsd: bool = False, logger: O
             raise
 
         if _has_empty_invoices(invoices):
-            openssl_xml = _extract_xml_from_p7m_openssl(file_path)
+            openssl_xml = _extract_xml_from_p7m_openssl(file_path, logger=logger)
             if openssl_xml:
                 try:
                     openssl_invoices = _parse_xml_bytes(
@@ -637,7 +637,7 @@ def _is_p7m_file(file_path: Path) -> bool:
     return file_path.suffix.lower() in ['.p7m']
 
 
-def _extract_xml_from_p7m(p7m_path: Path) -> bytes:
+def _extract_xml_from_p7m(p7m_path: Path, *, logger: Optional[logging.Logger] = None) -> bytes:
     """
     Estrae il contenuto XML da un file P7M.
     
@@ -649,7 +649,7 @@ def _extract_xml_from_p7m(p7m_path: Path) -> bytes:
     :raises P7MExtractionError: se l'estrazione fallisce
     """
 
-    openssl_xml = _extract_xml_from_p7m_openssl(p7m_path)
+    openssl_xml = _extract_xml_from_p7m_openssl(p7m_path, logger=logger)
     if openssl_xml:
         return openssl_xml
 
@@ -680,24 +680,23 @@ def _extract_xml_from_p7m(p7m_path: Path) -> bytes:
 
         xml_end = _find_xml_end(decoded, xml_start)
         if xml_end <= xml_start:
-            head = repr(decoded[xml_start:xml_start+200])
-            raise P7MExtractionError(
-                f"Fine XML non trovata nel file P7M: file={p7m_path.name} size={len(data)} head_xml={head} path={path_used}"
-            )
+            candidate = _clean_xml_bytes(decoded[xml_start:])
+            candidate = _ensure_root_closed(candidate)
+            return candidate
 
         xml_content = decoded[xml_start:xml_end]
         xml_content = _clean_xml_bytes(xml_content)
         return xml_content
 
     except base64.binascii.Error as exc:
-        openssl_xml = _extract_xml_from_p7m_openssl(p7m_path)
+        openssl_xml = _extract_xml_from_p7m_openssl(p7m_path, logger=logger)
         if openssl_xml:
             return openssl_xml
         raise P7MExtractionError(
             f"Errore decodifica Base64 del file P7M: {exc}"
         ) from exc
     except Exception as exc:
-        openssl_xml = _extract_xml_from_p7m_openssl(p7m_path)
+        openssl_xml = _extract_xml_from_p7m_openssl(p7m_path, logger=logger)
         if openssl_xml:
             return openssl_xml
         raise P7MExtractionError(
@@ -705,18 +704,54 @@ def _extract_xml_from_p7m(p7m_path: Path) -> bytes:
         ) from exc
 
 
-def _extract_xml_from_p7m_openssl(p7m_path: Path) -> Optional[bytes]:
-    openssl_bin = os.environ.get("OPENSSL_BIN") or shutil.which("openssl")
+_OPENSSL_MISSING_LOGGED = False
+
+
+def _find_openssl_bin(*, logger: Optional[logging.Logger] = None) -> Optional[str]:
+    env_bin = os.environ.get("OPENSSL_BIN")
+    if env_bin and Path(env_bin).is_file():
+        return env_bin
+    openssl_bin = shutil.which("openssl")
+    if openssl_bin:
+        return openssl_bin
+    candidates = [
+        r"C:\Program Files\OpenSSL-Win64\bin\openssl.exe",
+        r"C:\Program Files\OpenSSL-Win32\bin\openssl.exe",
+        r"C:\Program Files (x86)\OpenSSL-Win64\bin\openssl.exe",
+        r"C:\Program Files (x86)\OpenSSL-Win32\bin\openssl.exe",
+        r"C:\OpenSSL-Win64\bin\openssl.exe",
+        r"C:\OpenSSL-Win32\bin\openssl.exe",
+    ]
+    for candidate in candidates:
+        if Path(candidate).is_file():
+            return candidate
+    global _OPENSSL_MISSING_LOGGED
+    if logger and not _OPENSSL_MISSING_LOGGED:
+        logger.warning(
+            "OpenSSL non trovato per estrazione P7M",
+            extra={"component": "fatturapa_parser", "hint": "Installa OpenSSL o imposta OPENSSL_BIN"},
+        )
+        _OPENSSL_MISSING_LOGGED = True
+    return None
+
+
+def _extract_xml_from_p7m_openssl(
+    p7m_path: Path, *, logger: Optional[logging.Logger] = None
+) -> Optional[bytes]:
+    openssl_bin = _find_openssl_bin(logger=logger)
     if not openssl_bin:
         return None
+    attempts = []
+    last_error = None
     for inform in ("DER", "PEM"):
-        try:
-            with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as tmp_out:
-                out_path = tmp_out.name
-            result = subprocess.run(
-                [
+        for mode in ("smime", "cms"):
+            out_path = None
+            try:
+                with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as tmp_out:
+                    out_path = tmp_out.name
+                cmd = [
                     openssl_bin,
-                    "smime",
+                    mode,
                     "-verify",
                     "-in",
                     str(p7m_path),
@@ -725,21 +760,40 @@ def _extract_xml_from_p7m_openssl(p7m_path: Path) -> Optional[bytes]:
                     "-noverify",
                     "-out",
                     out_path,
-                ],
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode == 0 and Path(out_path).is_file():
-                data = Path(out_path).read_bytes()
-                Path(out_path).unlink(missing_ok=True)
-                return _clean_xml_bytes(data)
-            Path(out_path).unlink(missing_ok=True)
-        except Exception:
-            try:
-                Path(out_path).unlink(missing_ok=True)
-            except Exception:
-                pass
-            continue
+                ]
+                result = subprocess.run(cmd, capture_output=True, text=True)
+                attempts.append(f"{mode}:{inform}:{result.returncode}")
+                if result.returncode == 0 and Path(out_path).is_file():
+                    data = Path(out_path).read_bytes()
+                    if data:
+                        Path(out_path).unlink(missing_ok=True)
+                        if logger:
+                            logger.info(
+                                "P7M estratto con OpenSSL",
+                                extra={
+                                    "component": "fatturapa_parser",
+                                    "file": p7m_path.name,
+                                    "mode": mode,
+                                    "inform": inform,
+                                },
+                            )
+                        return _clean_xml_bytes(data)
+                last_error = (result.stderr or result.stdout or "").strip() or last_error
+            except Exception as exc:
+                last_error = str(exc)
+            finally:
+                if out_path:
+                    Path(out_path).unlink(missing_ok=True)
+    if logger and attempts:
+        logger.warning(
+            "OpenSSL non ha estratto contenuto P7M",
+            extra={
+                "component": "fatturapa_parser",
+                "file": p7m_path.name,
+                "attempts": attempts[-4:],
+                "error": last_error,
+            },
+        )
     return None
 
 
@@ -758,8 +812,111 @@ def _clean_xml_bytes(data: bytes) -> bytes:
         if b < 0x20 and b not in allowed_ctrl:
             continue
         cleaned.append(b)
-    cleaned_bytes = _strip_invalid_tag_bytes(bytes(cleaned))
-    return _fix_broken_attributes(cleaned_bytes)
+    cleaned_bytes = bytes(cleaned)
+    cleaned_bytes = _escape_invalid_lt(cleaned_bytes)
+    cleaned_bytes = _escape_invalid_ampersands(cleaned_bytes)
+    cleaned_bytes = _strip_invalid_tag_bytes(cleaned_bytes)
+    cleaned_bytes = _fix_broken_attributes(cleaned_bytes)
+    cleaned_bytes = _fix_spaced_closing_tags(cleaned_bytes)
+    return _fix_truncated_tag_names(cleaned_bytes)
+
+
+def _fix_spaced_closing_tags(data: bytes) -> bytes:
+    """
+    Corregge tag di chiusura con spazi nel nome (es. </Prezzo Totale>).
+    """
+    pattern = re.compile(rb"</([A-Za-z0-9_.:-]+)\s+([A-Za-z0-9_.:-]+)>")
+    previous = None
+    current = data
+    while previous != current:
+        previous = current
+        current = pattern.sub(rb"</\1\2>", current)
+    return current
+
+
+def _ensure_root_closed(data: bytes) -> bytes:
+    """
+    Aggiunge il tag di chiusura root se manca (caso XML troncato).
+    """
+    match = re.match(rb"\s*<([A-Za-z_:][A-Za-z0-9_.:-]*)", data)
+    if not match:
+        return data
+    root = match.group(1)
+    closing = b"</" + root + b">"
+    if closing in data:
+        return data
+    return data + closing
+
+
+def _escape_invalid_lt(data: bytes) -> bytes:
+    """
+    Converte in &lt; i '<' che non iniziano un tag valido.
+    """
+    out = bytearray()
+    i = 0
+    length = len(data)
+    name_start = set(b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_:")
+    while i < length:
+        b = data[i]
+        if b != 0x3C:  # '<'
+            out.append(b)
+            i += 1
+            continue
+        if i + 1 >= length:
+            out.extend(b"&lt;")
+            i += 1
+            continue
+        next_b = data[i + 1]
+        if next_b in (0x2F, 0x3F, 0x21):  # '/', '?', '!'
+            out.append(b)
+            i += 1
+            continue
+        if next_b not in name_start:
+            out.extend(b"&lt;")
+            i += 1
+            continue
+
+        j = i + 1
+        in_quote: Optional[int] = None
+        found_gt = False
+        invalid = False
+        max_scan = 4096
+        while j < length and (j - i) <= max_scan:
+            current = data[j]
+            if in_quote:
+                if current == in_quote:
+                    in_quote = None
+            else:
+                if current in (0x22, 0x27):
+                    in_quote = current
+                elif current == 0x3E:  # '>'
+                    found_gt = True
+                    break
+                elif current == 0x3C:  # '<'
+                    invalid = True
+                    break
+            j += 1
+
+        if not found_gt or invalid:
+            out.extend(b"&lt;")
+            i += 1
+            continue
+
+        out.append(b)
+        i += 1
+    return bytes(out)
+
+
+_INVALID_AMPERSAND_RE = re.compile(
+    rb"&(?!#\d+;|#x[0-9A-Fa-f]+;|[A-Za-z][A-Za-z0-9]+;)"
+)
+
+
+def _escape_invalid_ampersands(data: bytes) -> bytes:
+    """
+    Escapa gli '&' non parte di entita' XML valide.
+    """
+    return _INVALID_AMPERSAND_RE.sub(b"&amp;", data)
 
 
 def _fix_broken_attributes(data: bytes) -> bytes:
@@ -791,10 +948,17 @@ def _fix_broken_attributes(data: bytes) -> bytes:
                     in_quote = current
                 elif current == 0x3E:  # '>'
                     break
+                elif current == 0x3C:  # '<'
+                    out.extend(b"&lt;")
+                    out.extend(data[start + 1:i])
+                    start = i
+                    i += 1
+                    continue
             i += 1
 
         if i >= length:
-            out.extend(data[start:])
+            out.extend(b"&lt;")
+            out.extend(data[start + 1:])
             break
 
         tag = data[start:i + 1]
@@ -879,44 +1043,63 @@ def _sanitize_tag_attributes(tag: bytes, allowed_name: set[int]) -> bytes:
                 out.extend(b" ")
             continue
 
-        out.extend(ws)
-        out.extend(clean_name)
-        out.extend(tag[ws_after_start:pos + 1])
         pos += 1
-
-        value_ws_start = pos
         while pos < end and tag[pos] in whitespace:
             pos += 1
-        out.extend(tag[value_ws_start:pos])
 
-        if pos >= end or tag[pos] in (0x2F, 0x3E):
-            out.extend(b'""')
-            continue
-
-        if tag[pos] in (0x22, 0x27):
-            quote = tag[pos]
-            out.append(quote)
-            pos += 1
-            while pos < end:
-                out.append(tag[pos])
-                if tag[pos] == quote:
+        value = b""
+        if pos < end and tag[pos] not in (0x2F, 0x3E):
+            if tag[pos] in (0x22, 0x27):
+                quote = tag[pos]
+                pos += 1
+                value_start = pos
+                while pos < end and tag[pos] != quote:
                     pos += 1
-                    break
-                pos += 1
-        else:
-            value_start = pos
-            while pos < end and tag[pos] not in whitespace + b"/>":
-                pos += 1
-            value = tag[value_start:pos]
-            if value:
-                out.extend(b'"')
-                out.extend(value)
-                out.extend(b'"')
+                value = tag[value_start:pos]
+                if pos < end and tag[pos] == quote:
+                    pos += 1
             else:
-                out.extend(b'""')
+                value_start = pos
+                while pos < end and tag[pos] not in whitespace + b"/>":
+                    pos += 1
+                value = tag[value_start:pos]
+
+        if clean_name.startswith(b"xmlns:") or clean_name == b"xmlns":
+            if any(c in value for c in (b" ", b"\t", b"\n", b"\r")):
+                continue
+
+        out.extend(ws)
+        out.extend(clean_name)
+        out.extend(b'="')
+        out.extend(value)
+        out.extend(b'"')
 
     out.append(0x3E)
     return bytes(out)
+
+
+_TRUNCATED_TAG_NAME_MAP = {
+    b"DataI": b"DataInizioPeriodo",
+    b"DataInizioPer": b"DataInizioPeriodo",
+    b"DataInizioP": b"DataInizioPeriodo",
+    b"Descr": b"Descrizione",
+    b"Aliqu": b"AliquotaIVA",
+    b"Prez": b"PrezzoTotale",
+    b"taglioLinee": b"DettaglioLinee",
+}
+
+
+def _fix_truncated_tag_names(data: bytes) -> bytes:
+    """
+    Ripristina tag troncati noti a causa di XML corrotti.
+    """
+    for short, full in _TRUNCATED_TAG_NAME_MAP.items():
+        pattern = re.compile(rb"<(/?)" + re.escape(short) + rb"(?=[\s>/])")
+        def _replace(match: re.Match[bytes]) -> bytes:
+            slash = match.group(1)
+            return b"<" + slash + full
+        data = pattern.sub(_replace, data)
+    return data
 
 
 def _strip_invalid_tag_bytes(data: bytes) -> bytes:
@@ -924,6 +1107,7 @@ def _strip_invalid_tag_bytes(data: bytes) -> bytes:
     Elimina byte non ASCII dai nomi dei tag (caso P7M con byte corrotti).
     """
     allowed = set(b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_:.-")
+    name_start = set(b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_:")
     out = bytearray()
     i = 0
     length = len(data)
@@ -934,13 +1118,15 @@ def _strip_invalid_tag_bytes(data: bytes) -> bytes:
             i += 1
             continue
 
-        out.append(b)
-        i += 1
-        if i >= length:
-            break
+        if i + 1 >= length:
+            out.extend(b"&lt;")
+            i += 1
+            continue
 
-        next_b = data[i]
+        next_b = data[i + 1]
         if next_b in (0x3F, 0x21):  # '?' o '!' (PI, commenti, doctype)
+            out.append(b)
+            i += 1
             while i < length:
                 out.append(data[i])
                 if data[i] == 0x3E:  # '>'
@@ -948,6 +1134,15 @@ def _strip_invalid_tag_bytes(data: bytes) -> bytes:
                     break
                 i += 1
             continue
+
+        check_index = i + 2 if next_b == 0x2F else i + 1
+        if check_index >= length or data[check_index] not in name_start:
+            out.extend(b"&lt;")
+            i += 1
+            continue
+
+        out.append(b)
+        i += 1
 
         if next_b == 0x2F:  # '/'
             out.append(next_b)

@@ -16,9 +16,12 @@ from flask import (
     url_for,
     flash,
     jsonify,
+    send_file,
+    abort,
 )
+from pathlib import Path
 
-from app.services import run_import_files
+from app.services import run_import, run_import_files
 from app.services.settings_service import get_xml_inbox_path
 
 import_bp = Blueprint("import", __name__)
@@ -54,6 +57,19 @@ def run_view():
         )
 
     # POST: esecuzione import
+    action = (request.form.get("import_action") or request.form.get("action") or "").strip()
+    if action == "server_folder":
+        summary = run_import(folder=default_folder)
+        session["last_import_summary"] = summary
+        if _wants_json_response():
+            return jsonify(summary)
+        flash(
+            f"Import da cartella completato. File totali: {summary['total_files']}, "
+            f"importati: {summary['imported']}, errori: {summary['errors']}.",
+            "info",
+        )
+        return redirect(url_for("import.run_view"))
+
     files = request.files.getlist("files")
     if not files or not any(f.filename for f in files):
         flash("Seleziona una cartella con file XML/P7M da importare.", "warning")
@@ -73,3 +89,21 @@ def run_view():
     )
 
     return redirect(url_for("import.run_view"))
+
+
+@import_bp.get("/report")
+def report_view():
+    path_value = (request.args.get("path") or "").strip()
+    if not path_value:
+        abort(404)
+
+    base_dir = Path(__file__).resolve().parents[2]
+    report_dir = (base_dir / "import_debug" / "import_reports").resolve()
+    candidate = (base_dir / path_value).resolve()
+
+    if not candidate.is_file():
+        abort(404)
+    if not candidate.is_relative_to(report_dir):
+        abort(404)
+
+    return send_file(candidate, mimetype="text/csv", as_attachment=False, download_name=candidate.name)
