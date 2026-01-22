@@ -135,6 +135,28 @@
                             </div>
 
                             <div class="accordion-item">
+                                <h2 class="accordion-header" id="settings-import-heading">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#settings-import" aria-expanded="false" aria-controls="settings-import">
+                                        <i class="bi bi-box-arrow-in-down me-2"></i> Importazione XML
+                                    </button>
+                                </h2>
+                                <div id="settings-import" class="accordion-collapse collapse" aria-labelledby="settings-import-heading" data-bs-parent="#settings-accordion">
+                                    <div class="accordion-body">
+                                        <div class="mb-0">
+                                            <label for="import_ddt_from_xml" class="form-label fw-bold">Crea DDT attesi dai DatiDDT dell'XML</label>
+                                            <select id="import_ddt_from_xml" name="import_ddt_from_xml" class="form-select">
+                                                <option value="1" {% if import_ddt_from_xml %}selected{% endif %}>Attivo (usa DatiDDT)</option>
+                                                <option value="0" {% if not import_ddt_from_xml %}selected{% endif %}>Disattivo</option>
+                                            </select>
+                                            <div class="form-text">
+                                                Se attivo, salva riferimenti DDT presenti nell'XML come DDT attesi per il match con le scansioni.
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="accordion-item">
                                 <h2 class="accordion-header" id="settings-format-heading">
                                     <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#settings-format" aria-expanded="false" aria-controls="settings-format">
                                         <i class="bi bi-sliders me-2"></i> Formattazione e Stile

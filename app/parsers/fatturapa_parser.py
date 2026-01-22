@@ -93,6 +93,14 @@ class VatSummaryDTO:
 
 
 @dataclass
+class DeliveryNoteDTO:
+    """Dati essenziali DDT (DatiDDT)."""
+
+    ddt_number: Optional[str] = None
+    ddt_date: Optional[date] = None
+
+
+@dataclass
 class PaymentDTO:
     """Dati di una scadenza/pagamento previsto (DettaglioPagamento)."""
 
@@ -139,6 +147,7 @@ class InvoiceDTO:
     lines: List[InvoiceLineDTO] = field(default_factory=list)
     vat_summaries: List[VatSummaryDTO] = field(default_factory=list)
     payments: List[PaymentDTO] = field(default_factory=list)
+    delivery_notes: List["DeliveryNoteDTO"] = field(default_factory=list)
     attachments: List["AttachmentDTO"] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
 
@@ -578,6 +587,7 @@ def _parse_xml_file(xml_path: Path, original_file_name: str, *, validate_xsd: bo
             general_rounding,
         ) = _parse_invoice_header(body, original_file_name)
 
+        delivery_notes_dto = _parse_delivery_notes(body)
         lines_dto = _parse_invoice_lines(body)
         vat_summaries_dto, total_taxable, total_vat = _parse_vat_summaries(body)
         payments_dto, main_due_date = _parse_payments(body)
@@ -616,6 +626,7 @@ def _parse_xml_file(xml_path: Path, original_file_name: str, *, validate_xsd: bo
             lines=lines_dto,
             vat_summaries=vat_summaries_dto,
             payments=payments_dto,
+            delivery_notes=delivery_notes_dto,
             attachments=attachments_dto,
             warnings=warnings,
         )
@@ -1388,6 +1399,39 @@ def _parse_invoice_header(body, original_file_name: str) -> tuple[
     invoice_series = None  # Manteniamo questo campo per possibili estensioni future
 
     return invoice_number, invoice_series, tipo_documento, invoice_date, currency, total_gross, general_rounding
+
+
+# ---------- DatiDDT ----------
+
+
+def _parse_delivery_notes(body) -> List[DeliveryNoteDTO]:
+    """
+    Estrae i DDT attesi (DatiDDT) presenti nel body.
+    """
+    notes: List[DeliveryNoteDTO] = []
+    if body is None:
+        return notes
+
+    ddt_nodes = body.xpath(".//*[local-name()='DatiDDT']")
+    for ddt_node in ddt_nodes:
+        ddt_number = _get_text(ddt_node, ".//*[local-name()='NumeroDDT']")
+        ddt_date = _to_date(_get_text(ddt_node, ".//*[local-name()='DataDDT']"))
+        if not ddt_number or not ddt_date:
+            continue
+        notes.append(DeliveryNoteDTO(ddt_number=ddt_number, ddt_date=ddt_date))
+
+    if not notes:
+        return notes
+
+    unique: List[DeliveryNoteDTO] = []
+    seen: set[tuple[str, date]] = set()
+    for note in notes:
+        key = (note.ddt_number, note.ddt_date)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(note)
+    return unique
 
 
 # ---------- DettaglioLinee ----------

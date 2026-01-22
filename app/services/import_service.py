@@ -8,6 +8,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import os
+import re
 import shutil
 import tempfile
 from pathlib import Path
@@ -109,9 +110,13 @@ def _run_import_paths(
         "errors": 0,
         "details": [],
     }
+    import_ddt_from_xml = settings_service.get_setting("IMPORT_DDT_FROM_XML", "1")
+    import_ddt_from_xml = str(import_ddt_from_xml).strip().lower() in {"1", "true", "yes", "on"}
 
     if not xml_files:
         _log_error_scan(logger, import_source, summary)
+
+    forced_legal_entity_id = legal_entity_id
 
     for xml_path in xml_files:
         file_name = xml_path.name
@@ -176,7 +181,7 @@ def _run_import_paths(
             continue
 
         header_data = _extract_header_data(xml_path, logger=logger)
-        current_legal_entity_id = legal_entity_id
+        current_legal_entity_id = forced_legal_entity_id
         archive_year = _resolve_archive_year(invoice_dtos)
 
         try:
@@ -198,12 +203,13 @@ def _run_import_paths(
         try:
             # Transazione Principale di Scrittura
             for invoice_dto in invoice_dtos:
+                if not import_ddt_from_xml and hasattr(invoice_dto, "delivery_notes"):
+                    invoice_dto.delivery_notes = []
                 with UnitOfWork() as uow:
                     # LegalEntity
                     if current_legal_entity_id is None:
                         legal_entity = _get_or_create_legal_entity(header_data, uow.session)
                         current_legal_entity_id = legal_entity.id
-                        legal_entity_id = current_legal_entity_id
 
                     # Duplicati per file_name/hash
                     existing_doc = uow.documents.find_existing(
@@ -301,6 +307,13 @@ def _extract_header_data(xml_path: Path, *, logger=None) -> Dict:
             return value or None
         return None
 
+    def _normalize_tax_id(value: Optional[str]) -> Optional[str]:
+        if not value:
+            return None
+        cleaned = re.sub(r"\s+", "", value).strip().upper()
+        cleaned = re.sub(r"[^A-Z0-9]", "", cleaned)
+        return cleaned or None
+
     def _parse_xml_bytes(xml_bytes: bytes):
         try:
             parser = etree.XMLParser(recover=True)
@@ -339,22 +352,50 @@ def _extract_header_data(xml_path: Path, *, logger=None) -> Dict:
 
     cc_node = _first(root, ".//*[local-name()='CessionarioCommittente']")
     if cc_node is None:
+        if logger:
+            logger.warning(
+                "CessionarioCommittente assente nell'XML",
+                extra={"component": "import_service", "file": xml_path.name},
+            )
         return header_data
 
-    name = _get_text(cc_node, ".//*[local-name()='Denominazione']") or _get_text(
-        cc_node, ".//*[local-name()='Nome']"
+    denominazione = _get_text(
+        cc_node,
+        "./*[local-name()='DatiAnagrafici']/*[local-name()='Anagrafica']/*[local-name()='Denominazione']",
     )
-    surname = _get_text(cc_node, ".//*[local-name()='Cognome']")
-    if not name and surname:
-        name = surname
+    nome = _get_text(
+        cc_node,
+        "./*[local-name()='DatiAnagrafici']/*[local-name()='Anagrafica']/*[local-name()='Nome']",
+    )
+    cognome = _get_text(
+        cc_node,
+        "./*[local-name()='DatiAnagrafici']/*[local-name()='Anagrafica']/*[local-name()='Cognome']",
+    )
+    if denominazione:
+        name = denominazione
+    elif nome or cognome:
+        name = " ".join(filter(None, [nome, cognome])).strip()
+    else:
+        name = None
 
     vat_number = _get_text(
-        cc_node, ".//*[local-name()='IdFiscaleIVA']/*[local-name()='IdCodice']"
+        cc_node,
+        "./*[local-name()='DatiAnagrafici']/*[local-name()='IdFiscaleIVA']/*[local-name()='IdCodice']",
     )
-    fiscal_code = _get_text(cc_node, ".//*[local-name()='CodiceFiscale']")
-    address = _get_text(cc_node, ".//*[local-name()='Sede']/*[local-name()='Indirizzo']")
-    city = _get_text(cc_node, ".//*[local-name()='Sede']/*[local-name()='Comune']")
-    country = _get_text(cc_node, ".//*[local-name()='Sede']/*[local-name()='Nazione']")
+    fiscal_code = _get_text(
+        cc_node, "./*[local-name()='DatiAnagrafici']/*[local-name()='CodiceFiscale']"
+    )
+    indirizzo = _get_text(
+        cc_node, "./*[local-name()='Sede']/*[local-name()='Indirizzo']"
+    )
+    numero_civico = _get_text(
+        cc_node, "./*[local-name()='Sede']/*[local-name()='NumeroCivico']"
+    )
+    address = indirizzo
+    if indirizzo and numero_civico:
+        address = f"{indirizzo} {numero_civico}"
+    city = _get_text(cc_node, "./*[local-name()='Sede']/*[local-name()='Comune']")
+    country = _get_text(cc_node, "./*[local-name()='Sede']/*[local-name()='Nazione']")
 
     header_data["cessionario_committente"] = {
         "name": name,
@@ -365,26 +406,82 @@ def _extract_header_data(xml_path: Path, *, logger=None) -> Dict:
         "country": country,
     }
 
+    if logger:
+        logger.info(
+            "CessionarioCommittente estratto",
+            extra={
+                "component": "import_service",
+                "source_file": xml_path.name,
+                "cc_name": name,
+                "vat_number": vat_number,
+                "fiscal_code": fiscal_code,
+                "vat_number_clean": _normalize_tax_id(vat_number),
+                "fiscal_code_clean": _normalize_tax_id(fiscal_code),
+                "address": address,
+                "city": city,
+                "country": country,
+            },
+        )
+
     return header_data
 
 
 def _get_or_create_legal_entity(header_data: Dict, session) -> LegalEntity:
     cessionario = (header_data or {}).get("cessionario_committente") or {}
-    vat_number = cessionario.get("vat_number") or cessionario.get("fiscal_code")
+
+    def _normalize_tax_id(value: Optional[str]) -> Optional[str]:
+        if not value:
+            return None
+        cleaned = re.sub(r"\s+", "", value).strip().upper()
+        cleaned = re.sub(r"[^A-Z0-9]", "", cleaned)
+        return cleaned or None
+
+    def _normalize_name(value: Optional[str]) -> str:
+        if not value:
+            return ""
+        return re.sub(r"[^A-Za-z0-9]+", "", value).lower()
+
+    name = (cessionario.get("name") or "").strip() or None
+    vat_number = _normalize_tax_id(cessionario.get("vat_number"))
+    fiscal_code = _normalize_tax_id(cessionario.get("fiscal_code"))
+    effective_vat = vat_number or fiscal_code
 
     existing = None
-    if cessionario.get("vat_number"):
-        existing = session.query(LegalEntity).filter_by(vat_number=cessionario["vat_number"]).first()
-    elif cessionario.get("fiscal_code"):
-        existing = session.query(LegalEntity).filter_by(fiscal_code=cessionario["fiscal_code"]).first()
+    if fiscal_code:
+        existing = session.query(LegalEntity).filter_by(fiscal_code=fiscal_code).first()
+        if existing is None and vat_number:
+            vat_match = session.query(LegalEntity).filter_by(vat_number=vat_number).first()
+            if vat_match and (not vat_match.fiscal_code or vat_match.fiscal_code == vat_match.vat_number):
+                existing = vat_match
+    elif vat_number:
+        existing = session.query(LegalEntity).filter_by(vat_number=vat_number).first()
 
     if existing:
+        updated = False
+        if name and _normalize_name(existing.name) != _normalize_name(name):
+            existing.name = name
+            updated = True
+        if fiscal_code and not existing.fiscal_code:
+            existing.fiscal_code = fiscal_code
+            updated = True
+        if vat_number and existing.vat_number != vat_number:
+            if existing.vat_number == (existing.fiscal_code or ""):
+                other = (
+                    session.query(LegalEntity)
+                    .filter(LegalEntity.vat_number == vat_number, LegalEntity.id != existing.id)
+                    .first()
+                )
+                if other is None:
+                    existing.vat_number = vat_number
+                    updated = True
+        if updated:
+            session.flush()
         return existing
 
     legal_entity = LegalEntity(
-        name=cessionario.get("name") or "Soggetto sconosciuto",
-        vat_number=vat_number,
-        fiscal_code=cessionario.get("fiscal_code"),
+        name=name or "Soggetto sconosciuto",
+        vat_number=effective_vat,
+        fiscal_code=fiscal_code,
         address=cessionario.get("address"),
         city=cessionario.get("city"),
         country=cessionario.get("country") or "IT",

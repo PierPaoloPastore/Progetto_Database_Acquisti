@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 import io
 from pathlib import Path
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from typing import Optional
 from flask import (
     Blueprint, render_template, render_template_string, request, redirect, url_for, flash, abort, send_file, current_app, jsonify
@@ -185,49 +185,194 @@ def list_view():
     filters = DocumentSearchFilters.from_query_args(request.args)
     sort_field = request.args.get("sort") or None
     sort_dir = request.args.get("dir") or "desc"
-    
-    documents = doc_service.search_documents(filters=filters, limit=300, document_type=None)
-    if sort_field in {"date", "number"}:
-        reverse = (sort_dir == "desc")
-        if sort_field == "date":
+
+    has_query_args = bool(request.args)
+    documents = []
+    if has_query_args:
+        documents = doc_service.search_documents(filters=filters, limit=300, document_type=None)
+        if sort_field in {"date", "number", "amount"}:
+            reverse = (sort_dir == "desc")
+            if sort_field == "date":
+                documents = sorted(
+                    documents,
+                    key=lambda d: d.document_date or date.min,
+                    reverse=reverse,
+                )
+            elif sort_field == "number":
+                documents = sorted(
+                    documents,
+                    key=lambda d: (d.document_number or "").lower(),
+                    reverse=reverse,
+                )
+            elif sort_field == "amount":
+                documents = sorted(
+                    documents,
+                    key=lambda d: d.total_gross_amount or 0,
+                    reverse=reverse,
+                )
+        else:
+            # Ordinamento di default: da rivedere -> verificati non pagati -> pagati/archiviati
+            status_priority = {
+                "pending_physical_copy": 0,
+                "verified": 1,
+                "archived": 2,
+            }
             documents = sorted(
                 documents,
-                key=lambda d: d.document_date or date.min,
-                reverse=reverse,
+                key=lambda d: (
+                    status_priority.get(d.doc_status, 5),
+                    0 if not getattr(d, "is_paid", False) else 1,
+                    -(d.document_date.toordinal() if d.document_date else date.min.toordinal()),
+                    -d.id,
+                ),
             )
-        elif sort_field == "number":
-            documents = sorted(
-                documents,
-                key=lambda d: (d.document_number or "").lower(),
-                reverse=reverse,
-            )
-    else:
-        # Ordinamento di default: da rivedere -> verificati non pagati -> pagati/archiviati
-        status_priority = {
-            "pending_physical_copy": 0,
-            "verified": 1,
-            "archived": 2,
-        }
-        documents = sorted(
-            documents,
-            key=lambda d: (
-                status_priority.get(d.doc_status, 5),
-                0 if not getattr(d, "is_paid", False) else 1,
-                -(d.document_date.toordinal() if d.document_date else date.min.toordinal()),
-                -d.id,
-            ),
-        )
 
     suppliers = list_active_suppliers()
     legal_entities = list_legal_entities(include_inactive=False)
     
     # FIX: Chiamata al service invece che al repo
     accounting_years = doc_service.get_accounting_years()
-    base_query_args = {k: v for k, v in request.args.to_dict().items() if k not in {"sort", "dir"}}
+    query_args = request.args.to_dict()
+    base_query_args = {k: v for k, v in query_args.items() if k not in {"sort", "dir"}}
     date_dir = "asc" if sort_field != "date" or sort_dir == "desc" else "desc"
     number_dir = "asc" if sort_field != "number" or sort_dir == "desc" else "desc"
+    amount_dir = "asc" if sort_field != "amount" or sort_dir == "desc" else "desc"
     date_url = url_for("documents.list_view", **base_query_args, sort="date", dir=date_dir)
     number_url = url_for("documents.list_view", **base_query_args, sort="number", dir=number_dir)
+    amount_url = url_for("documents.list_view", **base_query_args, sort="amount", dir=amount_dir)
+
+    today = date.today()
+    preset_links = {
+        "last_7": url_for(
+            "documents.list_view",
+            date_from=(today - timedelta(days=7)).isoformat(),
+            date_to=today.isoformat(),
+        ),
+        "last_30": url_for(
+            "documents.list_view",
+            date_from=(today - timedelta(days=30)).isoformat(),
+            date_to=today.isoformat(),
+        ),
+        "review": url_for("documents.list_view", doc_status="pending_physical_copy"),
+    }
+
+    supplier_lookup = {supplier.id: supplier.name for supplier in suppliers}
+    legal_entity_lookup = {entity.id: entity.name for entity in legal_entities}
+
+    def _fmt_date(value: Optional[date]) -> str:
+        if not value:
+            return "-"
+        return value.strftime("%d/%m/%Y")
+
+    active_filter_chips = []
+
+    def _add_chip(label: str, keys: list[str]) -> None:
+        next_args = dict(query_args)
+        for key in keys:
+            next_args.pop(key, None)
+        active_filter_chips.append(
+            {
+                "label": label,
+                "remove_url": url_for("documents.list_view", **next_args),
+            }
+        )
+
+    if filters.q:
+        _add_chip(f"Cerca: {filters.q}", ["q"])
+    if filters.document_number:
+        _add_chip(f"Numero: {filters.document_number}", ["document_number"])
+    if filters.document_type:
+        type_labels = {
+            "invoice": "Fatture",
+            "credit_note": "Note di credito",
+            "f24": "F24",
+            "insurance": "Assicurazioni",
+            "mav": "MAV",
+            "cbill": "CBILL",
+            "receipt": "Scontrini",
+            "rent": "Affitti",
+            "tax": "Tributi",
+            "other": "Altro",
+        }
+        label = type_labels.get(filters.document_type, filters.document_type)
+        _add_chip(f"Tipo: {label}", ["document_type", "type"])
+    if filters.date_from or filters.date_to:
+        _add_chip(
+            f"Data: {_fmt_date(filters.date_from)} - {_fmt_date(filters.date_to)}",
+            ["date_from", "date_to"],
+        )
+    if filters.accounting_year:
+        year_key = "accounting_year" if "accounting_year" in query_args else "year"
+        _add_chip(f"Anno: {filters.accounting_year}", [year_key])
+    if filters.supplier_id:
+        supplier_name = supplier_lookup.get(filters.supplier_id, f"ID {filters.supplier_id}")
+        _add_chip(f"Fornitore: {supplier_name}", ["supplier_id"])
+    if filters.legal_entity_id:
+        entity_name = legal_entity_lookup.get(filters.legal_entity_id, f"ID {filters.legal_entity_id}")
+        _add_chip(f"Intestatario: {entity_name}", ["legal_entity_id"])
+    if filters.category_id:
+        _add_chip(f"Categoria: ID {filters.category_id}", ["category_id"])
+    if filters.category_unassigned:
+        _add_chip("Senza categoria", ["category_unassigned"])
+    if filters.doc_status:
+        status_labels = {
+            "pending_physical_copy": "Da rivedere",
+            "verified": "Verificato",
+            "archived": "Archiviato",
+        }
+        _add_chip(f"Stato: {status_labels.get(filters.doc_status, filters.doc_status)}", ["doc_status"])
+    if filters.payment_status:
+        payment_labels = {
+            "unpaid": "Non pagato",
+            "partial": "Parziale",
+            "paid": "Pagato",
+        }
+        _add_chip(f"Pagamento: {payment_labels.get(filters.payment_status, filters.payment_status)}", ["payment_status"])
+    if filters.physical_copy_status:
+        physical_labels = {
+            "missing": "Mancante",
+            "requested": "Richiesta",
+            "received": "Ricevuta",
+        }
+        _add_chip(
+            f"Copia fisica: {physical_labels.get(filters.physical_copy_status, filters.physical_copy_status)}",
+            ["physical_copy_status"],
+        )
+    if filters.amount_value is not None:
+        operator_label = "<" if filters.amount_operator == "lt" else ">"
+        amount_value = format_amount(filters.amount_value)
+        _add_chip(
+            f"Importo {operator_label} {amount_value}",
+            ["amount_value", "amount_operator", "min_total", "max_total"],
+        )
+    elif filters.min_total is not None or filters.max_total is not None:
+        min_label = format_amount(filters.min_total) if filters.min_total is not None else "-"
+        max_label = format_amount(filters.max_total) if filters.max_total is not None else "-"
+        _add_chip(
+            f"Importo: {min_label} - {max_label}",
+            ["min_total", "max_total", "amount_value", "amount_operator"],
+        )
+
+    has_active_filters = len(active_filter_chips) > 0
+    has_advanced_filters = any(
+        [
+            filters.document_number,
+            filters.document_type,
+            filters.date_from,
+            filters.date_to,
+            filters.supplier_id,
+            filters.legal_entity_id,
+            filters.accounting_year,
+            filters.category_id,
+            filters.category_unassigned,
+            filters.doc_status,
+            filters.payment_status,
+            filters.physical_copy_status,
+            filters.amount_value is not None,
+            filters.min_total is not None,
+            filters.max_total is not None,
+        ]
+    )
 
     return render_template(
         "documents/list.html",
@@ -241,6 +386,12 @@ def list_view():
         base_query_args=base_query_args,
         date_url=date_url,
         number_url=number_url,
+        amount_url=amount_url,
+        preset_links=preset_links,
+        has_query_args=has_query_args,
+        has_active_filters=has_active_filters,
+        has_advanced_filters=has_advanced_filters,
+        active_filter_chips=active_filter_chips,
     )
 
 

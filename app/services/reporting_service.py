@@ -17,7 +17,16 @@ from app.services.unit_of_work import UnitOfWork
 class MonthlyReport:
     year: int
     values: List[float]
+    counts: List[int]
     total: float
+    total_documents: int
+    top_suppliers: List[dict | None]
+
+
+@dataclass
+class CategoryBreakdown:
+    total: float
+    rows: List[dict]
 
 
 def list_reporting_years() -> List[int]:
@@ -44,16 +53,23 @@ def list_document_types(year: int | None = None) -> List[str]:
     return [row[0] for row in rows if row[0]]
 
 
-def get_monthly_totals(year: int, doc_type_filter: str) -> MonthlyReport:
+def get_monthly_totals(
+    year: int,
+    doc_type_filter: str,
+    include_top_suppliers: bool = True,
+) -> MonthlyReport:
     if not year:
         year = date.today().year
 
     values = [0.0] * 12
+    counts = [0] * 12
+    top_suppliers: List[dict | None] = [None] * 12
     with UnitOfWork() as uow:
         query = (
             uow.session.query(
                 func.month(Document.document_date),
                 func.coalesce(func.sum(Document.total_gross_amount), 0),
+                func.count(Document.id),
             )
             .filter(Document.document_date.isnot(None))
             .filter(func.year(Document.document_date) == year)
@@ -65,13 +81,49 @@ def get_monthly_totals(year: int, doc_type_filter: str) -> MonthlyReport:
             .all()
         )
 
-    for month, total in rows:
+    for month, total, count in rows:
         idx = int(month) - 1
         if 0 <= idx < 12:
             values[idx] = float(total or 0)
+            counts[idx] = int(count or 0)
+
+    if include_top_suppliers:
+        with UnitOfWork() as uow:
+            top_query = (
+                uow.session.query(
+                    func.month(Document.document_date),
+                    Supplier.name,
+                    func.coalesce(func.sum(Document.total_gross_amount), 0),
+                )
+                .join(Supplier, Supplier.id == Document.supplier_id)
+                .filter(Document.document_date.isnot(None))
+                .filter(func.year(Document.document_date) == year)
+            )
+            top_query = _apply_type_filter(top_query, doc_type_filter)
+            top_rows = (
+                top_query.group_by(func.month(Document.document_date), Supplier.id, Supplier.name)
+                .order_by(func.month(Document.document_date), func.sum(Document.total_gross_amount).desc())
+                .all()
+            )
+
+        for month, name, total in top_rows:
+            idx = int(month) - 1
+            if 0 <= idx < 12 and top_suppliers[idx] is None:
+                top_suppliers[idx] = {
+                    "name": name,
+                    "total": float(total or 0),
+                }
 
     total_sum = float(sum(values))
-    return MonthlyReport(year=year, values=values, total=total_sum)
+    total_documents = int(sum(counts))
+    return MonthlyReport(
+        year=year,
+        values=values,
+        counts=counts,
+        total=total_sum,
+        total_documents=total_documents,
+        top_suppliers=top_suppliers,
+    )
 
 
 def get_status_counts(year: int, doc_type_filter: str) -> dict[str, int]:
@@ -124,7 +176,7 @@ def get_top_suppliers(year: int, doc_type_filter: str, limit: int = 5) -> List[d
     return results
 
 
-def get_category_breakdown(year: int, doc_type_filter: str, limit: int = 8) -> List[dict]:
+def get_category_breakdown(year: int, doc_type_filter: str, limit: int = 8) -> CategoryBreakdown:
     with UnitOfWork() as uow:
         query = (
             uow.session.query(
@@ -145,6 +197,15 @@ def get_category_breakdown(year: int, doc_type_filter: str, limit: int = 8) -> L
             .all()
         )
 
+        total_query = (
+            uow.session.query(func.coalesce(func.sum(DocumentLine.total_line_amount), 0))
+            .join(Document, Document.id == DocumentLine.document_id)
+            .filter(Document.document_date.isnot(None))
+            .filter(func.year(Document.document_date) == year)
+        )
+        total_query = _apply_type_filter(total_query, doc_type_filter)
+        total_sum = float(total_query.scalar() or 0)
+
     results = []
     for category_id, name, total in rows:
         results.append(
@@ -154,7 +215,7 @@ def get_category_breakdown(year: int, doc_type_filter: str, limit: int = 8) -> L
                 "total": float(total or 0),
             }
         )
-    return results
+    return CategoryBreakdown(total=total_sum, rows=results)
 
 
 def _apply_type_filter(query, doc_type_filter: str):

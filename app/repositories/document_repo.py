@@ -10,12 +10,18 @@ from typing import Dict, List, Optional, Tuple
 from calendar import monthrange
 import logging
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import joinedload
 
-from app.models import ImportLog, Document, DocumentLine, LegalEntity, Payment, Supplier, VatSummary
+from app.models import ImportLog, DeliveryNote, Document, DocumentLine, LegalEntity, Payment, Supplier, VatSummary
 from app.repositories.base import SqlAlchemyRepository
-from app.parsers.fatturapa_parser import InvoiceDTO, InvoiceLineDTO, PaymentDTO, VatSummaryDTO
+from app.parsers.fatturapa_parser import (
+    DeliveryNoteDTO,
+    InvoiceDTO,
+    InvoiceLineDTO,
+    PaymentDTO,
+    VatSummaryDTO,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +85,7 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
         self,
         *,
         document_type: Optional[str] = None,
+        q: Optional[str] = None,
         date_from: Optional[date] = None,
         date_to: Optional[date] = None,
         document_number: Optional[str] = None,
@@ -88,15 +95,31 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
         physical_copy_status: Optional[str] = None,
         legal_entity_id: Optional[int] = None,
         accounting_year: Optional[int] = None,
+        category_id: Optional[int] = None,
+        category_unassigned: bool = False,
         min_total: Optional[Decimal] = None,
         max_total: Optional[Decimal] = None,
         limit: Optional[int] = 200,
     ) -> List[Document]:
         """Ricerca documenti avanzata."""
         query = self.session.query(Document)
+        category_filter_applied = False
 
         if document_type:
             query = query.filter(Document.document_type == document_type)
+
+        search_text = (q or "").strip()
+        if search_text:
+            like_value = f"%{search_text}%"
+            query = query.outerjoin(Supplier, Document.supplier_id == Supplier.id)
+            query = query.outerjoin(LegalEntity, Document.legal_entity_id == LegalEntity.id)
+            query = query.filter(
+                or_(
+                    Document.document_number.ilike(like_value),
+                    Supplier.name.ilike(like_value),
+                    LegalEntity.name.ilike(like_value),
+                )
+            )
 
         if document_number:
             query = query.filter(Document.document_number.ilike(f"%{document_number}%"))
@@ -105,6 +128,15 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
             query = query.join(Payment, Payment.document_id == Document.id).filter(
                 Payment.status == payment_status
             )
+
+        if category_id is not None:
+            query = query.join(DocumentLine, DocumentLine.document_id == Document.id)
+            query = query.filter(DocumentLine.category_id == category_id)
+            category_filter_applied = True
+        elif category_unassigned:
+            query = query.join(DocumentLine, DocumentLine.document_id == Document.id)
+            query = query.filter(DocumentLine.category_id.is_(None))
+            category_filter_applied = True
 
         if legal_entity_id is not None:
             query = query.filter(Document.legal_entity_id == legal_entity_id)
@@ -129,7 +161,7 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
 
         query = query.order_by(Document.document_date.desc(), Document.id.desc())
 
-        if payment_status is not None:
+        if payment_status is not None or category_filter_applied:
             query = query.distinct()
 
         if limit is not None:
@@ -303,6 +335,16 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
             for vat_dto in invoice_dto.vat_summaries:
                 self._create_vat_summary(doc.id, vat_dto, sign=sign)
 
+        if invoice_dto.delivery_notes and not is_credit_note:
+            for ddt_dto in invoice_dto.delivery_notes:
+                self._create_expected_delivery_note(
+                    doc_id=doc.id,
+                    supplier_id=supplier_id,
+                    legal_entity_id=legal_entity_id,
+                    ddt_dto=ddt_dto,
+                    import_source=import_source,
+                )
+
         if invoice_dto.payments and not is_credit_note:
             for pay_dto in invoice_dto.payments:
                 self._create_payment(doc, pay_dto)
@@ -382,6 +424,30 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
             vat_nature=dto.vat_nature,
         )
         self.session.add(summary)
+
+    def _create_expected_delivery_note(
+        self,
+        *,
+        doc_id: int,
+        supplier_id: int,
+        legal_entity_id: int,
+        ddt_dto: DeliveryNoteDTO,
+        import_source: Optional[str],
+    ) -> None:
+        if not getattr(ddt_dto, "ddt_number", None) or not getattr(ddt_dto, "ddt_date", None):
+            return
+        note = DeliveryNote(
+            document_id=doc_id,
+            supplier_id=supplier_id,
+            legal_entity_id=legal_entity_id,
+            ddt_number=ddt_dto.ddt_number,
+            ddt_date=ddt_dto.ddt_date,
+            total_amount=None,
+            source="xml_expected",
+            status="unmatched",
+            import_source=import_source,
+        )
+        self.session.add(note)
 
     def _create_payment(self, doc: Document, dto: PaymentDTO):
         payment = Payment(

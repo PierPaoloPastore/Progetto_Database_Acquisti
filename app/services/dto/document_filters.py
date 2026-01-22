@@ -10,15 +10,19 @@ from typing import Any, Mapping, Optional
 
 @dataclass
 class DocumentSearchFilters:
+    q: Optional[str] = None
     date_from: Optional[date] = None
     date_to: Optional[date] = None
     document_number: Optional[str] = None
+    document_type: Optional[str] = None
     supplier_id: Optional[int] = None
     legal_entity_id: Optional[int] = None
     accounting_year: Optional[int] = None  # <--- RINOMINATO (era 'year')
     doc_status: Optional[str] = None
     physical_copy_status: Optional[str] = None
     payment_status: Optional[str] = None
+    category_id: Optional[int] = None
+    category_unassigned: bool = False
     amount_operator: str = "gt"
     amount_value: Optional[Decimal] = None
     min_total: Optional[Decimal] = None
@@ -53,6 +57,8 @@ class DocumentSearchFilters:
 
     @classmethod
     def from_query_args(cls, args: Mapping[str, Any]) -> "DocumentSearchFilters":
+        q_raw = (args.get("q") or "").strip()
+        doc_type_raw = (args.get("document_type") or args.get("type") or "").strip()
         document_number_raw = (args.get("document_number") or "").strip()
         amount_value = cls._parse_decimal(args.get("amount_value", ""))
         amount_operator = (args.get("amount_operator") or "").strip().lower()
@@ -75,15 +81,19 @@ class DocumentSearchFilters:
                 amount_value = max_total
                 amount_operator = "lt"
         return cls(
+            q=q_raw or None,
             date_from=cls._parse_date(args.get("date_from", "")),
             date_to=cls._parse_date(args.get("date_to", "")),
             document_number=document_number_raw or None,
+            document_type=doc_type_raw or None,
             supplier_id=cls._parse_int(args.get("supplier_id")),
             legal_entity_id=cls._parse_int(args.get("legal_entity_id")),
             accounting_year=cls._parse_int(args.get("accounting_year") or args.get("year")), # Mappiamo il parametro URL 'year' sull'attributo 'accounting_year'
             doc_status=(args.get("doc_status") or None),
             physical_copy_status=(args.get("physical_copy_status") or None),
             payment_status=(args.get("payment_status") or None),
+            category_id=cls._parse_int(args.get("category_id")),
+            category_unassigned=str(args.get("category_unassigned") or "").strip().lower() in {"1", "true", "yes", "on"},
             amount_operator=amount_operator,
             amount_value=amount_value,
             min_total=min_total,

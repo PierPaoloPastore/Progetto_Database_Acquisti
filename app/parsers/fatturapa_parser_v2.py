@@ -22,6 +22,7 @@ from xsdata.formats.dataclass.parsers.config import ParserConfig
 from app.parsers.xsd_generated import vfpa12, vfpr12, vfsm10
 from app.parsers.fatturapa_parser import (
     AttachmentDTO,
+    DeliveryNoteDTO,
     FatturaPAParseError,
     FatturaPASkipFile,
     InvoiceDTO,
@@ -259,6 +260,7 @@ def _map_body(body, supplier_dto: SupplierDTO, original_file_name: str) -> Invoi
     vat_summaries_dto, total_taxable, total_vat = _map_vat_summaries(body)
     payments_dto, main_due_date = _map_payments(body)
     attachments_dto = _map_attachments(body, warnings)
+    delivery_notes_dto = _map_delivery_notes(body)
 
     computed_total = total_gross_amount
     if computed_total is None and total_taxable is not None and total_vat is not None:
@@ -289,6 +291,7 @@ def _map_body(body, supplier_dto: SupplierDTO, original_file_name: str) -> Invoi
         lines=lines_dto,
         vat_summaries=vat_summaries_dto,
         payments=payments_dto,
+        delivery_notes=delivery_notes_dto,
         attachments=attachments_dto,
         warnings=warnings,
     )
@@ -389,6 +392,33 @@ def _map_payments(body) -> tuple[List[PaymentDTO], Optional[date]]:
                 main_due_date = due_date
 
     return payments, main_due_date
+
+
+def _map_delivery_notes(body) -> List[DeliveryNoteDTO]:
+    notes: List[DeliveryNoteDTO] = []
+    dati_generali = getattr(body, "dati_generali", None)
+    if not dati_generali:
+        return notes
+
+    for ddt in getattr(dati_generali, "dati_ddt", []) or []:
+        ddt_number = getattr(ddt, "numero_ddt", None)
+        ddt_date = _to_date(getattr(ddt, "data_ddt", None))
+        if not ddt_number or not ddt_date:
+            continue
+        notes.append(DeliveryNoteDTO(ddt_number=ddt_number, ddt_date=ddt_date))
+
+    if not notes:
+        return notes
+
+    unique: List[DeliveryNoteDTO] = []
+    seen: set[tuple[str, date]] = set()
+    for note in notes:
+        key = (note.ddt_number, note.ddt_date)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(note)
+    return unique
 
 
 def _map_attachments(body, warnings: List[str]) -> List[AttachmentDTO]:

@@ -94,8 +94,10 @@ def search_documents(
     document_type: Optional[str] = None
 ) -> List[Any]:
     with UnitOfWork() as uow:
+        doc_type = document_type or filters.document_type
         return uow.documents.search(
-            document_type=document_type,
+            document_type=doc_type,
+            q=filters.q,
             date_from=filters.date_from,
             date_to=filters.date_to,
             document_number=filters.document_number,
@@ -105,6 +107,8 @@ def search_documents(
             physical_copy_status=filters.physical_copy_status,
             legal_entity_id=filters.legal_entity_id,
             accounting_year=filters.accounting_year,
+            category_id=filters.category_id,
+            category_unassigned=filters.category_unassigned,
             min_total=filters.min_total,
             max_total=filters.max_total,
             limit=limit,

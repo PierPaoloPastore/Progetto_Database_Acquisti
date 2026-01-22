@@ -23,6 +23,8 @@ def index():
     xml_storage = get_setting("XML_STORAGE_PATH", "")
     payment_storage = get_setting("PAYMENT_FILES_STORAGE_PATH", "")
     ddt_storage = get_setting("DELIVERY_NOTE_STORAGE_PATH", "")
+    import_ddt_from_xml = get_setting("IMPORT_DDT_FROM_XML", "1")
+    import_ddt_from_xml = str(import_ddt_from_xml).strip().lower() in {"1", "true", "yes", "on"}
     default_xsl = get_setting("DEFAULT_XSL_STYLE", "asso")
     ocr_provider = get_setting("OCR_PROVIDER", "local")
     ocrspace_api_key = get_setting("OCRSPACE_API_KEY", "")
@@ -44,6 +46,7 @@ def index():
         xml_storage=xml_storage,
         payment_storage=payment_storage,
         ddt_storage=ddt_storage,
+        import_ddt_from_xml=import_ddt_from_xml,
         default_xsl=default_xsl,
         ocr_provider=ocr_provider,
         ocrspace_api_key=ocrspace_api_key,
@@ -68,6 +71,7 @@ def save_settings():
     xml_storage = request.form.get("xml_storage", "").strip()
     payment_storage = request.form.get("payment_storage", "").strip()
     ddt_storage = request.form.get("ddt_storage", "").strip()
+    import_ddt_from_xml = request.form.get("import_ddt_from_xml", "1").strip()
     default_xsl = request.form.get("default_xsl", "asso").strip() or "asso"
     ocr_provider = request.form.get("ocr_provider", "local").strip() or "local"
     ocrspace_api_key = request.form.get("ocrspace_api_key", "").strip()
@@ -79,6 +83,7 @@ def save_settings():
     schedule_group_by_supplier = "1" if schedule_group_by_supplier == "1" else "0"
     format_thousands_separator = request.form.get("format_thousands_separator", "0").strip()
     format_thousands_separator = "1" if format_thousands_separator == "1" else "0"
+    import_ddt_from_xml = "1" if import_ddt_from_xml == "1" else "0"
 
     set_setting("SCAN_INBOX_PATH", scan_inbox)
     set_setting("XML_INBOX_PATH", xml_inbox)
@@ -87,6 +92,7 @@ def save_settings():
     set_setting("XML_STORAGE_PATH", xml_storage)
     set_setting("PAYMENT_FILES_STORAGE_PATH", payment_storage)
     set_setting("DELIVERY_NOTE_STORAGE_PATH", ddt_storage)
+    set_setting("IMPORT_DDT_FROM_XML", import_ddt_from_xml)
     set_setting("DEFAULT_XSL_STYLE", default_xsl)
     set_setting("OCR_PROVIDER", ocr_provider)
     set_setting("OCRSPACE_API_KEY", ocrspace_api_key)

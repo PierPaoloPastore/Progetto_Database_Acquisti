@@ -3,28 +3,22 @@
 {% block title %}Reportistica - Gestionale Acquisti{% endblock %}
 
 {% block extra_css %}
-<style>
-    .report-card { border: 1px solid #e3e6ea; border-radius: 12px; }
-    .report-card .card-header { background: #ffffff; border-bottom: 1px solid #eef1f4; }
-    .chart-bar { fill: #1f6f43; }
-    .chart-bar.chart-negative { fill: #b42318; }
-    .chart-axis { stroke: #cbd5e1; stroke-width: 1; }
-    .chart-label { fill: #475569; font-size: 12px; }
-    .chart-value { fill: #111827; font-size: 12px; font-weight: 600; }
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/reports.css') }}">
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="row g-3 align-items-center mb-3">
-        <div class="col-lg-6">
+<div class="container-fluid reports-page">
+    <div class="reports-header">
+        <div class="reports-title">
             <h1 class="h3 mb-1">Reportistica</h1>
-            <div class="text-muted small">Sintesi operativa e trend dei documenti.</div>
+            <div class="reports-context">
+                Dati riferiti a <strong>{{ total_documents|format_int }}</strong> documenti - Ultimo aggiornamento: {{ last_updated }}
+            </div>
         </div>
-        <div class="col-lg-6">
-            <form method="get" class="d-flex flex-wrap justify-content-center align-items-center gap-2">
-                <label for="year" class="form-label mb-0 small text-muted">Anno</label>
-                <select id="year" name="year" class="form-select form-select-sm" onchange="this.form.submit()">
+        <form method="get" class="reports-filters">
+            <div class="filters-item">
+                <label for="year" class="form-label small text-muted mb-1">Anno</label>
+                <select id="year" name="year" class="form-select form-select-sm">
                     {% if years %}
                         {% for y in years %}
                             <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
@@ -33,70 +27,101 @@
                         <option value="{{ year }}" selected>{{ year }}</option>
                     {% endif %}
                 </select>
-                <label for="type" class="form-label mb-0 small text-muted">Tipo</label>
-                <select id="type" name="type" class="form-select form-select-sm" onchange="this.form.submit()">
+            </div>
+            <div class="filters-item">
+                <label for="type" class="form-label small text-muted mb-1">Tipo</label>
+                <select id="type" name="type" class="form-select form-select-sm">
                     {% for opt in type_options %}
                         <option value="{{ opt.value }}" {% if opt.value == doc_type_filter %}selected{% endif %}>{{ opt.label }}</option>
                     {% endfor %}
                 </select>
-            </form>
+            </div>
+            <div class="filters-actions">
+                <button type="submit" class="btn btn-sm btn-primary">Aggiorna</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="row g-3 reports-kpis">
+        <div class="col-sm-6 col-lg-3">
+            <div class="card report-card report-card-link">
+                <div class="card-body position-relative">
+                    <div class="kpi-label">Totale netto</div>
+                    <div class="kpi-value">&euro; {{ total_net }}</div>
+                    <div class="kpi-sub">
+                        {% if delta_amount is not none and delta_percent is not none %}
+                            <span class="report-delta {% if delta_percent < 0 %}is-negative{% else %}is-positive{% endif %}">
+                                {{ "+" if delta_percent > 0 else "" }}{{ delta_percent|round(1) }}% ({{ delta_amount }})
+                            </span>
+                            <span class="text-muted">vs {{ year - 1 }}</span>
+                        {% else %}
+                            <span class="text-muted">Delta n/d</span>
+                        {% endif %}
+                    </div>
+                    <a class="stretched-link" href="{{ links.total_net }}" aria-label="Vai ai documenti"></a>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card report-card report-card-link">
+                <div class="card-body position-relative">
+                    <div class="kpi-label">Documenti</div>
+                    <div class="kpi-value">{{ total_documents|format_int }}</div>
+                    <div class="kpi-sub">Media &euro; {{ average_per_document }}</div>
+                    <a class="stretched-link" href="{{ links.documents }}" aria-label="Vai ai documenti"></a>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card report-card">
+                <div class="card-body">
+                    <div class="kpi-label">Da revisionare</div>
+                    <div class="kpi-value">{{ pending_count|format_int }}</div>
+                    <div class="kpi-sub">
+                        <a class="btn btn-sm btn-outline-primary" href="{{ links.pending }}">Vedi documenti</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card report-card report-card-link">
+                <div class="card-body position-relative">
+                    <div class="kpi-label">Verificati</div>
+                    <div class="kpi-value">{{ verified_count|format_int }}</div>
+                    <div class="kpi-sub">{{ verified_percent|round(1) }}% del totale</div>
+                    <a class="stretched-link" href="{{ links.verified }}" aria-label="Vai ai documenti"></a>
+                </div>
+            </div>
         </div>
     </div>
 
-    <div class="row g-3 mb-4">
-        <div class="col-sm-6 col-lg-3">
-            <div class="card report-card shadow-sm">
-                <div class="card-body">
-                    <div class="text-muted small">Totale netto</div>
-                    <div class="h4 mb-0">&euro; {{ total_net }}</div>
-                </div>
+    <div class="card report-card shadow-sm mb-3">
+        <div class="card-header reports-card-header">
+            <div>
+                <h5 class="mb-1">Totale netto per mese</h5>
+                <div class="text-muted small">Media mensile: &euro; {{ chart.avg_label }}</div>
             </div>
-        </div>
-        <div class="col-sm-6 col-lg-3">
-            <div class="card report-card shadow-sm">
-                <div class="card-body">
-                    <div class="text-muted small">Documenti</div>
-                    <div class="h4 mb-0">{{ total_documents|format_int }}</div>
-                </div>
+            <div class="reports-badges">
+                <span class="badge text-bg-light">Max {{ chart.max_label }} - &euro; {{ chart.max_total }}</span>
+                <span class="badge text-bg-light">Min {{ chart.min_label }} - &euro; {{ chart.min_total }}</span>
             </div>
-        </div>
-        <div class="col-sm-6 col-lg-3">
-            <div class="card report-card shadow-sm">
-                <div class="card-body">
-                    <div class="text-muted small">Da revisionare</div>
-                    <div class="h4 mb-0">{{ status_counts.pending_physical_copy|format_int }}</div>
-                </div>
-            </div>
-        </div>
-        <div class="col-sm-6 col-lg-3">
-            <div class="card report-card shadow-sm">
-                <div class="card-body">
-                    <div class="text-muted small">Verificati</div>
-                    <div class="h4 mb-0">{{ status_counts.verified|format_int }}</div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="card report-card shadow-sm mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">Totale netto per mese</h5>
-            <span class="badge bg-light text-dark">Max {{ chart.max_value }}</span>
         </div>
         <div class="card-body">
-            <div class="mb-2 small text-muted">Valori negativi in rosso.</div>
-            <div class="w-100 overflow-auto">
+            <div class="reports-note small text-muted">Valori negativi in rosso.</div>
+            <div class="reports-chart">
                 <svg viewBox="0 0 {{ chart.width }} {{ chart.height + 28 }}" class="w-100" role="img" aria-label="Totale netto per mese">
                     <line x1="0" y1="{{ chart.base_y }}" x2="{{ chart.width }}" y2="{{ chart.base_y }}" class="chart-axis"></line>
                     {% for bar in chart.bars %}
                         <rect
-                            class="chart-bar {% if bar.is_negative %}chart-negative{% endif %}"
+                            class="chart-bar {% if bar.is_negative %}chart-negative{% endif %} {% if bar.is_max %}chart-peak{% endif %} {% if bar.is_min %}chart-low{% endif %}"
                             x="{{ bar.x }}"
                             y="{{ bar.y }}"
                             width="{{ bar.width }}"
                             height="{{ bar.height }}"
                             rx="4"
-                        ></rect>
+                        >
+                            <title>{{ bar.tooltip }}</title>
+                        </rect>
                         <text x="{{ bar.x + (bar.width / 2) }}" y="{{ chart.base_y + 16 }}" text-anchor="middle" class="chart-label">{{ bar.label }}</text>
                     {% endfor %}
                 </svg>
@@ -104,64 +129,78 @@
         </div>
     </div>
 
-    <div class="card report-card shadow-sm mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center">
+    <div class="card report-card shadow-sm mb-3">
+        <div class="card-header reports-card-header">
             <h5 class="mb-0">Spesa per categoria</h5>
-            <span class="text-muted small">Top {{ category_chart.bars|length|format_int }}</span>
+            {% if not categories_empty %}
+                <span class="text-muted small">Top {{ category_rows|length|format_int }}</span>
+            {% endif %}
         </div>
         <div class="card-body">
-            <div class="mb-2 small text-muted">Valori negativi in rosso.</div>
-            <div class="w-100 overflow-auto">
-                <svg viewBox="0 0 {{ category_chart.width }} {{ category_chart.height }}" class="w-100" role="img" aria-label="Spesa per categoria">
-                    {% for bar in category_chart.bars %}
-                        <text x="0" y="{{ bar.y + 15 }}" class="chart-label">
-                            <title>{{ bar.full_label }}</title>
-                            {{ bar.label }}
-                        </text>
-                        <rect
-                            class="chart-bar {% if bar.is_negative %}chart-negative{% endif %}"
-                            x="{{ bar.x }}"
-                            y="{{ bar.y }}"
-                            width="{{ bar.width }}"
-                            height="{{ bar.height }}"
-                            rx="4"
-                        ></rect>
-                        <text x="{{ bar.x + bar.width + 8 }}" y="{{ bar.y + 15 }}" class="chart-value">&euro; {{ bar.value }}</text>
-                    {% else %}
-                        <text x="0" y="24" class="chart-label">Nessun dato disponibile.</text>
+            {% if categories_empty %}
+                <div class="reports-empty">
+                    <div class="empty-title">Nessuna spesa per categoria</div>
+                    <div class="empty-text">Le categorie non risultano assegnate.</div>
+                    <a class="btn btn-sm btn-primary" href="{{ links.uncategorized }}">Assegna categorie</a>
+                </div>
+            {% else %}
+                <div class="category-list">
+                    {% for row in category_rows %}
+                        <div class="category-row position-relative">
+                            <div class="category-main">
+                                <div>
+                                    <div class="category-name">{{ row.name }}</div>
+                                    <div class="category-meta">Quota {{ row.percent|round(1) }}%</div>
+                                </div>
+                                <div class="category-amount">&euro; {{ row.total|format_amount }}</div>
+                            </div>
+                            <div class="category-progress">
+                                <div class="progress">
+                                    <div class="progress-bar" role="progressbar" style="width: {{ row.percent|round(1) }}%" aria-valuenow="{{ row.percent|round(1) }}" aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                            </div>
+                            <a class="stretched-link" href="{{ row.url }}" aria-label="Apri categoria {{ row.name }}"></a>
+                        </div>
                     {% endfor %}
-                </svg>
-            </div>
+                </div>
+            {% endif %}
         </div>
     </div>
 
     <div class="card report-card shadow-sm">
-        <div class="card-header d-flex justify-content-between align-items-center">
+        <div class="card-header reports-card-header">
             <h5 class="mb-0">Top fornitori per importo</h5>
-            <span class="text-muted small">Top {{ top_suppliers|length|format_int }}</span>
+            {% if top_suppliers|length > 0 %}
+                <span class="text-muted small">Top {{ top_suppliers|length|format_int }}</span>
+            {% endif %}
         </div>
         <div class="card-body">
             <div class="table-responsive">
-                <table class="table table-sm align-middle">
+                <table class="table table-sm align-middle report-table">
                     <thead>
                         <tr>
                             <th>Fornitore</th>
                             <th class="text-end">Totale</th>
+                            <th class="text-end">% sul totale</th>
+                            <th class="text-end">Media &euro;/doc</th>
                             <th class="text-end">Documenti</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for row in top_suppliers %}
-                            <tr>
+                            <tr class="report-row position-relative">
                                 <td>
-                                    <a href="{{ url_for('suppliers.detail_view', supplier_id=row.supplier_id) }}">{{ row.name }}</a>
+                                    {{ row.name }}
+                                    <a class="stretched-link" href="{{ row.url }}" aria-label="Apri documenti di {{ row.name }}"></a>
                                 </td>
                                 <td class="text-end">&euro; {{ row.total|format_amount }}</td>
+                                <td class="text-end">{{ row.percent|round(1) }}%</td>
+                                <td class="text-end">&euro; {{ row.avg|format_amount }}</td>
                                 <td class="text-end">{{ row.documents|format_int }}</td>
                             </tr>
                         {% else %}
                             <tr>
-                                <td colspan="3" class="text-center text-muted">Nessun dato disponibile.</td>
+                                <td colspan="5" class="text-center text-muted">Nessun dato disponibile.</td>
                             </tr>
                         {% endfor %}
                     </tbody>
