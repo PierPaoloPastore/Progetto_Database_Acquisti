@@ -214,6 +214,21 @@ def update_document_status(document_id: int, doc_status: str, due_date: Optional
             uow.commit()
         return doc
 
+def mark_documents_as_programmed(document_ids: List[int]) -> int:
+    if not document_ids:
+        return 0
+    ids = [int(doc_id) for doc_id in document_ids if doc_id]
+    if not ids:
+        return 0
+    with UnitOfWork() as uow:
+        updated = (
+            uow.session.query(Document)
+            .filter(Document.id.in_(ids))
+            .update({Document.print_status: "programmed"}, synchronize_session=False)
+        )
+        uow.commit()
+        return int(updated or 0)
+
 def confirm_document(document_id: int):
     with UnitOfWork() as uow:
         doc = uow.documents.get_by_id(document_id)

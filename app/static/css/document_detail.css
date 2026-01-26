@@ -2,16 +2,50 @@
 
 .document-detail .page-header {
     margin-bottom: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    flex-wrap: wrap;
 }
 
-.document-detail .page-actions {
+.document-detail .header-main h1 {
+    margin-bottom: 0.2rem;
+}
+
+.document-detail .header-context {
+    font-size: 0.85rem;
+}
+
+.document-detail .header-actions {
     align-items: center;
     display: flex;
     gap: 0.5rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.document-detail .nav-group {
+    display: flex;
+    gap: 0.4rem;
 }
 
 .document-detail .status-badge {
     text-transform: none;
+}
+
+.document-detail .header-status {
+    font-size: 0.85rem;
+    padding: 0.35rem 0.85rem;
+}
+
+.document-detail .status-badge.is-link {
+    border: none;
+    cursor: pointer;
+}
+
+.document-detail button.status-badge {
+    border: none;
 }
 
 .document-detail .card {
@@ -46,6 +80,16 @@
     min-height: 64px;
 }
 
+.document-detail .summary-item.primary {
+    border-color: #d3e1f2;
+    background: #f8fbff;
+}
+
+.document-detail .summary-item.secondary .value {
+    color: #4b5563;
+    font-weight: 500;
+}
+
 .document-detail .summary-item .label {
     display: block;
     color: #56606b;
@@ -64,6 +108,13 @@
 
 .document-detail .summary-item .text-muted {
     font-weight: 400;
+}
+
+.document-detail .summary-item .hint {
+    display: block;
+    color: #6c757d;
+    font-size: 0.72rem;
+    margin-top: 0.2rem;
 }
 
 .document-detail .copy-request-btn {
@@ -108,9 +159,70 @@
     padding: 0.75rem;
 }
 
+.document-detail .count-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.1rem 0.5rem;
+    margin-left: 0.5rem;
+    border-radius: 999px;
+    background: #e9eef5;
+    color: #2c3e50;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
 .document-detail .scrollable-list {
     max-height: 55vh;
     padding: 0.5rem;
+}
+
+.document-detail .table-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.35rem 0.4rem 0.6rem;
+    background: #ffffff;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    border-bottom: 1px solid #eef1f4;
+}
+
+.document-detail .lines-missing {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+}
+
+.document-detail .badge-missing {
+    background: #fff3e0;
+    color: #8a5a00;
+    border: 1px solid #f1d2a5;
+}
+
+.document-detail tr.line-missing {
+    background: #fffaf2;
+}
+
+.document-detail tr.line-missing td:first-child {
+    border-left: 3px solid #f0ad4e;
+}
+
+.document-detail .table-bottom-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 0.5rem;
+}
+
+.document-detail .empty-state {
+    background: #f8f9fa;
+    border-radius: 6px;
+    color: #6c757d;
+    font-size: 0.85rem;
+    padding: 0.75rem;
 }
 
 .document-detail .table-compact th {
@@ -125,18 +237,56 @@
     padding: 0.75rem;
 }
 
-.document-detail .compact-grid {
+.document-detail .quick-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    grid-template-columns: minmax(280px, 1fr) minmax(280px, 1fr);
     gap: 1rem;
+}
+
+.document-detail .quick-section {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 0.75rem;
+    background: #ffffff;
+}
+
+.document-detail .quick-title {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: #4a5568;
+    margin-bottom: 0.6rem;
+}
+
+.document-detail .quick-actions-footer {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 0.6rem;
+}
+
+.document-detail .updated-hint {
+    font-size: 0.75rem;
+    color: #6c757d;
 }
 
 .document-detail .physical-copy-block .status-badge {
     font-size: 0.7rem;
 }
 
+.document-detail .scroll-highlight {
+    outline: 2px solid #9dc1ff;
+    outline-offset: 2px;
+    transition: outline 0.2s ease;
+}
+
 @media (max-width: 992px) {
     .document-detail .scrollable-list {
         max-height: 60vh;
+    }
+
+    .document-detail .quick-grid {
+        grid-template-columns: 1fr;
     }
 }

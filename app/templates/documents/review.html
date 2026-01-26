@@ -1,74 +1,7 @@
 {% extends "base.html" %}
 
 {% block extra_css %}
-<style>
-.review-compact .form-label {
-    font-size: 0.75rem;
-    font-weight: 700;
-    margin-bottom: 0.15rem;
-}
-.review-compact .form-control,
-.review-compact .form-select,
-.review-compact .input-group-text {
-    font-size: 0.8rem;
-    padding: 0.25rem 0.45rem;
-}
-.review-compact textarea.form-control {
-    min-height: 64px;
-}
-.review-split {
-    display: flex;
-    flex: 1 1 auto;
-    min-height: 0;
-}
-.review-pane-left {
-    flex: 1 1 auto;
-    min-width: 360px;
-}
-.review-pane-right {
-    flex: 0 0 var(--review-viewer-width, 55%);
-    min-width: 360px;
-    max-width: 75%;
-}
-.review-splitter {
-    flex: 0 0 6px;
-    cursor: col-resize;
-    background: #e5e5e5;
-    touch-action: none;
-}
-.review-splitter:hover {
-    background: #c9c9c9;
-}
-.review-splitter::after {
-    content: "";
-    display: block;
-    width: 2px;
-    height: 48px;
-    margin: 8px auto;
-    background: #a9a9a9;
-    border-radius: 2px;
-}
-.review-resizing {
-    cursor: col-resize;
-    user-select: none;
-}
-.review-resizing #xsl-preview-frame {
-    pointer-events: none;
-}
-@media (max-width: 992px) {
-    .review-split {
-        flex-direction: column;
-    }
-    .review-pane-right {
-        flex: 1 1 auto;
-        max-width: 100%;
-        min-width: 0;
-    }
-    .review-splitter {
-        display: none;
-    }
-}
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/document_review.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -104,32 +37,70 @@
             {% endif %}
 
             <form method="POST" action="{{ url_for('documents.review_loop_invoice_view', document_id=invoice.id) }}">
-                <input type="hidden" name="action" value="review">
                 <h5 class="text-primary border-bottom pb-2 mb-3">Modifica Dati Documento</h5>
                 <input type="hidden" name="invoice_id" value="{{ invoice.id }}">
 
                 <div class="row g-2">
-                    <div class="col-12 col-lg-6">
-                        <label class="form-label fw-bold">Intestatario</label>
-                        <select name="legal_entity_id" id="legal-entity-id" class="form-select form-select-sm">
+                    <div class="col-12 col-lg-6 js-compare-group">
+                        <label class="form-label fw-bold d-flex align-items-center gap-1">
+                            Intestatario
+                            <span class="field-indicator" aria-hidden="true"><i class="bi bi-check-circle-fill"></i></span>
+                        </label>
+                        <select name="legal_entity_id"
+                                id="legal-entity-id"
+                                class="form-select form-select-sm js-compare-field"
+                                data-compare-type="select"
+                                data-expected="{{ invoice.legal_entity_id or '' }}"
+                                data-expected-display="{{ invoice.legal_entity.name if invoice.legal_entity else '' }}">
                             <option value="">Seleziona intestatario</option>
                             {% for le in legal_entities %}
                                 <option value="{{ le.id }}" {% if invoice.legal_entity_id == le.id %}selected{% endif %}>{{ le.name }}</option>
                             {% endfor %}
                         </select>
+                        <div class="field-expected small text-muted review-expected-inline"></div>
                     </div>
-                    <div class="col-12 col-lg-6">
-                        <label class="form-label fw-bold">Nome intestatario</label>
-                        <input type="text" name="legal_entity_name" id="legal-entity-name" class="form-control form-control-sm" value="{{ invoice.legal_entity.name if invoice.legal_entity else '' }}">
+                    <div class="col-12 col-lg-6 js-compare-group">
+                        <label class="form-label fw-bold d-flex align-items-center gap-1">
+                            Nome intestatario
+                            <span class="field-indicator" aria-hidden="true"><i class="bi bi-check-circle-fill"></i></span>
+                        </label>
+                        <input type="text"
+                               name="legal_entity_name"
+                               id="legal-entity-name"
+                               class="form-control form-control-sm js-compare-field"
+                               data-compare-type="text"
+                               data-expected="{{ invoice.legal_entity.name if invoice.legal_entity else '' }}"
+                               value="{{ invoice.legal_entity.name if invoice.legal_entity else '' }}">
                         <div class="form-text small">Aggiorna il nome dell'intestatario selezionato.</div>
+                        <div class="field-expected small text-muted review-expected-inline"></div>
                     </div>
-                    <div class="col-12 col-lg-6">
-                        <label class="form-label fw-bold">Numero Documento</label>
-                        <input type="text" name="document_number" class="form-control form-control-sm" value="{{ invoice.document_number or '' }}" required>
+                    <div class="col-12 col-lg-6 js-compare-group">
+                        <label class="form-label fw-bold d-flex align-items-center gap-1">
+                            Numero Documento
+                            <span class="field-indicator" aria-hidden="true"><i class="bi bi-check-circle-fill"></i></span>
+                        </label>
+                        <input type="text"
+                               name="document_number"
+                               class="form-control form-control-sm js-compare-field"
+                               data-compare-type="text"
+                               data-expected="{{ invoice.document_number or '' }}"
+                               value="{{ invoice.document_number or '' }}"
+                               required>
+                        <div class="field-expected small text-muted review-expected-inline"></div>
                     </div>
-                    <div class="col-6 col-lg-3">
-                        <label class="form-label fw-bold">Data Documento</label>
-                        <input type="date" name="document_date" class="form-control form-control-sm" value="{{ invoice.document_date }}">
+                    <div class="col-6 col-lg-3 js-compare-group">
+                        <label class="form-label fw-bold d-flex align-items-center gap-1">
+                            Data Documento
+                            <span class="field-indicator" aria-hidden="true"><i class="bi bi-check-circle-fill"></i></span>
+                        </label>
+                        <input type="date"
+                               name="document_date"
+                               class="form-control form-control-sm js-compare-field"
+                               data-compare-type="date"
+                               data-expected="{{ invoice.document_date or '' }}"
+                               data-expected-display="{{ invoice.document_date.strftime('%d/%m/%Y') if invoice.document_date else '' }}"
+                               value="{{ invoice.document_date }}">
+                        <div class="field-expected small text-muted review-expected-inline"></div>
                     </div>
                     <div class="col-6 col-lg-3">
                         <label class="form-label fw-bold">Registrazione</label>
@@ -148,24 +119,55 @@
                             <option value="archived">Archiviata</option>
                         </select>
                     </div>
-                    <div class="col-6 col-lg-3">
-                        <label class="form-label fw-bold">Imponibile</label>
-                        <input type="number" step="0.01" name="total_taxable_amount" class="form-control form-control-sm text-end" value="{{ invoice.total_taxable_amount }}">
+                    <div class="col-6 col-lg-3 js-compare-group">
+                        <label class="form-label fw-bold d-flex align-items-center gap-1">
+                            Imponibile
+                            <span class="field-indicator" aria-hidden="true"><i class="bi bi-check-circle-fill"></i></span>
+                        </label>
+                        <input type="number"
+                               step="0.01"
+                               name="total_taxable_amount"
+                               class="form-control form-control-sm text-end js-compare-field js-format-decimal"
+                               data-compare-type="number"
+                               data-expected="{{ invoice.total_taxable_amount or '' }}"
+                               value="{{ invoice.total_taxable_amount }}">
+                        <div class="field-expected small text-muted review-expected-inline"></div>
                     </div>
-                    <div class="col-6 col-lg-3">
-                        <label class="form-label fw-bold">IVA</label>
-                        <input type="number" step="0.01" name="total_vat_amount" class="form-control form-control-sm text-end" value="{{ invoice.total_vat_amount }}">
+                    <div class="col-6 col-lg-3 js-compare-group">
+                        <label class="form-label fw-bold d-flex align-items-center gap-1">
+                            IVA
+                            <span class="field-indicator" aria-hidden="true"><i class="bi bi-check-circle-fill"></i></span>
+                        </label>
+                        <input type="number"
+                               step="0.01"
+                               name="total_vat_amount"
+                               class="form-control form-control-sm text-end js-compare-field js-format-decimal"
+                               data-compare-type="number"
+                               data-expected="{{ invoice.total_vat_amount or '' }}"
+                               value="{{ invoice.total_vat_amount }}">
+                        <div class="field-expected small text-muted review-expected-inline"></div>
                     </div>
-                    <div class="col-12 col-lg-4">
-                        <label class="form-label fw-bold">Importo Totale</label>
+                    <div class="col-12 col-lg-4 js-compare-group">
+                        <label class="form-label fw-bold d-flex align-items-center gap-1">
+                            Importo Totale
+                            <span class="field-indicator" aria-hidden="true"><i class="bi bi-check-circle-fill"></i></span>
+                        </label>
                         <div class="input-group input-group-sm">
                             <span class="input-group-text">€</span>
-                            <input type="number" step="0.01" name="total_gross_amount" class="form-control fw-bold text-end" value="{{ invoice.total_gross_amount }}" required>
+                            <input type="number"
+                                   step="0.01"
+                                   name="total_gross_amount"
+                                   class="form-control fw-bold text-end js-compare-field js-format-decimal"
+                                   data-compare-type="number"
+                                   data-expected="{{ invoice.total_gross_amount or '' }}"
+                                   value="{{ invoice.total_gross_amount }}"
+                                   required>
                         </div>
+                        <div class="field-expected small text-muted review-expected-inline"></div>
                     </div>
                     <div class="col-12 col-lg-8">
                         <label class="form-label fw-bold">Note</label>
-                        <textarea name="note" rows="2" class="form-control form-control-sm" placeholder="Annotazioni interne">{{ invoice.note or '' }}</textarea>
+                        <textarea name="note" rows="2" class="form-control form-control-sm js-autoresize" placeholder="Annotazioni interne">{{ invoice.note or '' }}</textarea>
                     </div>
                 </div>
 
@@ -173,97 +175,140 @@
                     <small><i class="bi bi-exclamation-triangle"></i> Verifica che i dati corrispondano al documento a destra.</small>
                 </div>
 
-                <div class="d-flex flex-wrap gap-2 mt-3">
-                    <button type="submit" class="btn btn-success btn-sm shadow-sm">
+                <div class="d-flex flex-wrap gap-2 mt-3 review-actions">
+                    <button type="submit" class="btn btn-success btn-sm shadow-sm" id="confirm-next" name="action" value="review">
                         <i class="bi bi-check-circle-fill"></i> Conferma & Prossima
                     </button>
-                    <button type="submit"
-                            class="btn btn-danger btn-sm"
-                            formmethod="post"
-                            formaction="{{ url_for('documents.delete_document', document_id=invoice.id) }}"
-                            onclick="return confirm('Scartare ed eliminare questo documento?');">
+                    <button type="submit" class="btn btn-outline-secondary btn-sm" id="save-stay" name="action" value="save">
+                        <i class="bi bi-save"></i> Salva e resta qui
+                    </button>
+                    <button type="button" class="btn btn-danger btn-sm" id="discard-trigger">
                         <i class="bi bi-trash"></i> Scarta (elimina)
                     </button>
+                    {% if saved_at %}
+                        <span class="review-save-indicator" id="save-indicator">Salvato alle {{ saved_at }}</span>
+                    {% endif %}
                 </div>
             </form>
 
             <div class="mt-4 pt-3 border-top">
-                <h6 class="text-muted small text-uppercase fw-bold">Copia fisica</h6>
-                <div class="d-flex flex-wrap align-items-center gap-2">
-                    {% if invoice.physical_copy_file_path %}
-                        <a class="btn btn-outline-primary btn-sm" href="{{ url_for('documents.view_physical_copy', document_id=invoice.id) }}" target="_blank">
-                            <i class="bi bi-file-earmark-pdf"></i> Copia fisica
-                        </a>
+                {% set physical_count = 1 if invoice.physical_copy_file_path else 0 %}
+                <button class="review-collapse-toggle d-flex align-items-center justify-content-between"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#review-physical-copy"
+                        aria-expanded="{{ 'true' if physical_count else 'false' }}"
+                        aria-controls="review-physical-copy">
+                    <span>Copia fisica</span>
+                    {% if physical_count %}
+                        <span class="badge bg-secondary">1 allegato</span>
                     {% endif %}
-                    <form method="POST" action="{{ url_for('documents.review_loop_invoice_view', document_id=invoice.id) }}" enctype="multipart/form-data" class="d-flex flex-wrap gap-2 align-items-center">
-                        <input type="hidden" name="action" value="upload_physical_copy">
-                        <input type="file" name="physical_copy_file" accept="application/pdf" class="form-control form-control-sm" style="max-width: 220px;">
-                        <button type="submit" class="btn btn-sm btn-success">Allega copia</button>
-                    </form>
+                </button>
+                <div id="review-physical-copy" class="collapse review-collapse-body {% if physical_count %}show{% endif %}">
+                    <div class="d-flex flex-wrap align-items-center gap-2">
+                        {% if invoice.physical_copy_file_path %}
+                            <a class="btn btn-outline-primary btn-sm" href="{{ url_for('documents.view_physical_copy', document_id=invoice.id) }}" target="_blank" rel="noopener">
+                                <i class="bi bi-file-earmark-pdf"></i> Copia fisica
+                            </a>
+                        {% endif %}
+                        <form method="POST" action="{{ url_for('documents.review_loop_invoice_view', document_id=invoice.id) }}" enctype="multipart/form-data" class="d-flex flex-wrap gap-2 align-items-center">
+                            <input type="hidden" name="action" value="upload_physical_copy">
+                            <input type="file" name="physical_copy_file" accept="application/pdf" class="form-control form-control-sm" style="max-width: 220px;">
+                            <button type="submit" class="btn btn-sm btn-success">Allega copia</button>
+                        </form>
+                    </div>
                 </div>
             </div>
 
             <div class="mt-4 pt-3 border-top">
-                <h6 class="text-muted small text-uppercase fw-bold">DDT</h6>
-                <form method="POST" action="{{ url_for('documents.review_loop_invoice_view', document_id=invoice.id) }}" class="d-flex flex-wrap align-items-center gap-2">
-                    <input type="hidden" name="action" value="match_ddt">
-                    <select name="delivery_note_id" class="form-select form-select-sm" style="min-width: 220px;">
-                        <option value="">Seleziona DDT del fornitore</option>
-                        {% for ddt in ddt_candidates %}
-                            <option value="{{ ddt.id }}">{{ ddt.ddt_number }} • {{ ddt.ddt_date.strftime('%d/%m/%Y') if ddt.ddt_date else '-' }} ({{ ddt.status }})</option>
-                        {% endfor %}
-                    </select>
-                    <select name="ddt_status" class="form-select form-select-sm" style="max-width: 140px;">
-                        <option value="matched" selected>matched</option>
-                        <option value="linked">linked</option>
-                    </select>
-                    <button type="submit" class="btn btn-sm btn-outline-primary">
-                        <i class="bi bi-link-45deg"></i> Abbina DDT
-                    </button>
-                </form>
-                <div class="mt-2">
-                    <strong>DDT collegati:</strong>
-                    <div class="table-responsive scrollable-list" style="max-height: 200px;">
-                        <table class="table table-compact mb-0">
-                            <thead>
-                                <tr>
-                                    <th>Data</th>
-                                    <th>Numero</th>
-                                    <th>Stato</th>
-                                    <th>PDF</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for ddt in linked_ddt %}
+                {% set ddt_count = linked_ddt|length %}
+                <button class="review-collapse-toggle d-flex align-items-center justify-content-between"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#review-ddt"
+                        aria-expanded="{{ 'true' if ddt_count else 'false' }}"
+                        aria-controls="review-ddt">
+                    <span>DDT</span>
+                    {% if ddt_count %}
+                        <span class="badge bg-secondary">{{ ddt_count }} collegati</span>
+                    {% endif %}
+                </button>
+                <div id="review-ddt" class="collapse review-collapse-body {% if ddt_count %}show{% endif %}">
+                    <form method="POST" action="{{ url_for('documents.review_loop_invoice_view', document_id=invoice.id) }}" class="d-flex flex-wrap align-items-center gap-2">
+                        <input type="hidden" name="action" value="match_ddt">
+                        <select name="delivery_note_id" class="form-select form-select-sm" style="min-width: 220px;">
+                            <option value="">Seleziona DDT del fornitore</option>
+                            {% for ddt in ddt_candidates %}
+                                <option value="{{ ddt.id }}">{{ ddt.ddt_number }} • {{ ddt.ddt_date.strftime('%d/%m/%Y') if ddt.ddt_date else '-' }} ({{ ddt.status }})</option>
+                            {% endfor %}
+                        </select>
+                        <select name="ddt_status" class="form-select form-select-sm" style="max-width: 140px;">
+                            <option value="matched" selected>matched</option>
+                            <option value="linked">linked</option>
+                        </select>
+                        <button type="submit" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-link-45deg"></i> Abbina DDT
+                        </button>
+                    </form>
+                    <div class="mt-2">
+                        <strong>DDT collegati:</strong>
+                        <div class="table-responsive scrollable-list" style="max-height: 200px;">
+                            <table class="table table-compact mb-0">
+                                <thead>
                                     <tr>
-                                        <td>{{ ddt.ddt_date.strftime('%d/%m/%Y') if ddt.ddt_date else '-' }}</td>
-                                        <td class="fw-bold">{{ ddt.ddt_number }}</td>
-                                        <td><span class="status-badge status-{{ ddt.status }}">{{ ddt.status }}</span></td>
-                                        <td>
-                                            {% if ddt.file_path %}
-                                                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('delivery_notes.file_view', delivery_note_id=ddt.id) }}" target="_blank">
-                                                    <i class="bi bi-file-earmark-pdf"></i>
-                                                </a>
-                                            {% else %}
-                                                <span class="text-muted small">-</span>
-                                            {% endif %}
-                                        </td>
+                                        <th>Data</th>
+                                        <th>Numero</th>
+                                        <th>Stato</th>
+                                        <th>PDF</th>
                                     </tr>
-                                {% else %}
-                                    <tr>
-                                        <td colspan="4" class="text-center text-muted py-2">Nessun DDT collegato.</td>
-                                    </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    {% for ddt in linked_ddt %}
+                                        <tr>
+                                            <td>{{ ddt.ddt_date.strftime('%d/%m/%Y') if ddt.ddt_date else '-' }}</td>
+                                            <td class="fw-bold">{{ ddt.ddt_number }}</td>
+                                            <td><span class="status-badge status-{{ ddt.status }}">{{ ddt.status }}</span></td>
+                                            <td>
+                                                {% if ddt.file_path %}
+                                                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('delivery_notes.file_view', delivery_note_id=ddt.id) }}" target="_blank" rel="noopener">
+                                                        <i class="bi bi-file-earmark-pdf"></i>
+                                                    </a>
+                                                {% else %}
+                                                    <span class="text-muted small">-</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    {% else %}
+                                        <tr>
+                                            <td colspan="4" class="text-center text-muted py-2">Nessun DDT collegato.</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="review-splitter" aria-hidden="true"></div>
+        <div class="review-splitter" aria-hidden="true" role="separator" tabindex="0" title="Ridimensiona pannelli"></div>
 
         <div class="review-pane-right p-0 bg-white d-flex flex-column" style="height: calc(100vh - 50px);">
+            <div class="review-toolbar d-flex align-items-center gap-1" id="preview-toolbar">
+                <button type="button" class="btn btn-outline-secondary" data-action="zoom-out" title="Zoom -">
+                    <i class="bi bi-dash-lg"></i>
+                </button>
+                <button type="button" class="btn btn-outline-secondary" data-action="zoom-in" title="Zoom +">
+                    <i class="bi bi-plus-lg"></i>
+                </button>
+                <button type="button" class="btn btn-outline-secondary" data-action="fit-width">
+                    Adatta larghezza
+                </button>
+                <span class="toolbar-divider" aria-hidden="true"></span>
+                <a class="btn btn-outline-secondary" id="preview-open" target="_blank" rel="noopener">
+                    Apri in nuova finestra
+                </a>
+            </div>
             <iframe id="xsl-preview-frame"
                     src="{{ url_for('documents.preview_visual', document_id=invoice.id, style=default_xsl or 'asso', highlight=1) }}"
                     class="w-100 flex-grow-1 border-0"
@@ -274,71 +319,45 @@
     </div>
 </div>
 
+<div class="modal fade" id="discardModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <form method="POST" action="{{ url_for('documents.delete_document', document_id=invoice.id) }}" class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Scarta documento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted mb-3">Conferma eliminazione e scegli un motivo rapido.</p>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="discard_reason" id="discard-duplicate" value="duplicate">
+                    <label class="form-check-label" for="discard-duplicate">Duplicato</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="discard_reason" id="discard-invalid" value="invalid">
+                    <label class="form-check-label" for="discard-invalid">Non pertinente</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="discard_reason" id="discard-unreadable" value="unreadable">
+                    <label class="form-check-label" for="discard-unreadable">Illeggibile</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="discard_reason" id="discard-other" value="other">
+                    <label class="form-check-label" for="discard-other">Altro</label>
+                </div>
+                <div class="review-discard-note d-none mt-2">
+                    <label class="form-label small">Dettagli</label>
+                    <textarea id="discard-reason-other" name="discard_reason_note" class="form-control form-control-sm" rows="2" placeholder="Aggiungi un dettaglio"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Annulla</button>
+                <button type="submit" class="btn btn-danger btn-sm" id="discard-confirm" disabled>Scarta definitivamente</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 {% block extra_js %}
-<script>
-document.addEventListener("DOMContentLoaded", () => {
-    const selector = document.getElementById("xsl-style-selector");
-    const frame = document.getElementById("xsl-preview-frame");
-    if (!selector || !frame) return;
-
-    selector.addEventListener("change", () => {
-        const style = selector.value || "ordinaria";
-        const url = new URL(frame.src, window.location.origin);
-        url.searchParams.set("style", style);
-        url.searchParams.set("highlight", "1");
-        frame.src = url.toString();
-    });
-
-    const split = document.querySelector(".review-split");
-    const splitter = document.querySelector(".review-splitter");
-    if (!split || !splitter) return;
-
-    let dragging = false;
-    let activePointerId = null;
-    const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
-    const updateWidth = (clientX) => {
-        const rect = split.getBoundingClientRect();
-        const rightWidth = rect.right - clientX;
-        const pct = rightWidth / rect.width;
-        const clamped = clamp(pct, 0.35, 0.75);
-        split.style.setProperty("--review-viewer-width", `${Math.round(clamped * 100)}%`);
-    };
-
-    splitter.addEventListener("pointerdown", (event) => {
-        dragging = true;
-        activePointerId = event.pointerId;
-        document.body.classList.add("review-resizing");
-        splitter.setPointerCapture(event.pointerId);
-        updateWidth(event.clientX);
-        event.preventDefault();
-    });
-
-    splitter.addEventListener("pointermove", (event) => {
-        if (!dragging || event.pointerId !== activePointerId) return;
-        updateWidth(event.clientX);
-    });
-
-    const stopDragging = (event) => {
-        if (!dragging || event.pointerId !== activePointerId) return;
-        dragging = false;
-        activePointerId = null;
-        document.body.classList.remove("review-resizing");
-        splitter.releasePointerCapture(event.pointerId);
-    };
-
-    splitter.addEventListener("pointerup", stopDragging);
-    splitter.addEventListener("pointercancel", stopDragging);
-
-    const entitySelect = document.getElementById("legal-entity-id");
-    const entityName = document.getElementById("legal-entity-name");
-    if (entitySelect && entityName) {
-        entitySelect.addEventListener("change", () => {
-            const selected = entitySelect.options[entitySelect.selectedIndex];
-            if (!selected || !selected.value) return;
-            entityName.value = (selected.textContent || "").trim();
-        });
-    }
-});
-</script>
+<script src="{{ url_for('static', filename='js/document_review.js') }}"></script>
 {% endblock %}
 {% endblock %}

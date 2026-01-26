@@ -36,6 +36,33 @@ documents_bp = Blueprint("documents", __name__)
 
 ALLOWED_PHYSICAL_COPY_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "tif", "tiff"}
 _HIGHLIGHT_TRUE_VALUES = {"1", "true", "yes", "on"}
+_LIST_QUERY_KEYS = {
+    "q",
+    "date_from",
+    "date_to",
+    "document_number",
+    "document_type",
+    "type",
+    "supplier_id",
+    "legal_entity_id",
+    "accounting_year",
+    "year",
+    "doc_status",
+    "physical_copy_status",
+    "payment_status",
+    "category_id",
+    "category_unassigned",
+    "amount_operator",
+    "amount_value",
+    "min_total",
+    "max_total",
+    "sort",
+    "dir",
+}
+
+
+def _extract_list_query_args(args) -> dict:
+    return {key: value for key, value in args.items() if key in _LIST_QUERY_KEYS and value not in (None, "")}
 
 def _is_allowed_file(filename: str) -> bool:
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_PHYSICAL_COPY_EXTENSIONS
@@ -384,6 +411,7 @@ def list_view():
         sort_field=sort_field,
         sort_dir=sort_dir,
         base_query_args=base_query_args,
+        detail_query_args=query_args,
         date_url=date_url,
         number_url=number_url,
         amount_url=amount_url,
@@ -480,6 +508,21 @@ def review_loop_invoice_view(document_id: int):
             else:
                 flash("Documento confermato e passato al successivo.", "success")
                 return redirect(url_for("documents.review_loop_redirect_view"))
+        elif action == "save":
+            success, message = DocumentService.review_and_confirm(document_id, request.form.to_dict())
+            if not success:
+                if message == "Documento non trovato": abort(404)
+                flash(message, "danger")
+            else:
+                saved_at = datetime.now().strftime("%H:%M")
+                flash(f"Documento salvato alle {saved_at}.", "success")
+                return redirect(
+                    url_for(
+                        "documents.review_loop_invoice_view",
+                        document_id=document_id,
+                        saved_at=saved_at,
+                    )
+                )
         elif action == "match_ddt":
             delivery_note_id = request.form.get("delivery_note_id")
             status = request.form.get("ddt_status") or "matched"
@@ -520,6 +563,7 @@ def review_loop_invoice_view(document_id: int):
         )
     linked_ddt = list_delivery_notes_by_document(document_id) if document else []
     legal_entities = list_legal_entities(include_inactive=False)
+    saved_at = request.args.get("saved_at") or None
     return render_template(
         'documents/review.html',
         invoice=document,
@@ -528,6 +572,7 @@ def review_loop_invoice_view(document_id: int):
         ddt_candidates=ddt_candidates,
         linked_ddt=linked_ddt,
         legal_entities=legal_entities,
+        saved_at=saved_at,
     )
 
 @documents_bp.route("/review/<int:document_id>/delete", methods=["POST"])
@@ -806,6 +851,95 @@ def detail_view(document_id: int):
     if remaining_amount < 0:
         remaining_amount = 0.0
     detail["remaining_amount"] = remaining_amount
+    detail["updated_at"] = request.args.get("updated_at")
+
+    list_query_args = _extract_list_query_args(request.args)
+    detail["list_query_args"] = list_query_args
+    detail["back_url"] = (
+        url_for("documents.list_view", **list_query_args)
+        if list_query_args
+        else url_for("documents.list_view")
+    )
+
+    lines = detail.get("lines") or []
+    detail["missing_category_count"] = sum(1 for line in lines if not getattr(line, "category_id", None))
+
+    prev_url = None
+    next_url = None
+    if list_query_args:
+        filters = DocumentSearchFilters.from_query_args(list_query_args)
+        sort_field = list_query_args.get("sort") or None
+        sort_dir = list_query_args.get("dir") or "desc"
+        documents = doc_service.search_documents(filters=filters, limit=300, document_type=None)
+        if sort_field in {"date", "number", "amount"}:
+            reverse = sort_dir == "desc"
+            if sort_field == "date":
+                documents = sorted(
+                    documents,
+                    key=lambda d: d.document_date or date.min,
+                    reverse=reverse,
+                )
+            elif sort_field == "number":
+                documents = sorted(
+                    documents,
+                    key=lambda d: (d.document_number or "").lower(),
+                    reverse=reverse,
+                )
+            elif sort_field == "amount":
+                documents = sorted(
+                    documents,
+                    key=lambda d: d.total_gross_amount or 0,
+                    reverse=reverse,
+                )
+        else:
+            status_priority = {
+                "pending_physical_copy": 0,
+                "verified": 1,
+                "archived": 2,
+            }
+            documents = sorted(
+                documents,
+                key=lambda d: (
+                    status_priority.get(d.doc_status, 5),
+                    0 if not getattr(d, "is_paid", False) else 1,
+                    -(d.document_date.toordinal() if d.document_date else date.min.toordinal()),
+                    -d.id,
+                ),
+            )
+        doc_ids = [doc.id for doc in documents]
+        if document_id in doc_ids:
+            idx = doc_ids.index(document_id)
+            if idx > 0:
+                prev_url = url_for(
+                    "documents.detail_view",
+                    document_id=documents[idx - 1].id,
+                    **list_query_args,
+                )
+            if idx < len(documents) - 1:
+                next_url = url_for(
+                    "documents.detail_view",
+                    document_id=documents[idx + 1].id,
+                    **list_query_args,
+                )
+
+    if prev_url is None:
+        prev_doc = Document.query.filter(Document.id < document_id).order_by(Document.id.desc()).first()
+        if prev_doc:
+            prev_url = url_for(
+                "documents.detail_view",
+                document_id=prev_doc.id,
+                **list_query_args,
+            )
+    if next_url is None:
+        next_doc = Document.query.filter(Document.id > document_id).order_by(Document.id.asc()).first()
+        if next_doc:
+            next_url = url_for(
+                "documents.detail_view",
+                document_id=next_doc.id,
+                **list_query_args,
+            )
+    detail["prev_url"] = prev_url
+    detail["next_url"] = next_url
 
     return render_template("documents/detail.html", **detail)
 
@@ -859,15 +993,20 @@ def update_status_view(document_id: int):
     note = request.form.get("note")
 
     doc = doc_service.update_document_status(document_id=document_id, doc_status=doc_status, due_date=due_date, note=note)
+    updated_at = None
     if doc is None:
         flash("Documento non trovato.", "danger")
     else:
+        updated_at = datetime.now().strftime("%H:%M")
         flash("Stato aggiornato con successo.", "success")
 
     next_url = request.form.get("next") or request.args.get("next")
     if next_url and _is_safe_next(next_url):
         return redirect(next_url)
-    return redirect(url_for("documents.detail_view", document_id=document_id))
+    redirect_args = _extract_list_query_args(request.args)
+    if updated_at:
+        redirect_args["updated_at"] = updated_at
+    return redirect(url_for("documents.detail_view", document_id=document_id, **redirect_args))
 
 
 def _is_safe_next(target: str) -> bool:

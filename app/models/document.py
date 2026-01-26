@@ -53,6 +53,9 @@ class Document(db.Model):
     # Stato documento (colonne comuni)
     doc_status = db.Column(db.String(32), nullable=False, default="pending_physical_copy", index=True)
 
+    # Stato stampa documento (programmata)
+    print_status = db.Column(db.String(32), nullable=False, default="not_printed", index=True)
+
     # --- CAMPO NUOVO (per gestione pagamenti) ---
     is_paid = db.Column(db.Boolean, nullable=False, default=False, index=True)
     # --------------------------------------------

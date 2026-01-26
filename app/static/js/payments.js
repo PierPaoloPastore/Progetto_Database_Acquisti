@@ -13,6 +13,7 @@ function setupTabSwitching() {
     const params = new URLSearchParams(window.location.search);
     const forcedTab = params.get("tab");
     const presetDocId = params.get("document_id");
+    const presetDocIds = params.get("document_ids");
 
     const activateTab = (targetId) => {
         let found = false;
@@ -43,7 +44,7 @@ function setupTabSwitching() {
 
     const initialHash = window.location.hash ? window.location.hash.replace("#", "") : "";
     const defaultTarget =
-        (presetDocId ? "tab-new" : "") ||
+        ((presetDocId || presetDocIds) ? "tab-new" : "") ||
         forcedTab ||
         initialHash ||
         document.querySelector("[data-tab-target].active")?.getAttribute("data-tab-target") ||
@@ -64,23 +65,43 @@ function setupTabSwitching() {
 function applyPresetPayment() {
     const params = new URLSearchParams(window.location.search);
     const docId = params.get("document_id");
-    if (!docId) return;
+    const docIdsRaw = params.get("document_ids");
+    const docIds = docIdsRaw ? docIdsRaw.split(",").map((value) => value.trim()).filter(Boolean) : [];
+    if (!docId && docIds.length === 0) return;
+
+    const selectDoc = (targetDocId, withAmount) => {
+        const checkbox = document.querySelector(`input[name="payment_id"][value="${targetDocId}"]`);
+        const amountInput = document.querySelector(`input[name="amount_${targetDocId}"]`);
+
+        if (checkbox) {
+            checkbox.checked = true;
+            const row = checkbox.closest(".invoice-row");
+            if (row) {
+                row.classList.add("border", "border-primary", "rounded");
+                if (withAmount) {
+                    row.scrollIntoView({ behavior: "smooth", block: "center" });
+                }
+            }
+        }
+
+        if (amountInput && withAmount) {
+            amountInput.value = withAmount;
+        }
+    };
 
     const amount = params.get("amount");
-    const checkbox = document.querySelector(`input[name="payment_id"][value="${docId}"]`);
-    const amountInput = document.querySelector(`input[name="amount_${docId}"]`);
-
-    if (checkbox) {
-        checkbox.checked = true;
-        const row = checkbox.closest(".invoice-row");
-        if (row) {
-            row.classList.add("border", "border-primary", "rounded");
-            row.scrollIntoView({ behavior: "smooth", block: "center" });
-        }
+    if (docId) {
+        selectDoc(docId, amount);
     }
 
-    if (amountInput && amount) {
-        amountInput.value = amount;
+    if (docIds.length) {
+        docIds.forEach((targetDocId, index) => {
+            selectDoc(targetDocId, index === 0 ? null : null);
+        });
+        const firstRow = document.querySelector(`input[name="payment_id"][value="${docIds[0]}"]`)?.closest(".invoice-row");
+        if (firstRow) {
+            firstRow.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
     }
 }
 

@@ -9,6 +9,7 @@ from sqlalchemy.orm import joinedload
 
 from app.models import Document
 from app.services import payment_service, ocr_service
+from app.services.document_service import mark_documents_as_programmed
 from app.services.settings_service import get_setting
 from app.services.ocr_mapping_service import parse_payment_fields
 from app.services.payment_service import (
@@ -30,7 +31,7 @@ def _resolve_due_status(due_date: date | None, today: date, soon_limit: date) ->
         return "overdue", "Scaduta", "danger"
     if due_date <= soon_limit:
         return "due_soon", "In scadenza", "warning"
-    return "scheduled", "Programmato", "info"
+    return "scheduled", "Non scaduta", "info"
 
 @payments_bp.route("/", methods=["GET"], endpoint="payment_index")
 @payments_bp.route("/", methods=["GET"], endpoint="inbox_view")
@@ -67,8 +68,7 @@ def schedule_view():
     Scadenziario pagamenti in pagina dedicata.
     """
     today = date.today()
-    group_by_supplier_raw = (get_setting("SCHEDULE_GROUP_BY_SUPPLIER", "0") or "0").strip().lower()
-    group_by_supplier = group_by_supplier_raw in {"1", "true", "yes", "on"}
+    group_by_entity = True
     soon_days_raw = (get_setting("SCHEDULE_SOON_DAYS", "7") or "7").strip()
     try:
         soon_days = int(soon_days_raw)
@@ -78,11 +78,14 @@ def schedule_view():
         soon_days = 7
 
     soon_limit = today + timedelta(days=soon_days)
+    range_7_limit = today + timedelta(days=7)
+    range_30_limit = today + timedelta(days=30)
+    updated_at = datetime.now()
 
     with UnitOfWork() as uow:
         documents = (
             uow.session.query(Document)
-            .options(joinedload(Document.supplier))
+            .options(joinedload(Document.supplier), joinedload(Document.legal_entity))
             .filter(
                 Document.document_type == "invoice",
                 Document.is_paid == False,
@@ -102,6 +105,7 @@ def schedule_view():
     summary = {
         "total": 0,
         "total_amount": 0.0,
+        "avg_amount": 0.0,
         "overdue_count": 0,
         "overdue_amount": 0.0,
         "soon_count": 0,
@@ -114,6 +118,8 @@ def schedule_view():
         due_status, status_label, status_class = _resolve_due_status(doc.due_date, today, soon_limit)
         due_iso = doc.due_date.strftime("%Y-%m-%d") if doc.due_date else ""
         supplier_name = doc.supplier.name if doc.supplier else "Senza fornitore"
+        legal_entity_name = doc.legal_entity.name if doc.legal_entity else "Senza intestatario"
+        print_status = (doc.print_status or "not_printed").strip()
         schedule_rows.append(
             {
                 "doc": doc,
@@ -125,6 +131,9 @@ def schedule_view():
                 "due_iso": due_iso,
                 "supplier_name": supplier_name,
                 "supplier_id": doc.supplier_id,
+                "legal_entity_name": legal_entity_name,
+                "legal_entity_id": doc.legal_entity_id,
+                "print_status": print_status,
             }
         )
 
@@ -139,15 +148,28 @@ def schedule_view():
             summary["soon_count"] += 1
             summary["soon_amount"] += remaining
 
-    supplier_groups = []
-    if group_by_supplier:
+    if summary["total"]:
+        summary["avg_amount"] = summary["total_amount"] / summary["total"]
+
+    status_priority = {"overdue": 0, "due_soon": 1, "scheduled": 2, "no_due": 3}
+    schedule_rows.sort(
+        key=lambda row: (
+            status_priority.get(row["due_status"], 9),
+            row["doc"].due_date or date.max,
+            -row["remaining_amount"],
+            row["doc"].id,
+        )
+    )
+
+    legal_entity_groups = []
+    if group_by_entity:
         group_map = {}
         for row in schedule_rows:
-            key = row["supplier_id"] or f"none-{row['doc'].id}"
+            key = row["legal_entity_id"] if row["legal_entity_id"] is not None else "none"
             if key not in group_map:
                 group_map[key] = {
-                    "name": row["supplier_name"],
-                    "supplier_id": row["supplier_id"],
+                    "name": row["legal_entity_name"],
+                    "legal_entity_id": row["legal_entity_id"],
                     "rows": [],
                     "total_count": 0,
                     "total_amount": 0.0,
@@ -169,13 +191,14 @@ def schedule_view():
             elif row["due_status"] == "no_due":
                 group["no_due_count"] += 1
 
-        supplier_groups = list(group_map.values())
-        supplier_groups.sort(key=lambda group: (group["name"] or "").lower())
-        for group in supplier_groups:
+        legal_entity_groups = list(group_map.values())
+        legal_entity_groups.sort(key=lambda group: (group["name"] or "").lower())
+        for group in legal_entity_groups:
             group["rows"].sort(
                 key=lambda row: (
-                    row["doc"].due_date is None,
+                    status_priority.get(row["due_status"], 9),
                     row["doc"].due_date or date.max,
+                    -row["remaining_amount"],
                     row["doc"].id,
                 )
             )
@@ -183,13 +206,30 @@ def schedule_view():
     return render_template(
         "payments/schedule.html",
         schedule_rows=schedule_rows,
-        supplier_groups=supplier_groups,
-        group_by_supplier=group_by_supplier,
+        legal_entity_groups=legal_entity_groups,
         summary=summary,
         today=today,
         soon_limit=soon_limit,
         soon_days=soon_days,
+        range_7_limit=range_7_limit,
+        range_30_limit=range_30_limit,
+        updated_at=updated_at,
     )
+
+@payments_bp.route("/schedule/print", methods=["POST"], endpoint="schedule_print")
+def schedule_print():
+    raw_ids = (request.form.get("document_ids") or "").strip()
+    ids = [int(value) for value in raw_ids.split(",") if value.strip().isdigit()]
+    if not ids:
+        flash("Seleziona almeno un documento.", "warning")
+        return redirect(request.referrer or url_for("payments.schedule_view"))
+
+    updated = mark_documents_as_programmed(ids)
+    flash(
+        f"{updated} documenti segnati come programmati. Stampa PDF non ancora disponibile.",
+        "info",
+    )
+    return redirect(request.referrer or url_for("payments.schedule_view"))
 
 @payments_bp.route("/add/<int:document_id>", methods=["POST"])
 def add_view(document_id: int):

@@ -7,6 +7,10 @@
     --list-max-height: 70vh;
 }
 
+body {
+    font-variant-numeric: tabular-nums;
+}
+
 /* -------------------- UTILITY CLASSES -------------------- */
 .text-right { text-align: right !important; }
 .text-center { text-align: center !important; }

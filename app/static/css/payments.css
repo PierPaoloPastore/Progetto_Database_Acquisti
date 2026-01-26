@@ -240,6 +240,17 @@
     gap: 0.2rem;
 }
 
+.schedule-card-link {
+    text-decoration: none;
+    color: inherit;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.schedule-card-link:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 14px rgba(15, 23, 42, 0.12);
+}
+
 .schedule-card-label {
     color: #6c757d;
     font-size: 0.85rem;
@@ -273,20 +284,33 @@
     background: #f8f9fa;
 }
 
-.schedule-filters {
+.schedule-filter-bar {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: #ffffff;
+    border-bottom: 1px solid #e9ecef;
+    padding: 0.75rem 1rem;
     display: flex;
-    flex-wrap: nowrap;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.schedule-filter-fields {
+    display: flex;
+    flex-wrap: wrap;
     align-items: flex-end;
-    gap: 0.45rem;
-    overflow-x: auto;
+    gap: 0.6rem;
 }
 
-.schedule-filters .col {
-    flex: 0 0 auto;
-    width: auto;
+.schedule-filter-fields .filter-field {
+    min-width: 150px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
 }
 
-.schedule-filters .form-label {
+.schedule-filter-bar .form-label {
     font-weight: 700;
     font-size: 0.75rem;
     margin-bottom: 0.1rem;
@@ -294,22 +318,142 @@
     white-space: nowrap;
 }
 
-.schedule-filters .form-control,
-.schedule-filters .form-select {
+.schedule-filter-bar .form-control,
+.schedule-filter-bar .form-select {
     padding: 0.2rem 0.45rem;
     font-size: 0.8rem;
 }
 
-.schedule-filters #schedule-search {
+.schedule-filter-bar #schedule-search {
     width: 220px;
 }
 
-.schedule-filters #schedule-status {
-    width: 150px;
+.schedule-filter-bar #schedule-status {
+    width: 160px;
+}
+
+.schedule-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.schedule-filter-bar [data-range],
+.schedule-filter-bar [data-preset],
+.schedule-filter-bar [data-reset-filters],
+.schedule-empty [data-preset],
+.schedule-empty [data-reset-filters] {
+    background: #d1e7dd;
+    border-color: #a3cfbb;
+    color: #0f5132;
+}
+
+.schedule-filter-bar [data-range]:hover,
+.schedule-filter-bar [data-preset]:hover,
+.schedule-filter-bar [data-reset-filters]:hover,
+.schedule-empty [data-preset]:hover,
+.schedule-empty [data-reset-filters]:hover {
+    background: #c3e6cb;
+    border-color: #97c7ae;
+    color: #0f5132;
+}
+
+.schedule-bulk-bar {
+    position: sticky;
+    top: 3.4rem;
+    z-index: 4;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e3e7ee;
+    padding: 0.6rem 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+}
+
+.schedule-bulk-bar .bulk-summary {
+    font-size: 0.85rem;
+}
+
+.schedule-bulk-bar .bulk-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.schedule-callout {
+    background: #fef3c7;
+    border-bottom: 1px solid #f6d788;
+    padding: 0.6rem 1rem;
+    font-size: 0.85rem;
+}
+
+.schedule-row-clickable {
+    cursor: pointer;
+}
+
+.schedule-row-clickable:hover {
+    background: rgba(13, 110, 253, 0.06);
+}
+
+.schedule-amount-strong {
+    color: #1f2937;
+    font-weight: 700;
+}
+
+.schedule-amount-muted {
+    color: #6c757d;
+}
+
+.due-delta {
+    display: inline-block;
+    font-size: 0.75rem;
+    margin-top: 0.1rem;
+}
+
+.due-delta-negative {
+    color: #c0392b;
+}
+
+.due-delta-positive {
+    color: #0f5132;
+}
+
+.due-delta-today {
+    color: #0d6efd;
+}
+
+.schedule-sort {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.schedule-sort .sort-icon {
+    font-size: 0.85rem;
+    margin-left: 0.25rem;
+    color: #6c757d;
+}
+
+.schedule-table th:first-child,
+.schedule-table td:first-child {
+    width: 36px;
 }
 
 .schedule-table .schedule-status-pill {
     font-size: 0.75rem;
+}
+
+.schedule-print-pill {
+    font-size: 0.72rem;
+}
+
+.schedule-table.sticky-header thead th {
+    position: sticky;
+    top: 0;
+    background: #f8f9fa;
+    z-index: 2;
 }
 
 .schedule-row.schedule-overdue {
@@ -331,4 +475,11 @@
 
 .schedule-accordion .accordion-item {
     border: 1px solid #dee2e6;
+}
+
+@media (max-width: 768px) {
+    .schedule-filter-bar,
+    .schedule-bulk-bar {
+        position: static;
+    }
 }

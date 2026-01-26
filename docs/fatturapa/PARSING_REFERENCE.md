@@ -180,6 +180,21 @@ Stesse regole e fallback della sede Cedente.
 
 ---
 
+### 4.3 Identificazione intestatario (match applicativo)
+
+Queste regole governano la risoluzione della `LegalEntity` in import:
+
+- **Chiave primaria**: usare sempre il **Codice Fiscale** se presente.
+- **Fallback**: usare la **P.IVA** solo se il Codice Fiscale e' assente.
+- **Normalizzazione**: rimuovere spazi e caratteri non alfanumerici, convertire in maiuscolo prima di confrontare.
+- **Batch import**: l'intestatario e' calcolato **per file**; non va riutilizzato tra file diversi (solo tra body dello stesso file).
+- **Riparazione dati**: se un'entita' trovata per P.IVA non ha CF (o ha CF uguale alla P.IVA), aggiornarla con il CF estratto.
+
+Per debug in caso di mismatch, loggare per ogni file i campi estratti:
+`cc_name`, `vat_number`, `fiscal_code` e le versioni normalizzate (`*_clean`).
+
+---
+
 ## 5. Documento (Body)
 
 Percorso:

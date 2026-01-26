@@ -402,7 +402,7 @@
                     </thead>
                     <tbody>
                     {% for doc in documents %}
-                      <tr class="documents-row" data-href="{{ url_for('documents.detail_view', document_id=doc.id) }}">
+                      <tr class="documents-row" data-href="{{ url_for('documents.detail_view', document_id=doc.id, **detail_query_args) }}">
                           <td>
                               {% if doc.legal_entity %}
                                 <div class="small text-muted text-truncate" style="max-width: 160px;" title="{{ doc.legal_entity.name }}">
@@ -456,7 +456,7 @@
                               {% endif %}
                           </td>
                           <td class="text-end">
-                              <a href="{{ url_for('documents.detail_view', document_id=doc.id) }}" 
+                              <a href="{{ url_for('documents.detail_view', document_id=doc.id, **detail_query_args) }}" 
                                  class="btn btn-sm btn-outline-secondary row-action" title="Dettaglio">
                                   <i class="bi bi-eye"></i>
                               </a>
