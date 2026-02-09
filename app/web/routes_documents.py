@@ -38,6 +38,7 @@ ALLOWED_PHYSICAL_COPY_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "tif", "tiff"}
 _HIGHLIGHT_TRUE_VALUES = {"1", "true", "yes", "on"}
 _LIST_QUERY_KEYS = {
     "q",
+    "line_q",
     "date_from",
     "date_to",
     "document_number",
@@ -306,6 +307,8 @@ def list_view():
 
     if filters.q:
         _add_chip(f"Cerca: {filters.q}", ["q"])
+    if filters.line_q:
+        _add_chip(f"Voci: {filters.line_q}", ["line_q"])
     if filters.document_number:
         _add_chip(f"Numero: {filters.document_number}", ["document_number"])
     if filters.document_type:

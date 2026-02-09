@@ -11,6 +11,7 @@ from typing import Any, Mapping, Optional
 @dataclass
 class DocumentSearchFilters:
     q: Optional[str] = None
+    line_q: Optional[str] = None
     date_from: Optional[date] = None
     date_to: Optional[date] = None
     document_number: Optional[str] = None
@@ -58,6 +59,7 @@ class DocumentSearchFilters:
     @classmethod
     def from_query_args(cls, args: Mapping[str, Any]) -> "DocumentSearchFilters":
         q_raw = (args.get("q") or "").strip()
+        line_q_raw = (args.get("line_q") or "").strip()
         doc_type_raw = (args.get("document_type") or args.get("type") or "").strip()
         document_number_raw = (args.get("document_number") or "").strip()
         amount_value = cls._parse_decimal(args.get("amount_value", ""))
@@ -82,6 +84,7 @@ class DocumentSearchFilters:
                 amount_operator = "lt"
         return cls(
             q=q_raw or None,
+            line_q=line_q_raw or None,
             date_from=cls._parse_date(args.get("date_from", "")),
             date_to=cls._parse_date(args.get("date_to", "")),
             document_number=document_number_raw or None,

@@ -5,7 +5,7 @@ Rifattorizzato con Pattern Unit of Work.
 from __future__ import annotations
 
 import logging
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import List, Optional, Sequence
 
@@ -176,6 +176,59 @@ def get_payment_event_detail(payment_id: int) -> Optional[dict]:
             "total_paid": total_paid,
             "documents_count": documents_count,
         }
+
+
+def attach_payment_document_file(payment_id: int, file) -> PaymentDocument:
+    """
+    Collega o aggiorna il PDF di pagamento per un singolo pagamento.
+    Se il pagamento appartiene a un batch, aggiorna il documento condiviso.
+    """
+    if file is None or not getattr(file, "filename", ""):
+        raise ValueError("File mancante.")
+
+    with UnitOfWork() as uow:
+        payment = (
+            uow.session.query(Payment)
+            .options(
+                joinedload(Payment.document),
+                joinedload(Payment.payment_document),
+            )
+            .get(payment_id)
+        )
+        if not payment:
+            raise ValueError("Pagamento non trovato.")
+
+        safe_name = secure_filename(file.filename) or f"payment_{payment_id}_{date.today().isoformat()}.pdf"
+        base_path = settings_service.get_payment_files_storage_path()
+        relative_path = scan_service.store_payment_document_file(
+            file=file,
+            base_path=base_path,
+            filename=safe_name,
+        )
+
+        payment_document = payment.payment_document
+        if payment_document is None:
+            payment_document = PaymentDocument(
+                supplier_id=payment.document.supplier_id if payment.document else None,
+                file_name=safe_name,
+                file_path=relative_path,
+                payment_type=payment.payment_method or "manual",
+                status="reconciled",
+                uploaded_at=datetime.utcnow(),
+            )
+            uow.session.add(payment_document)
+            uow.session.flush()
+            payment.payment_document = payment_document
+        else:
+            payment_document.file_name = safe_name
+            payment_document.file_path = relative_path
+            if not payment_document.payment_type and payment.payment_method:
+                payment_document.payment_type = payment.payment_method
+            payment_document.status = "reconciled"
+            payment_document.uploaded_at = datetime.utcnow()
+
+        uow.commit()
+        return payment_document
 
 
 def create_batch_payment(

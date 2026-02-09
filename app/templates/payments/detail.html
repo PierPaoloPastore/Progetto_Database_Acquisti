@@ -65,7 +65,7 @@
         </div>
 
         <div class="col-lg-8">
-            <div class="card">
+            <div class="card mb-3">
                 <div class="card-header bg-white d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Documenti nel pagamento</h5>
                     <span class="badge bg-light text-dark">{{ related_payments|length|format_int }} movimenti</span>
@@ -129,6 +129,40 @@
                             </tbody>
                         </table>
                     </div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">File pagamento</h5>
+                    {% if has_payment_file %}
+                        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('payments.payment_file_view', payment_id=payment.id) }}" target="_blank" rel="noopener">
+                            <i class="bi bi-file-earmark-pdf"></i> Apri PDF
+                        </a>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    {% if has_payment_file %}
+                        <div class="small text-muted text-truncate mb-2">{{ payment_document.file_name }}</div>
+                    {% else %}
+                        <div class="alert alert-secondary p-2 text-center small mb-2">
+                            Nessun PDF collegato.
+                        </div>
+                    {% endif %}
+                    <form method="post" enctype="multipart/form-data"
+                          action="{{ url_for('payments.payment_file_upload', payment_id=payment.id) }}">
+                        <div class="input-group input-group-sm">
+                            <input type="file" name="file" class="form-control" accept="application/pdf" required>
+                            <button class="btn btn-success" type="submit">
+                                {% if has_payment_file %}Sostituisci{% else %}Carica{% endif %}
+                            </button>
+                        </div>
+                    </form>
+                    {% if related_payments|length > 1 %}
+                        <small class="text-muted d-block mt-2">
+                            Questo PDF è condiviso da {{ related_payments|length|format_int }} movimenti del batch.
+                        </small>
+                    {% endif %}
                 </div>
             </div>
         </div>

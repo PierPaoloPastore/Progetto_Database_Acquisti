@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Tuple
 from calendar import monthrange
 import logging
 
-from sqlalchemy import func, or_
+from sqlalchemy import and_, exists, func, or_
 from sqlalchemy.orm import joinedload
 
 from app.models import ImportLog, DeliveryNote, Document, DocumentLine, LegalEntity, Payment, Supplier, VatSummary
@@ -86,6 +86,7 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
         *,
         document_type: Optional[str] = None,
         q: Optional[str] = None,
+        line_q: Optional[str] = None,
         date_from: Optional[date] = None,
         date_to: Optional[date] = None,
         document_number: Optional[str] = None,
@@ -104,6 +105,7 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
         """Ricerca documenti avanzata."""
         query = self.session.query(Document)
         category_filter_applied = False
+        line_filter_applied = False
 
         if document_type:
             query = query.filter(Document.document_type == document_type)
@@ -113,11 +115,22 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
             like_value = f"%{search_text}%"
             query = query.outerjoin(Supplier, Document.supplier_id == Supplier.id)
             query = query.outerjoin(LegalEntity, Document.legal_entity_id == LegalEntity.id)
+            line_match = exists().where(
+                and_(
+                    DocumentLine.document_id == Document.id,
+                    or_(
+                        DocumentLine.description.ilike(like_value),
+                        DocumentLine.sku_code.ilike(like_value),
+                        DocumentLine.internal_code.ilike(like_value),
+                    ),
+                )
+            )
             query = query.filter(
                 or_(
                     Document.document_number.ilike(like_value),
                     Supplier.name.ilike(like_value),
                     LegalEntity.name.ilike(like_value),
+                    line_match,
                 )
             )
 
@@ -129,14 +142,26 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
                 Payment.status == payment_status
             )
 
-        if category_id is not None:
+        line_text = (line_q or "").strip()
+        if category_id is not None or category_unassigned or line_text:
             query = query.join(DocumentLine, DocumentLine.document_id == Document.id)
+
+        if category_id is not None:
             query = query.filter(DocumentLine.category_id == category_id)
             category_filter_applied = True
         elif category_unassigned:
-            query = query.join(DocumentLine, DocumentLine.document_id == Document.id)
             query = query.filter(DocumentLine.category_id.is_(None))
             category_filter_applied = True
+        if line_text:
+            like_value = f"%{line_text}%"
+            query = query.filter(
+                or_(
+                    DocumentLine.description.ilike(like_value),
+                    DocumentLine.sku_code.ilike(like_value),
+                    DocumentLine.internal_code.ilike(like_value),
+                )
+            )
+            line_filter_applied = True
 
         if legal_entity_id is not None:
             query = query.filter(Document.legal_entity_id == legal_entity_id)
@@ -161,7 +186,7 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
 
         query = query.order_by(Document.document_date.desc(), Document.id.desc())
 
-        if payment_status is not None or category_filter_applied:
+        if payment_status is not None or category_filter_applied or line_filter_applied:
             query = query.distinct()
 
         if limit is not None:

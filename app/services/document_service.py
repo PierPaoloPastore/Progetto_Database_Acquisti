@@ -98,6 +98,7 @@ def search_documents(
         return uow.documents.search(
             document_type=doc_type,
             q=filters.q,
+            line_q=filters.line_q,
             date_from=filters.date_from,
             date_to=filters.date_to,
             document_number=filters.document_number,

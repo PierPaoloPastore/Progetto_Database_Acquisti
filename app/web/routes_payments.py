@@ -3,12 +3,13 @@ Route per la gestione dei Pagamenti.
 """
 from __future__ import annotations
 from datetime import date, datetime, timedelta
+import os
 from pathlib import Path
-from flask import Blueprint, request, redirect, url_for, flash, render_template, jsonify, current_app
+from flask import Blueprint, request, redirect, url_for, flash, render_template, jsonify, current_app, send_file
 from sqlalchemy.orm import joinedload
 
 from app.models import Document
-from app.services import payment_service, ocr_service
+from app.services import payment_service, ocr_service, settings_service
 from app.services.document_service import mark_documents_as_programmed
 from app.services.settings_service import get_setting
 from app.services.ocr_mapping_service import parse_payment_fields
@@ -16,6 +17,7 @@ from app.services.payment_service import (
     add_payment,
     create_batch_payment,
     delete_payment,
+    attach_payment_document_file,
     get_payment_event_detail,
     list_paid_payments,
     list_payments_by_document,
@@ -23,6 +25,13 @@ from app.services.payment_service import (
 from app.services.unit_of_work import UnitOfWork
 
 payments_bp = Blueprint("payments", __name__)
+
+_ALLOWED_PAYMENT_EXTENSIONS = {".pdf"}
+
+
+def _is_allowed_payment_file(filename: str) -> bool:
+    suffix = Path(filename).suffix.lower()
+    return suffix in _ALLOWED_PAYMENT_EXTENSIONS
 
 def _resolve_due_status(due_date: date | None, today: date, soon_limit: date) -> tuple[str, str, str]:
     if due_date is None:
@@ -424,4 +433,55 @@ def payment_detail_view(payment_id: int):
         flash("Pagamento non trovato.", "warning")
         return redirect(url_for("payments.payment_index") + "#tab-history")
 
+    payment_document = detail.get("payment_document")
+    has_payment_file = False
+    if payment_document and payment_document.file_path:
+        base_path = settings_service.get_payment_files_storage_path()
+        full_path = settings_service.resolve_storage_path(base_path, payment_document.file_path)
+        has_payment_file = os.path.exists(full_path)
+    detail["has_payment_file"] = has_payment_file
+
     return render_template("payments/detail.html", **detail)
+
+
+@payments_bp.route("/history/<int:payment_id>/file", methods=["GET"], endpoint="payment_file_view")
+def payment_file_view(payment_id: int):
+    detail = get_payment_event_detail(payment_id)
+    if not detail:
+        flash("Pagamento non trovato.", "warning")
+        return redirect(url_for("payments.payment_index") + "#tab-history")
+
+    payment_document = detail.get("payment_document")
+    if not payment_document or not payment_document.file_path:
+        flash("Nessun file collegato a questo pagamento.", "warning")
+        return redirect(url_for("payments.payment_detail_view", payment_id=payment_id))
+
+    base_path = settings_service.get_payment_files_storage_path()
+    full_path = settings_service.resolve_storage_path(base_path, payment_document.file_path)
+    if not os.path.exists(full_path):
+        flash("File pagamento non trovato su disco.", "danger")
+        return redirect(url_for("payments.payment_detail_view", payment_id=payment_id))
+
+    return send_file(full_path, as_attachment=False)
+
+
+@payments_bp.route("/history/<int:payment_id>/file", methods=["POST"], endpoint="payment_file_upload")
+def payment_file_upload(payment_id: int):
+    file = request.files.get("file")
+    if file is None or not file.filename:
+        flash("Seleziona un PDF da caricare.", "warning")
+        return redirect(url_for("payments.payment_detail_view", payment_id=payment_id))
+
+    if not _is_allowed_payment_file(file.filename):
+        flash("Formato file non supportato. Usa PDF.", "danger")
+        return redirect(url_for("payments.payment_detail_view", payment_id=payment_id))
+
+    try:
+        attach_payment_document_file(payment_id, file)
+        flash("File pagamento aggiornato.", "success")
+    except ValueError as exc:
+        flash(str(exc), "warning")
+    except Exception as exc:
+        flash(f"Errore durante il caricamento: {exc}", "danger")
+
+    return redirect(url_for("payments.payment_detail_view", payment_id=payment_id))
