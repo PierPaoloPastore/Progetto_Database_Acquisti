@@ -1,6 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
     setupTabSwitching();
     setupInvoiceFilter();
+    setupPaymentHistoryFilter();
     setupPdfPreview();
     setupPaymentsSplitter();
     setupPaymentOcr();
@@ -129,6 +130,29 @@ function setupInvoiceFilter() {
     searchInput?.addEventListener("keyup", applyFilter);
     dateInput?.addEventListener("change", applyFilter);
     dateInput?.addEventListener("keyup", applyFilter);
+}
+
+function setupPaymentHistoryFilter() {
+    const searchInput = document.getElementById("payment-history-search");
+    if (!searchInput) return;
+
+    const rows = Array.from(
+        document.querySelectorAll("#tab-history tbody tr[data-payment-search]")
+    );
+    if (!rows.length) return;
+
+    const applyFilter = () => {
+        const query = (searchInput.value || "").toLowerCase().trim();
+
+        rows.forEach((row) => {
+            const text = (row.getAttribute("data-payment-search") || "").toLowerCase();
+            const match = !query || text.includes(query);
+            row.classList.toggle("d-none", !match);
+        });
+    };
+
+    searchInput.addEventListener("keyup", applyFilter);
+    searchInput.addEventListener("change", applyFilter);
 }
 
 function setupPdfPreview() {

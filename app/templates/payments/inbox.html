@@ -14,14 +14,14 @@
 
     <ul class="nav nav-tabs mb-3" role="tablist">
         <li class="nav-item" role="presentation">
-            <a class="nav-link active" href="#tab-new" data-tab-target="tab-new" role="tab">Nuovo Pagamento</a>
+            <a class="nav-link active" href="#tab-history" data-tab-target="tab-history" role="tab">Elenco Pagamenti</a>
         </li>
         <li class="nav-item" role="presentation">
-            <a class="nav-link" href="#tab-history" data-tab-target="tab-history" role="tab">Elenco Pagamenti</a>
+            <a class="nav-link" href="#tab-new" data-tab-target="tab-new" role="tab">Nuovo Pagamento</a>
         </li>
     </ul>
 
-    <section id="tab-new" class="tab-section">
+    <section id="tab-new" class="tab-section d-none">
         <div class="split-container">
             <div class="split-section split-section-left card">
                 <div class="card-header bg-white border-bottom-0">
@@ -161,14 +161,20 @@
         </div>
     </section>
 
-    <section id="tab-history" class="tab-section d-none">
+    <section id="tab-history" class="tab-section">
         <div class="card shadow-sm">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <div>
                     <h5 class="mb-0">Elenco Pagamenti</h5>
                     <small class="text-muted">Movimenti registrati (stato partial / paid)</small>
                 </div>
-                <span class="badge bg-light text-dark">{{ payment_history|length|format_int }} movimenti</span>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <div class="input-group input-group-sm payment-history-search">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="search" id="payment-history-search" class="form-control" placeholder="Cerca nei pagamenti">
+                    </div>
+                    <span class="badge bg-light text-dark">{{ payment_history|length|format_int }} movimenti</span>
+                </div>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive scrollable-list scrollable-list-flush">
@@ -187,7 +193,7 @@
                         <tbody>
                             {% for payment in payment_history %}
                                 {% set invoice = payment.document %}
-                                <tr>
+                                <tr data-payment-search="{{ payment.id }} {{ invoice.document_number if invoice else '' }} {{ invoice.id if invoice else '' }} {{ invoice.supplier.name if invoice and invoice.supplier else '' }} {{ payment.paid_date.strftime('%d/%m/%Y') if payment.paid_date else '' }} {{ payment.updated_at.strftime('%d/%m/%Y') if payment.updated_at else '' }} {{ payment.payment_method or (payment.payment_document.payment_type if payment.payment_document) or '' }} {{ payment.status }} {{ payment.payment_document_id or '' }} {{ payment.payment_document.file_name if payment.payment_document else '' }} {{ payment.paid_amount or payment.expected_amount or '' }} {{ (payment.paid_amount or payment.expected_amount or 0)|format_amount }}">
                                     <td>{{ payment.paid_date.strftime('%d/%m/%Y') if payment.paid_date else (payment.updated_at.strftime('%d/%m/%Y') if payment.updated_at else '-') }}</td>
                                     <td>
                                         {% if invoice %}
