@@ -1,0 +1,12 @@
+services:
+  web:
+    build:
+      context: .
+    ports:
+      - "80:5000"
+    networks:
+      - gestionale-network
+
+networks:
+  gestionale-network:
+    external: true

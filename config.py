@@ -18,7 +18,7 @@ class Config:
     # --- CONFIGURAZIONE DATABASE MYSQL --------------------------------------
     DB_USER = os.environ.get("DB_USER", "ga_user")
     DB_PASSWORD = os.environ.get("DB_PASSWORD", "password_super_sicura")
-    DB_HOST = os.environ.get("DB_HOST", "localhost")
+    DB_HOST = os.environ.get("DB_HOST", "db-magazzino-mysql-1")
     DB_PORT = os.environ.get("DB_PORT", "3306")
     DB_NAME = os.environ.get("DB_NAME", "gestionale_acquisti")
 
