@@ -16,8 +16,8 @@ class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-me")
 
     # --- CONFIGURAZIONE DATABASE MYSQL --------------------------------------
-    DB_USER = os.environ.get("DB_USER", "ga_user")
-    DB_PASSWORD = os.environ.get("DB_PASSWORD", "password_super_sicura")
+    DB_USER = os.environ.get("DB_USER", "repartoitsql")
+    DB_PASSWORD = os.environ.get("DB_PASSWORD", "giovanni$")
     DB_HOST = os.environ.get("DB_HOST", "db-magazzino-mysql-1")
     DB_PORT = os.environ.get("DB_PORT", "3306")
     DB_NAME = os.environ.get("DB_NAME", "gestionale_acquisti")
