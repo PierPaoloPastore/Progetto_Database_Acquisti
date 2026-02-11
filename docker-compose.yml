@@ -6,6 +6,13 @@ services:
       - "80:5000"
     networks:
       - gestionale-network
+    environment:
+        DB_USER: repartoitsql
+        DB_PASSWORD: giovanni$
+        DB_HOST: db-magazzino-mysql-1
+        DB_PORT: "3306"
+        DB_NAME: gestionale_acquisti
+    
 
 networks:
   gestionale-network:
