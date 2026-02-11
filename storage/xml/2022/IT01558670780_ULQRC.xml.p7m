@@ -1,238 +1,0 @@
-0Ç+=	*ÜHÜ˜†Ç+.0Ç+*10	`ÜHe0Ç"Ã	*ÜHÜ˜†Ç"ΩÇ"π<p:FatturaElettronica versione="FPR12" xmlns:p="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2">
-  <FatturaElettronicaHeader>
-    <DatiTrasmissione>
-      <IdTrasmittente>
-        <IdPaese>IT</IdPaese>
-        <IdCodice>01558670780</IdCodice>
-      </IdTrasmittente>
-      <ProgressivoInvio>ULQRC</ProgressivoInvio>
-      <FormatoTrasmissione>FPR12</FormatoTrasmissione>
-      <CodiceDestinatario>USAL8PV</CodiceDestinatario>
-      <ContattiTrasmittente>
-        <Telefono>098430819</Telefono>
-        <Email>fatturazione-elettronica@fatturapa.com</Email>
-      </ContattiTrasmittente>
-      <PECDestinatario>pastoremario@registerpec.it</PECDestinatario>
-    </DatiTrasmissione>
-    <CedentePrestatore>
-      <DatiAnagrafici>
-        <IdFiscaleIVA>
-          <IdPaese>IT</IdPaese>
-          <IdCodice>04935650657</IdCodice>
-        </IdFiscaleIVA>
-        <Anagrafica>
-          <Denominazione>NEW SERVICE SNC di PARISI GIOVANNI e C.</Denominazione>
-        </Anagrafica>
-        <RegimeFiscale>RF01</RegimeFiscale>
-      </DatiAnagrafici>
-      <Sede>
-        <Indirizzo>PIAZZA DE VITA,20</Indirizzo>
-        <CAP>84091</CAP>
-        <Comune>BATTIPAGLIA</Comune>
-        <Provincia>SA</Provincia>
-        <Nazione>IT</Nazione>
-      </Sede>
-    </CedentePrestatore>
-    <CessionarioCommittente>
-      <DatiAnagrafici>
-        <IdFiscaleIVA>
-          <IdPaese>IT</IdPaese>
-          <IdCodice>03185040650</IdCodice>
-        </IdFiscaleIVA>
-        <CodiceFiscale>PSTMRA66A19F481R</CodiceFiscale>
-        <Anagrafica>
-          <Denominazione>PASTORE MARIO</Denominazione>
-        </Anagrafica>
-      </DatiAnagrafici>
-      <Sede>
-        <Indirizzo>VIA SPINETA, 92</Indirizzo>
-        <CAP>84091</CAP>
-        <Comune>BATTIPAGLIA</Comune>
-        <Provincia>SA</Provincia>
-        <Nazione>IT</Nazione>
-      </Sede>
-    </CessionarioCommittente>
-    <TerzoIntermediarioOSoggettoEmittente>
-      <DatiAnagrafici>
-        <IdFiscaleIVA>
-          <IdPaese>IT</IdPaese>
-          <IdCodice>01558670780</IdCodice>
-        </IdFiscaleIVA>
-        <CodiceFiscale>01558670780</CodiceFiscale>
-        <Anagrafica>
-          <Denominazione>CALIO INFORMATICA</Denominazione>
-        </Anagrafica>
-      </DatiAnagrafici>
-    </TerzoIntermediarioOSoggettoEmittente>
-    <SoggettoEmittente>TZ</SoggettoEmittente>
-  </FatturaElettronicaHeader>
-  <FatturaElettronicaBody>
-    <DatiGenerali>
-      <DatiGeneraliDocumento>
-        <TipoDocumento>TD01</TipoDocumento>
-        <Divisa>EUR</Divisa>
-        <Data>2022-05-31</Data>
-        <Numero>103/2022</Numero>
-        <ImportoTotaleDocumento>1406.27</ImportoTotaleDocumento>
-        <Causale>D.d.T. n. 109 /2022 del 24/05/2022 ; </Causale>
-      </DatiGeneraliDocumento>
-      <DatiTrasporto>
-        <CausaleTrasporto>Vendita</CausaleTrasporto>
-        <Descrizione>A Vista</Descrizione>
-        <DataInizioTrasporto>2022-05-24</DataInizioTrasporto>
-      </DatiTrasporto>
-    </DatiGenerali>
-    <DatiBeniServizi>
-      <DettaglioLinee>
-        <NumeroLinea>1</NumeroLinea>
-        <CodiceArticolo>
-          <CodiceTipo>COD</CodiceTipo>
-          <CodiceValore>2445R63</CodiceValore>
-        </CodiceArticolo>
-        <Descrizione>ANELLO</Descrizione>
-        <Quantita>1.00000000</Quantita>
-        <UnitaMisura>Pezzi</UnitaMisura>
-        <PrezzoUnitario>106.50000000</PrezzoUnitario>
-        <ScontoMaggiorazione>
-          <Tipo>SC</Tipo>
-          <Percentuale>20.00</Percentuale>
-        </ScontoMaggiorazione>
-        <PrezzoTotale>85.20000000</PrezzoTotale>
-        <AliquotaIVA>22.00</AliquotaIVA>
-      </DettaglioLinee>
-      <DettaglioLinee>
-        <NumeroLinea>2</NumeroLinea>
-        <CodiceArticolo>
-          <CodiceTipo>COD</CodiceTipo>
-          <CodiceValore>PW55V00001S010</CodiceValore>
-        </CodiceArticolo>
-        <Descrizione>GUARNIZIONE</Descrizione>
-        <Quantita>1.00000000</Quantita>
-        <UnitaMisura>Pezzi</UnitaMisura>
-        <PrezzoUnitario>61.15000000</PrezzoUnitario>
-        <ScontoMaggiorazione>
-          <Tipo>SC</Tipo>
-          <Percentuale>20.00</Percentuale>
-        </ScontoMaggiorazione>
-        <PrezzoTotale>48.92000000</PrezzoTotale>
-        <AliquotaIVA>22.00</AliquotaIVA>
-      </DettaglioLinee>
-      <DettaglioLinee>
-        <NumeroLinea>3</NumeroLinea>
-        <CodiceArticolo>
-          <CodiceTipo>COD</CodiceTipo>
-          <CodiceValore>ZD12P08000</CodiceValore>
-        </CodiceArticolo>
-        <Descrizione>O-RING</Descrizione>
-        <Quantita>1.00000000</Quantita>
-        <UnitaMisura>Pezzi</UnitaMisura>
-        <PrezzoUnitario>6.50000000</PrezzoUnitario>
-        <ScontoMaggiorazione>
-          <Tipo>SC</Tipo>
-          <Percentuale>20.00</Percentuale>
-        </ScontoMaggiorazione>
-        <PrezzoTotale>5.20000000</PrezzoTotale>
-        <AliquotaIVA>22.00</AliquotaIVA>
-      </DettaglioLinee>
-      <DettaglioLinee>
-        <NumeroLinea>4</NumeroLinea>
-        <CodiceArticolo>
-          <CodiceTipo>COD</CodiceTipo>
-          <CodiceValore>PW55V00015S017</CodiceValore>
-        </CodiceArticolo>
-        <Descrizione>GUARNIZIONE TENUTA</Descrizione>
-        <Quantita>3.00000000</Quantita>
-        <UnitaMisura>Pezzi</UnitaMisura>
-        <PrezzoUnitario>52.20000000</PrezzoUnitario>
-        <ScontoMaggiorazione>
-          <Tipo>SC</Tipo>
-          <Percentuale>20.00</Percentuale>
-        </ScontoMaggiorazione>
-        <PrezzoTotale>125.28000000</PrezzoTotale>
-        <AliquotaIVA>22.00</AliquotaIVA>
-      </DettaglioLinee>
-      <DettaglioLinee>
-        <NumeroLinea>5</NumeroLinea>
-        <CodiceArticolo>
-          <CodiceTipo>COD</CodiceTipo>
-          <CodiceValore>PW55V00015S006</CodiceValore>
-        </CodiceArticolo>
-        <Descrizione>GUARNIZIONE</Descrizione>
-        <Quantita>4.00000000</Quantita>
-        <UnitaMisura>Pezzi</UnitaMisura>
-        <PrezzoUnitario>38.50000000</PrezzoUnitario>
-        <ScontoMaggiorazione>
-          <Tipo>SC</Tipo>
-          <Percentuale>20.00</Percentuale>
-        </ScontoMaggiorazione>
-        <PrezzoTotale>123.20000000</PrezzoTotale>
-        <AliquotaIVA>22.00</AliquotaIVA>
-      </DettaglioLinee>
-      <DettaglioLinee>
-        <NumeroLinea>6</NumeroLinea>
-        <CodiceArticolo>
-          <CodiceTipo>COD</CodiceTipo>
-          <CodiceValore>ZD12G09500</CodiceValore>
-        </CodiceArticolo>
-        <Descrizione>O-RING</Descrizione>
-        <Quantita>1.00000000</Quantita>
-        <UnitaMisura>Pezzi</UnitaMisura>
-        <PrezzoUnitario>5.60000000</PrezzoUnitario>
-        <ScontoMaggiorazione>
-          <Tipo>SC</Tipo>
-          <Percentuale>20.00</Percentuale>
-        </ScontoMaggiorazione>
-        <PrezzoTotale>4.48000000</PrezzoTotale>
-        <AliquotaIVA>22.00</AliquotaIVA>
-      </DettaglioLinee>
-      <DettaglioLinee>
-        <NumeroLinea>7</NumeroLinea>
-        <Descrizione>KIT LEVE TRASLAZIONE</Descrizione>
-        <Quantita>1.00000000</Quantita>
-        <PrezzoUnitario>60.00000000</PrezzoUnitario>
-        <PrezzoTotale>60.00000000</PrezzoTotale>
-        <AliquotaIVA>22.00</AliquotaIVA>
-      </DettaglioLinee>
-      <DettaglioLinee>
-        <NumeroLinea>8</NumeroLinea>
-        <Descrizione>MANODOPERA SMONTAGGIO E MONTAGGIO GIUNTO ROTANTE CON SOSTITUZIONE KIT GUARNIZIONI, CONTROLLO PERDITE OLIO IDRAULICO E SISTEMAZIONE SERVOCOMANDI DI TRASLAZIONE</Descrizione>
-        <Quantita>1.00000000</Quantita>
-        <PrezzoUnitario>660.00000000</PrezzoUnitario>
-        <PrezzoTotale>660.00000000</PrezzoTotale>
-        <AliquotaIVA>22.00</AliquotaIVA>
-      </DettaglioLinee>
-      <DettaglioLinee>
-        <NumeroLinea>9</NumeroLinea>
-        <CodiceArticolo>
-          <CodiceTipo>COD</CodiceTipo>
-          <CodiceValore>2445Z912</CodiceValore>
-        </CodiceArticolo>
-        <Descrizione>O-RING</Descrizione>
-        <Quantita>4.00000000</Quantita>
-        <UnitaMisura>Pezzi</UnitaMisura>
-        <PrezzoUnitario>10.10000000</PrezzoUnitario>
-        <PrezzoTotale>40.40000000</PrezzoTotale>
-        <AliquotaIVA>22.00</AliquotaIVA>
-      </DettaglioLinee>
-      <DatiRiepilogo>
-        <AliquotaIVA>22.00</AliquotaIVA>
-        <ImponibileImporto>1152.68</ImponibileImporto>
-        <Imposta>253.59</Imposta>
-        <EsigibilitaIVA>I</EsigibilitaIVA>
-      </DatiRiepilogo>
-    </DatiBeniServizi>
-    <DatiPagamento>
-      <CondizioniPagamento>TP02</CondizioniPagamento>
-      <DettaglioPagamento>
-        <ModalitaPagamento>MP02</ModalitaPagamento>
-        <DataScadenzaPagamento>2022-05-31</DataScadenzaPagamento>
-        <ImportoPagamento>1406.27</ImportoPagamento>
-        <IBAN>IT70X0310476090000000822641</IBAN>
-      </DettaglioPagamento>
-    </DatiPagamento>
-  </FatturaElettronicaBody>
-</p:FatturaElettronica>†ÇÛ0ÇÔ0Ç◊†m5{ùâfË•”ÓP&ò0	*ÜHÜ˜ 0l10	UIT10U
-ArubaPEC S.p.A.1!0UCertification AuthorityC1 0UArubaPEC S.p.A. NG CA 30210701000000Z240630235959Z0}10	UIT10UCALIO' ANTONIO10UTINIT-CLANTN40D25B426L10U*ANTONIO10UCALIO'10U.227344490Ç"0	*ÜHÜ˜ Ç 0Ç
-Ç ”Cr"ià@5+¥dÀ˜ïÌ-—+ãÿ ∫ä˝SÚ~/öuS˝D2X¬4«è™/é>ç˜°º◊6≥LÇ4EÚ‘’R≠•çI◊9ÄöoÁÅßå˛ŒΩzj7í¿ÁæPësﬁ	µÚg6qL wUûGâUÒ≥vØºoªã»6ß›<M”Á˘ƒ;MäW¢ÎÊÉ3Ûà™¨OÃay'¬?öˇΩ<˙ÓƒﬁhΩ…'‹Û/ˆFE€6úh¡F|ﬁ¶ÁÈÜ$x™ú0hxvÀ±r<,üÌ®lOî3BsG t≠‚SΩêÃ‹lfÄJ"∏⁄É úb>7ﬂ‚ÜçJãin^>m\ô £Çz0Çv0Uˇ@0UË∞Õ¬v”HC}òBÀ<CU~0OU H0F0<+ÅË-0-0++https://ca.arubapec.it/cps.html0+L0XUQ0O0M†K†IÜGhttp://crl.arubapec.it/ArubaPECSpACertificationAuthorityC/LatestCRL.crl0Åø+Å≤0ÅØ0 éF0 éF0 éF0Åã éF0ÅÄ0>8https://www.pec.it/repository/arubapec-qualif-pds-en.pdfen0>8https://www.pec.it/repository/arubapec-qualif-pds-it.pdfit0!U0Åantonio.calio@calio.it0U#0Ä¿E±∂5¥Í_)˙ÉJ‹/ı≥}Ë0j+^0\05+0Ü)http://cacert.pec.it/certs/AP_NG_CA_3.cer0#+0Ühttp://ocsp.arubapec.it0(U	!00+	119400425080001Z0	*ÜHÜ˜ Ç * Ωù¶¡˚u `»"ÂÕHX/°∑¸p≤»¶T¸%Æﬂﬁ4WÜ—˛ÚA∑€r	†ÍÑQQF™Ü!ªΩÃg—Ñè<Ìè]L≠ªº“DC«ïfà÷ìaåœ7;;QÓ]áóˇ{†D $À´∆ã0Ô·GLÁ]
-qOSÚcÇ∆ä∆Ç±ÒëÀUıñüAi¬à¥*k·»◊S’™˘VEUÖo≈ßœêx‚s;:º=¨`Übù˝$®hØ U÷ ¥NˆFuå«Æg8Ì|ˆJ‰Ëd[„BW,:af.øKåÖò+üi‹#hLI{h¨À'71 L,ÇÑoØé/	1ÇM0ÇI0ÅÄ0l10	UIT10U
-ArubaPEC S.p.A.1!0UCertification AuthorityC1 0UArubaPEC S.p.A. NG CA 3m5{ùâfË•”ÓP&ò0	`ÜHe†Å¢0	*ÜHÜ˜	1	*ÜHÜ˜0	*ÜHÜ˜	1220610090438Z0/	*ÜHÜ˜	1" 4◊‚9-∞y°Òâ6"ÄÌÔªê∑/ø∑€öDú∂07*ÜHÜ˜	/1(0&0$0" .ó…L ¢2≥ÄO¡7HWŸÈ‘lC±ﬂµCx‡vº]a°0	*ÜHÜ˜Ç “ﬂ£Pr˜Æ\Sx«=ﬂP´0≤|é,2≈ÄK~äZgd∂„çTHy]ı|hP	1rsËidÆ≠√Üˇ0È„'5GuxC≈7UFë¶æu›∏8´{&J{•à‹tYáÓ3ı°+ΩÌo´UîÏ,”5±#È¿7X‡«Ícºí%»É${≥õ}[EæÍóuã ‡Tµâl 2:¢[o∫+5ﬁnK 8@ÈÌÂcã¿	ôóÔ’ÆXﬁˇRÖ$ﬂ„{2on[Éü¶·ñÙXü‡®}®ª‹œ<r◊¶™‚ã\øw„UÕÔñƒÚ˙–à0òT…ãy≈î*‰è•ë9p√∂è
