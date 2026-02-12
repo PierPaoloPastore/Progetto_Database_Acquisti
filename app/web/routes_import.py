@@ -22,8 +22,6 @@ from flask import (
 from pathlib import Path
 
 from app.services import run_import, run_import_files
-from app.services.settings_service import get_xml_inbox_path
-
 import_bp = Blueprint("import", __name__)
 
 
@@ -46,21 +44,25 @@ def run_view():
     """
     from flask import session  # import locale per evitare problemi in contesti non-WSGI
 
-    default_folder = get_xml_inbox_path()
-
     if request.method == "GET":
         last_summary = session.get("last_import_summary")
+        last_folder = session.get("last_import_folder")
         return render_template(
             "import/import_run.html",
-            default_folder=default_folder,
+            server_folder=last_folder or "",
             summary=last_summary,
         )
 
     # POST: esecuzione import
     action = (request.form.get("import_action") or request.form.get("action") or "").strip()
     if action == "server_folder":
-        summary = run_import(folder=default_folder)
+        server_folder = (request.form.get("server_folder") or "").strip()
+        if not server_folder:
+            flash("Inserisci un percorso server valido.", "warning")
+            return redirect(url_for("import.run_view"))
+        summary = run_import(folder=server_folder)
         session["last_import_summary"] = summary
+        session["last_import_folder"] = server_folder
         if _wants_json_response():
             return jsonify(summary)
         flash(

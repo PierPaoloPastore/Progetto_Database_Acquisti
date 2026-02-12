@@ -68,42 +68,42 @@ def ensure_unique_filename(base_dir: str, filename: str) -> str:
 
 def get_physical_copy_storage_path() -> str:
     """Restituisce il percorso assoluto per lo storage delle copie fisiche (Archivio)."""
-    configured_path = current_app.config.get("PHYSICAL_COPY_STORAGE_PATH")
+    configured_path = get_setting("PHYSICAL_COPY_STORAGE_PATH", "")
     
     return _resolve_path(configured_path, ["storage", "documenti"])
 
 def get_scan_inbox_path() -> str:
     """Restituisce il percorso assoluto della Inbox (scansioni in arrivo)."""
-    configured_path = current_app.config.get("SCAN_INBOX_PATH")
+    configured_path = get_setting("SCAN_INBOX_PATH", "")
     
     return _resolve_path(configured_path, ["storage", "inbox", "documenti"])
 
 def get_xml_inbox_path() -> str:
     """Restituisce il percorso assoluto della Inbox XML (import fatture)."""
-    configured_path = current_app.config.get("XML_INBOX_PATH") or current_app.config.get("IMPORT_XML_FOLDER")
+    configured_path = get_setting("XML_INBOX_PATH", "") or get_setting("IMPORT_XML_FOLDER", "")
     return _resolve_path(configured_path, ["storage", "inbox", "xml"])
 
 def get_payment_inbox_path() -> str:
     """Restituisce il percorso assoluto della Inbox pagamenti."""
-    configured_path = current_app.config.get("PAYMENT_INBOX_PATH")
+    configured_path = get_setting("PAYMENT_INBOX_PATH", "")
     return _resolve_path(configured_path, ["storage", "inbox", "pagamenti"])
 
 def get_payment_files_storage_path() -> str:
     """Restituisce il percorso assoluto per lo storage dei PDF di pagamento."""
-    configured_path = current_app.config.get("PAYMENT_FILES_STORAGE_PATH")
+    configured_path = get_setting("PAYMENT_FILES_STORAGE_PATH", "")
     
     return _resolve_path(configured_path, ["storage", "pagamenti"])
 
 
 def get_delivery_note_storage_path() -> str:
     """Restituisce il percorso assoluto per lo storage dei PDF DDT."""
-    configured_path = current_app.config.get("DELIVERY_NOTE_STORAGE_PATH")
+    configured_path = get_setting("DELIVERY_NOTE_STORAGE_PATH", "")
     return _resolve_path(configured_path, ["storage", "ddt"])
 
 
 def get_xml_storage_path() -> str:
     """Deposito interno per gli XML importati."""
-    configured_path = current_app.config.get("XML_STORAGE_PATH")
+    configured_path = get_setting("XML_STORAGE_PATH", "")
     return _resolve_path(configured_path, ["storage", "xml"])
 
 
@@ -142,7 +142,7 @@ def get_ddt_archive_path(year: int, base_path: str | None = None) -> str:
 
 def get_attachments_storage_path() -> str:
     """Percorso assoluto per gli allegati FatturaPA."""
-    configured_path = current_app.config.get("ATTACHMENTS_STORAGE_PATH")
+    configured_path = get_setting("ATTACHMENTS_STORAGE_PATH", "")
     return _resolve_path(configured_path, ["storage", "attachments"])
 
 

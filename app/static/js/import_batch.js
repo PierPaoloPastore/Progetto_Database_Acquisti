@@ -4,6 +4,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const submitBtn = document.getElementById("import-submit-btn");
     const serverForm = document.getElementById("server-import-form");
     const serverBtn = document.getElementById("server-import-btn");
+    const serverFolderInput = document.getElementById("server_folder");
     const progressBox = document.getElementById("import-progress");
     const progressText = document.getElementById("import-progress-text");
     const progressCount = document.getElementById("import-progress-count");
@@ -63,6 +64,9 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         if (serverBtn) {
             serverBtn.disabled = disabled;
+        }
+        if (serverFolderInput) {
+            serverFolderInput.disabled = disabled;
         }
         fileInput.disabled = disabled;
     };
@@ -290,6 +294,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (serverForm) {
         serverForm.addEventListener("submit", async (event) => {
+            if (serverFolderInput && !serverFolderInput.value.trim()) {
+                event.preventDefault();
+                alert("Inserisci un percorso server valido.");
+                return;
+            }
             event.preventDefault();
             toggleDisabled(true);
             resetSummary();

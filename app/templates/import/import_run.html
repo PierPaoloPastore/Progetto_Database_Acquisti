@@ -8,15 +8,11 @@
 
     <div class="card mb-4">
         <div class="card-body">
-            <p>
-                Archivio XML predefinito: <code>{{ default_folder }}</code>
-            </p>
-            
             <form id="import-form" method="POST" enctype="multipart/form-data">
                 <div class="mb-3">
                     <label for="files" class="form-label">Cartella da importare</label>
                     <input type="file" class="form-control" id="files" name="files" webkitdirectory directory multiple accept=".xml,.p7m" required>
-                    <div class="form-text">Seleziona una cartella: verranno importati solo i file XML/P7M.</div>
+                    <div class="form-text">Seleziona una cartella: verranno importati solo i file XML/P7M. Gli originali sul tuo PC non vengono spostati.</div>
                 </div>
                 <button type="submit" class="btn btn-primary" id="import-submit-btn">
                     <i class="bi bi-play-circle"></i> Avvia Importazione
@@ -24,10 +20,18 @@
             </form>
             <form id="server-import-form" method="POST" action="{{ url_for('import.run_view') }}" class="mt-3">
                 <input type="hidden" name="import_action" value="server_folder">
+                <div class="mb-2">
+                    <label for="server_folder" class="form-label">Percorso cartella sul server</label>
+                    <input type="text" class="form-control font-monospace" id="server_folder" name="server_folder"
+                           value="{{ server_folder }}" placeholder="/percorso/assoluto/cartella_xml">
+                    <div class="form-text">
+                        In modalitÃ  server i file vengono spostati in <code>Archivio/XML/AAAA</code> dentro la cartella indicata.
+                    </div>
+                </div>
                 <button type="submit" id="server-import-btn" class="btn btn-outline-secondary">
-                    <i class="bi bi-folder"></i> Importa da cartella predefinita
+                    <i class="bi bi-folder"></i> Importa da cartella server
                 </button>
-                <div class="form-text">Usa i file gia presenti nella cartella server indicata sopra.</div>
+                <div class="form-text">Usa i file giÃ  presenti nella cartella server indicata sopra.</div>
             </form>
             <div id="import-progress" class="alert alert-info d-none mt-3" role="status" aria-live="polite">
                 <div class="d-flex justify-content-between align-items-center mb-2">
