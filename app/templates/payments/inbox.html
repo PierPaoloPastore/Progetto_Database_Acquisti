@@ -101,7 +101,18 @@
                             </div>
                             <div class="invoice-body">
                                 {% for doc in all_unpaid_invoices %}
-                                    <div class="invoice-row align-items-center" data-search="{{ doc.supplier.name }} {{ doc.document_number }}" data-date="{{ doc.due_date.strftime('%Y-%m-%d') if doc.due_date else '' }}">
+                                    {% set supplier_name = doc.supplier.name if doc.supplier else '' %}
+                                    {% set doc_number = doc.document_number or '' %}
+                                    {% set paid_val = (doc.paid_amount if doc.paid_amount is defined else 0) %}
+                                    {% set remaining_val = (doc.remaining_amount if doc.remaining_amount is defined else (doc.total_gross_amount - paid_val)) %}
+                                    {% set due_val = remaining_val if remaining_val is not none else doc.total_gross_amount %}
+                                    {% set due_val_raw = "%.2f"|format(due_val or 0) %}
+                                    <div
+                                        class="invoice-row"
+                                        data-search="{{ supplier_name }} {{ doc_number }} {{ doc.id }}"
+                                        data-date="{{ doc.due_date.isoformat() if doc.due_date else '' }}"
+                                        data-due="{{ due_val_raw }}"
+                                    >
                                         <div class="invoice-col checkbox-col">
                                             <input class="form-check-input" type="checkbox" name="payment_id" value="{{ doc.id }}" aria-label="Seleziona pagamento">
                                         </div>
@@ -112,13 +123,10 @@
                                                 <span class="text-muted">-</span>
                                             {% endif %}
                                         </div>
-                                        <div class="invoice-col supplier-col">{{ doc.supplier.name }}</div>
-                                        <div class="invoice-col doc-col">{{ doc.document_number }}</div>
+                                        <div class="invoice-col supplier-col">{{ supplier_name }}</div>
+                                        <div class="invoice-col doc-col">{{ doc_number }}</div>
                                         <div class="invoice-col due-col text-end">
                                             <small class="text-muted d-block">Importo dovuto</small>
-                                            {% set paid_val = (doc.paid_amount if doc.paid_amount is defined else 0) %}
-                                            {% set remaining_val = (doc.remaining_amount if doc.remaining_amount is defined else (doc.total_gross_amount - paid_val)) %}
-                                            {% set due_val = remaining_val if remaining_val is not none else doc.total_gross_amount %}
                                             <strong>{{ due_val|format_amount }} &euro;</strong>
                                         </div>
                                         <div class="invoice-col amount-col text-end">
@@ -193,15 +201,11 @@
                         <tbody>
                             {% for payment in payment_history %}
                                 {% set invoice = payment.document %}
-                                <tr data-payment-search="{{ payment.id }} {{ invoice.document_number if invoice else '' }} {{ invoice.id if invoice else '' }} {{ invoice.supplier.name if invoice and invoice.supplier else '' }} {{ payment.paid_date.strftime('%d/%m/%Y') if payment.paid_date else '' }} {{ payment.updated_at.strftime('%d/%m/%Y') if payment.updated_at else '' }} {{ payment.payment_method or (payment.payment_document.payment_type if payment.payment_document) or '' }} {{ payment.status }} {{ payment.payment_document_id or '' }} {{ payment.payment_document.file_name if payment.payment_document else '' }} {{ payment.paid_amount or payment.expected_amount or '' }} {{ (payment.paid_amount or payment.expected_amount or 0)|format_amount }}">
+                                <tr data-payment-search="{{ payment.id }} {{ invoice.document_number if invoice else '' }} {{ invoice.id if invoice else '' }} {{ invoice.supplier.name if invoice and invoice.supplier else '' }} {{ payment.paid_date.strftime('%d/%m/%Y') if payment.paid_date else '' }} {{ payment.updated_at.strftime('%d/%m/%Y') if payment.updated_at else '' }} {{ payment.payment_method or (payment.payment_document.payment_type if payment.payment_document) or '' }} {{ payment.status }} {{ payment.payment_document_id or '' }} {{ payment.payment_document.file_name if payment.payment_document else '' }} {{ payment.paid_amount or payment.expected_amount or '' }} {{ (payment.paid_amount or payment.expected_amount or 0)|format_amount }} {{ payment.notes or '' }}">
                                     <td>{{ payment.paid_date.strftime('%d/%m/%Y') if payment.paid_date else (payment.updated_at.strftime('%d/%m/%Y') if payment.updated_at else '-') }}</td>
                                     <td>
                                         {% if invoice %}
                                             <div class="fw-bold">{{ invoice.document_number or ('Documento #' ~ invoice.id) }}</div>
-                                            <small class="text-muted">ID {{ invoice.id }}</small>
-                                            {% if payment.payment_document_id %}
-                                                <div class="text-muted small">Batch #{{ payment.payment_document_id }}</div>
-                                            {% endif %}
                                         {% else %}
                                             <span class="text-muted">Documento non disponibile</span>
                                         {% endif %}

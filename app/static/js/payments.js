@@ -1,6 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
     setupTabSwitching();
     setupInvoiceFilter();
+    setupPaymentAmountAutofill();
     setupPaymentHistoryFilter();
     setupPdfPreview();
     setupPaymentsSplitter();
@@ -130,6 +131,28 @@ function setupInvoiceFilter() {
     searchInput?.addEventListener("keyup", applyFilter);
     dateInput?.addEventListener("change", applyFilter);
     dateInput?.addEventListener("keyup", applyFilter);
+}
+
+function setupPaymentAmountAutofill() {
+    const checkboxes = document.querySelectorAll('input[name="payment_id"]');
+    if (!checkboxes.length) return;
+
+    checkboxes.forEach((checkbox) => {
+        checkbox.addEventListener("change", () => {
+            if (!checkbox.checked) return;
+            const row = checkbox.closest(".invoice-row");
+            if (!row) return;
+            const due = row.getAttribute("data-due");
+            if (!due) return;
+
+            const amountInput =
+                row.querySelector(`input[name="amount_${checkbox.value}"]`) ||
+                row.querySelector('input[name^="amount_"]');
+            if (!amountInput) return;
+
+            amountInput.value = due;
+        });
+    });
 }
 
 function setupPaymentHistoryFilter() {
