@@ -53,7 +53,7 @@ def payment_index():
     with UnitOfWork() as uow:
         all_unpaid_invoices = (
             uow.session.query(Document)
-            .options(joinedload(Document.supplier))
+            .options(joinedload(Document.supplier), joinedload(Document.legal_entity))
             .filter(
                 Document.document_type == "invoice",
                 Document.is_paid == False,
@@ -294,6 +294,14 @@ def batch_payment():
     file = request.files.get("file")
     method = request.form.get("method") or request.form.get("payment_method")
     notes = request.form.get("notes")
+    payment_date = None
+    date_str = (request.form.get("payment_date") or "").strip()
+    if date_str:
+        try:
+            payment_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError:
+            flash("Data pagamento non valida.", "warning")
+            return redirect(url_for("payments.payment_index"))
 
     # Get selected DOCUMENT IDs (the form sends doc.id as payment_id)
     selected_doc_ids = request.form.getlist("payment_id")
@@ -328,7 +336,8 @@ def batch_payment():
             file=file,
             document_allocations=doc_allocations,
             method=method,
-            notes=notes
+            notes=notes,
+            payment_date=payment_date,
         )
 
         # Display results

@@ -236,12 +236,14 @@ def create_batch_payment(
     allocations: Sequence[dict],
     method: Optional[str],
     notes: Optional[str],
+    payment_date: Optional[date] = None,
 ) -> PaymentDocument:
     """Crea un pagamento cumulativo collegato a più scadenze."""
     if not allocations:
         raise ValueError("Nessuna allocazione fornita per il pagamento cumulativo.")
 
     today = date.today()
+    paid_date = payment_date or today
 
     with UnitOfWork() as uow:
         # Gestione file allegato
@@ -291,7 +293,7 @@ def create_batch_payment(
                 payment_status = "paid"
 
             payment.status = payment_status
-            payment.paid_date = today
+            payment.paid_date = paid_date
             payment.paid_amount = new_paid
             payment.payment_method = method
             payment.notes = notes
@@ -316,6 +318,7 @@ def create_batch_payment_from_documents(
     document_allocations: List[dict],
     method: Optional[str],
     notes: Optional[str],
+    payment_date: Optional[date] = None,
 ) -> dict:
     """
     Process batch payment for multiple documents.
@@ -334,6 +337,7 @@ def create_batch_payment_from_documents(
         raise ValueError("Nessuna allocazione fornita per il pagamento cumulativo.")
 
     today = date.today()
+    paid_date = payment_date or today
     results = []
 
     with UnitOfWork() as uow:
@@ -414,7 +418,7 @@ def create_batch_payment_from_documents(
                 current_paid = Decimal(payment.paid_amount or 0)
                 new_paid = current_paid + increment
 
-                payment.paid_date = today
+                payment.paid_date = paid_date
                 payment.paid_amount = new_paid
                 payment.payment_method = method
                 payment.notes = notes

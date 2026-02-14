@@ -44,6 +44,10 @@
                                     <option value="altro">Altro</option>
                                 </select>
                             </div>
+                            <div class="col-lg-6">
+                                <label for="payment-date" class="form-label">Data pagamento</label>
+                                <input type="date" class="form-control" name="payment_date" id="payment-date">
+                            </div>
                             <div class="col-12">
                                 <label for="notes" class="form-label">Note</label>
                                 <textarea class="form-control" name="notes" id="notes" rows="2" placeholder="Dettagli aggiuntivi"></textarea>
@@ -73,14 +77,24 @@
                         </div>
 
                         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                            <div class="d-flex flex-wrap gap-2 flex-grow-1">
-                                <div class="input-group w-auto flex-grow-1" style="min-width: 280px;">
-                                    <span class="input-group-text"><i class="bi bi-search"></i></span>
-                                    <input type="search" id="invoice-search" class="form-control" placeholder="Filtra per fornitore o numero documento">
+                            <div class="d-flex flex-column gap-2 flex-grow-1">
+                                <div class="d-flex flex-wrap gap-2">
+                                    <div class="input-group w-auto flex-grow-1" style="min-width: 280px;">
+                                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                        <input type="search" id="invoice-search" class="form-control" placeholder="Filtra per fornitore, intestatario o numero documento">
+                                    </div>
+                                    <div class="input-group date-filter">
+                                        <span class="input-group-text"><i class="bi bi-calendar-event"></i></span>
+                                        <input type="date" id="invoice-date" class="form-control" placeholder="Data scadenza">
+                                    </div>
                                 </div>
-                                <div class="input-group date-filter">
-                                    <span class="input-group-text"><i class="bi bi-calendar-event"></i></span>
-                                    <input type="date" id="invoice-date" class="form-control" placeholder="Data scadenza">
+                                <div id="invoice-entity-chip" class="filter-chips d-none">
+                                    <span class="filter-chip">
+                                        <span id="invoice-entity-chip-label"></span>
+                                        <button type="button" class="chip-remove" id="invoice-entity-chip-remove" aria-label="Rimuovi filtro intestatario">
+                                            <i class="bi bi-x"></i>
+                                        </button>
+                                    </span>
                                 </div>
                             </div>
                             <button type="submit" class="btn btn-success">
@@ -94,7 +108,7 @@
                                     <i class="bi bi-check2-square"></i>
                                 </span>
                                 <span class="invoice-col date-col">Scadenza</span>
-                                <span class="invoice-col supplier-col">Fornitore</span>
+                                <span class="invoice-col supplier-col">Fornitore / Intestatario</span>
                                 <span class="invoice-col doc-col">Documento</span>
                                 <span class="invoice-col due-col text-end">Dovuto</span>
                                 <span class="invoice-col amount-col text-end">Importo pagato</span>
@@ -102,6 +116,7 @@
                             <div class="invoice-body">
                                 {% for doc in all_unpaid_invoices %}
                                     {% set supplier_name = doc.supplier.name if doc.supplier else '' %}
+                                    {% set legal_entity_name = doc.legal_entity.name if doc.legal_entity else '' %}
                                     {% set doc_number = doc.document_number or '' %}
                                     {% set paid_val = (doc.paid_amount if doc.paid_amount is defined else 0) %}
                                     {% set remaining_val = (doc.remaining_amount if doc.remaining_amount is defined else (doc.total_gross_amount - paid_val)) %}
@@ -109,9 +124,11 @@
                                     {% set due_val_raw = "%.2f"|format(due_val or 0) %}
                                     <div
                                         class="invoice-row"
-                                        data-search="{{ supplier_name }} {{ doc_number }} {{ doc.id }}"
+                                        data-search="{{ supplier_name }} {{ legal_entity_name }} {{ doc_number }} {{ doc.id }}"
                                         data-date="{{ doc.due_date.isoformat() if doc.due_date else '' }}"
                                         data-due="{{ due_val_raw }}"
+                                        data-legal-entity-id="{{ doc.legal_entity_id or '' }}"
+                                        data-legal-entity-name="{{ legal_entity_name }}"
                                     >
                                         <div class="invoice-col checkbox-col">
                                             <input class="form-check-input" type="checkbox" name="payment_id" value="{{ doc.id }}" aria-label="Seleziona pagamento">
@@ -123,7 +140,12 @@
                                                 <span class="text-muted">-</span>
                                             {% endif %}
                                         </div>
-                                        <div class="invoice-col supplier-col">{{ supplier_name }}</div>
+                                        <div class="invoice-col supplier-col">
+                                            <div class="fw-semibold">{{ supplier_name }}</div>
+                                            {% if legal_entity_name %}
+                                                <div class="text-muted small">{{ legal_entity_name }}</div>
+                                            {% endif %}
+                                        </div>
                                         <div class="invoice-col doc-col">{{ doc_number }}</div>
                                         <div class="invoice-col due-col text-end">
                                             <small class="text-muted d-block">Importo dovuto</small>

@@ -6,6 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setupPdfPreview();
     setupPaymentsSplitter();
     setupPaymentOcr();
+    setupPaymentDateDefault();
     applyPresetPayment();
 });
 
@@ -77,6 +78,7 @@ function applyPresetPayment() {
 
         if (checkbox) {
             checkbox.checked = true;
+            checkbox.dispatchEvent(new Event("change", { bubbles: true }));
             const row = checkbox.closest(".invoice-row");
             if (row) {
                 row.classList.add("border", "border-primary", "rounded");
@@ -111,6 +113,10 @@ function setupInvoiceFilter() {
     const searchInput = document.getElementById("invoice-search");
     const dateInput = document.getElementById("invoice-date");
     const rows = document.querySelectorAll(".invoice-row");
+    const chip = document.getElementById("invoice-entity-chip");
+    const chipLabel = document.getElementById("invoice-entity-chip-label");
+    const chipRemove = document.getElementById("invoice-entity-chip-remove");
+    let activeEntityId = null;
 
     if (!searchInput && !dateInput) return;
 
@@ -123,10 +129,56 @@ function setupInvoiceFilter() {
             const matchText = !query || text.includes(query);
             const rowDate = row.getAttribute("data-date") || "";
             const matchDate = !dateValue || rowDate === dateValue;
+            const rowEntity = row.getAttribute("data-legal-entity-id") || "";
+            const matchEntity = !activeEntityId || rowEntity === activeEntityId;
 
-            row.classList.toggle("d-none", !(matchText && matchDate));
+            row.classList.toggle("d-none", !(matchText && matchDate && matchEntity));
         });
     };
+
+    const setEntityFilter = (entityId, entityName) => {
+        if (!entityId) return;
+        activeEntityId = String(entityId);
+        if (chip && chipLabel) {
+            chipLabel.textContent = entityName || "Intestatario";
+            chip.classList.remove("d-none");
+        }
+        applyFilter();
+    };
+
+    const clearEntityFilter = () => {
+        activeEntityId = null;
+        if (chip) {
+            chip.classList.add("d-none");
+        }
+        applyFilter();
+    };
+
+    chipRemove?.addEventListener("click", (event) => {
+        event.preventDefault();
+        clearEntityFilter();
+    });
+
+    rows.forEach((row) => {
+        const checkbox = row.querySelector('input[name="payment_id"]');
+        if (!checkbox) return;
+        checkbox.addEventListener("change", () => {
+            if (!checkbox.checked || activeEntityId) return;
+            const entityId = row.getAttribute("data-legal-entity-id") || "";
+            const entityName = row.getAttribute("data-legal-entity-name") || "";
+            setEntityFilter(entityId, entityName);
+        });
+    });
+
+    const preselected = document.querySelector('input[name="payment_id"]:checked');
+    if (preselected) {
+        const row = preselected.closest(".invoice-row");
+        if (row) {
+            const entityId = row.getAttribute("data-legal-entity-id") || "";
+            const entityName = row.getAttribute("data-legal-entity-name") || "";
+            setEntityFilter(entityId, entityName);
+        }
+    }
 
     searchInput?.addEventListener("keyup", applyFilter);
     dateInput?.addEventListener("change", applyFilter);
@@ -355,11 +407,20 @@ function setupPaymentOcr() {
     });
 }
 
+function setupPaymentDateDefault() {
+    const input = document.getElementById("payment-date");
+    if (!input || input.value) return;
+    const today = new Date();
+    const pad = (value) => String(value).padStart(2, "0");
+    input.value = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+}
+
 function applyPaymentMapping(fields, methodSelect, notesInput) {
     if (!fields || typeof fields !== "object") return;
 
     const badge = window.OcrBadge && window.OcrBadge.apply ? window.OcrBadge.apply : null;
     const docIdParam = new URLSearchParams(window.location.search).get("document_id");
+    const dateInput = document.getElementById("payment-date");
 
     if (fields.payment_method && methodSelect) {
         const methodValue = fields.payment_method.value;
@@ -372,6 +433,14 @@ function applyPaymentMapping(fields, methodSelect, notesInput) {
     if (fields.notes && notesInput) {
         notesInput.value = fields.notes.value || "";
         if (badge) badge(notesInput, fields.notes.confidence || 0, "OCR");
+    }
+
+    if (fields.payment_date && dateInput) {
+        const dateValue = fields.payment_date.value;
+        if (dateValue) {
+            dateInput.value = dateValue;
+            if (badge) badge(dateInput, fields.payment_date.confidence || 0, "OCR");
+        }
     }
 
     if (fields.amount) {
