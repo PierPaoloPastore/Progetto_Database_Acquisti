@@ -10,7 +10,7 @@
             <small class="text-muted">Numero {{ note.ddt_number }} · {{ note.ddt_date.strftime('%d/%m/%Y') if note.ddt_date else '-' }}</small>
         </div>
         <div class="d-flex gap-2">
-            <a class="btn btn-outline-secondary" href="{{ url_for('delivery_notes.list_view') }}">← Torna all'elenco</a>
+            <a class="btn btn-outline-secondary" href="{{ url_for('delivery_notes.list_view') }}" data-history-back>← Torna all'elenco</a>
             {% if note.file_path %}
                 <a class="btn btn-outline-primary" href="{{ url_for('delivery_notes.file_view', delivery_note_id=note.id) }}" target="_blank">
                     <i class="bi bi-file-earmark-pdf"></i> Apri PDF
