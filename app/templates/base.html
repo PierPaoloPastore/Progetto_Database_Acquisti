@@ -9,9 +9,16 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/compact.css') }}">
 
+    <script>
+        document.documentElement.classList.add("js");
+    </script>
     <style>
         body { background-color: #f8f9fa; }
         .navbar-brand { font-weight: bold; }
+        .js [data-nav-title],
+        .js main h1 {
+            visibility: hidden;
+        }
     </style>
     
     {% block extra_css %}{% endblock %}
