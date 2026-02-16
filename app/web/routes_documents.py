@@ -482,6 +482,15 @@ def list_view():
     )
 
 
+@documents_bp.route("/audit", methods=["GET"])
+def audit_view():
+    audit_logs = doc_service.list_document_audit_logs(limit=300)
+    return render_template(
+        "documents/audit.html",
+        audit_logs=audit_logs,
+    )
+
+
 @documents_bp.route("/new", methods=["GET", "POST"])
 def manual_create_view():
     suppliers = list_active_suppliers()

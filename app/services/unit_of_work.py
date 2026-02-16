@@ -13,6 +13,7 @@ from app.repositories.document_repo import DocumentRepository
 from app.repositories.delivery_note_repo import DeliveryNoteRepository
 from app.repositories.delivery_note_line_repo import DeliveryNoteLineRepository
 from app.repositories.bank_account_repo import BankAccountRepository
+from app.repositories.document_audit_log_repo import DocumentAuditLogRepository
 
 class UnitOfWork:
     def __init__(self):
@@ -24,6 +25,7 @@ class UnitOfWork:
         self._delivery_notes: Optional[DeliveryNoteRepository] = None
         self._delivery_note_lines: Optional[DeliveryNoteLineRepository] = None
         self._bank_accounts: Optional[BankAccountRepository] = None
+        self._document_audit_logs: Optional[DocumentAuditLogRepository] = None
 
     def __enter__(self):
         return self
@@ -75,6 +77,12 @@ class UnitOfWork:
         if self._bank_accounts is None:
             self._bank_accounts = BankAccountRepository(self.session)
         return self._bank_accounts
+
+    @property
+    def document_audit_logs(self) -> DocumentAuditLogRepository:
+        if self._document_audit_logs is None:
+            self._document_audit_logs = DocumentAuditLogRepository(self.session)
+        return self._document_audit_logs
 
     def commit(self):
         try:
