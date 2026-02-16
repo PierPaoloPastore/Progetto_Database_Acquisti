@@ -33,6 +33,15 @@
     max-width: 70%;
 }
 
+.payments-page .payments-tabs .nav-link {
+    padding: 0.35rem 0.75rem;
+    font-size: 0.9rem;
+}
+
+.payments-page .payments-tabs {
+    margin-bottom: 0.5rem;
+}
+
 .splitter {
     flex: 0 0 8px;
     margin: 0 0.4rem;

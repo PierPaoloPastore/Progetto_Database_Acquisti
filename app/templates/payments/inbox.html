@@ -7,12 +7,12 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-3">
+<div class="container-fluid payments-page">
+    <div class="d-flex justify-content-between align-items-center mb-2">
         <h1 class="mb-0"><i class="bi bi-cash-stack"></i> Pagamenti</h1>
     </div>
 
-    <ul class="nav nav-tabs mb-3" role="tablist">
+    <ul class="nav nav-tabs mb-2 payments-tabs" role="tablist">
         <li class="nav-item" role="presentation">
             <a class="nav-link active" href="#tab-history" data-tab-target="tab-history" role="tab">Elenco Pagamenti</a>
         </li>
@@ -24,12 +24,12 @@
     <section id="tab-new" class="tab-section d-none">
         <div class="split-container">
             <div class="split-section split-section-left card">
-                <div class="card-header bg-white border-bottom-0">
-                    <h5 class="mb-0">Registrazione Batch</h5>
+                <div class="card-header bg-white border-bottom-0 py-2">
+                    <h5 class="mb-0">Nuovo pagamento</h5>
                 </div>
-                <div class="card-body d-flex flex-column gap-3">
-                    <form action="{{ url_for('payments.batch_payment') }}" method="POST" enctype="multipart/form-data" class="d-flex flex-column gap-3">
-                        <div class="row g-3">
+                <div class="card-body d-flex flex-column gap-2">
+                    <form action="{{ url_for('payments.batch_payment') }}" method="POST" enctype="multipart/form-data" class="d-flex flex-column gap-2">
+                        <div class="row g-2">
                             <div class="col-lg-6">
                                 <label for="pdf-file" class="form-label">Allega PDF di pagamento</label>
                                 <input type="file" name="file" id="pdf-file" accept="application/pdf" class="form-control">
@@ -193,7 +193,7 @@
 
     <section id="tab-history" class="tab-section">
         <div class="card shadow-sm">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2 py-2">
                 <div>
                     <h5 class="mb-0">Elenco Pagamenti</h5>
                     <small class="text-muted">Movimenti registrati (stato partial / paid)</small>
