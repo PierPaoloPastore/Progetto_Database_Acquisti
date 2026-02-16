@@ -4,6 +4,7 @@ Rifattorizzato con Pattern Unit of Work.
 """
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 from datetime import date, datetime
@@ -99,9 +100,11 @@ class DocumentService:
             doc = uow.documents.get_by_id(document_id)
             if not doc:
                 return False
+            file_paths = _collect_document_file_paths(doc)
             uow.documents.delete(doc)
             uow.commit()
-            return True
+        _remove_document_files(file_paths)
+        return True
 
 # --- Funzioni Helper ---
 
@@ -304,6 +307,40 @@ def reject_document(document_id: int):
 
 def delete_document(document_id: int) -> bool:
     return DocumentService.delete_document(document_id)
+
+
+logger = logging.getLogger(__name__)
+
+def _collect_document_file_paths(doc: Document) -> list[str]:
+    paths: list[str] = []
+    if doc.file_path:
+        if os.path.isabs(doc.file_path):
+            paths.append(doc.file_path)
+        else:
+            xml_base = settings_service.get_xml_storage_path()
+            paths.append(os.path.join(xml_base, doc.file_path))
+
+    if doc.physical_copy_file_path:
+        if os.path.isabs(doc.physical_copy_file_path):
+            paths.append(doc.physical_copy_file_path)
+        else:
+            docs_base = settings_service.get_documents_storage_path()
+            paths.append(os.path.join(docs_base, doc.physical_copy_file_path))
+    return paths
+
+
+def _remove_document_files(paths: list[str]) -> None:
+    for path in paths:
+        if not path:
+            continue
+        try:
+            if os.path.exists(path):
+                os.remove(path)
+        except Exception as exc:
+            logger.warning(
+                "Impossibile rimuovere file documento.",
+                extra={"file_path": path, "error": str(exc)},
+            )
 
 def list_documents_to_review(order: str = "desc", document_type: Optional[str] = None, legal_entity_id: Optional[int] = None):
     with UnitOfWork() as uow:

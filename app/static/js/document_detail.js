@@ -71,6 +71,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const editFields = document.querySelectorAll("[data-doc-edit]");
     const editSaveBtn = document.getElementById("doc-edit-save-btn");
     const editConfirmHidden = document.getElementById("doc-edit-confirm-text");
+    const editAccordionToggle = document.getElementById("doc-edit-accordion-toggle");
+    const editCollapse = document.getElementById("collapse-edit");
 
     if (editInput && editConfirmBtn && editModalEl) {
         const expected = normalizeConfirm(editInput.dataset.expected || "");
@@ -90,6 +92,21 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             if (editConfirmHidden) {
                 editConfirmHidden.value = editInput.dataset.expected || "";
+            }
+            if (editAccordionToggle) {
+                editAccordionToggle.removeAttribute("disabled");
+                editAccordionToggle.setAttribute("aria-disabled", "false");
+            }
+            if (editCollapse) {
+                if (window.bootstrap) {
+                    const collapse = bootstrap.Collapse.getOrCreateInstance
+                        ? bootstrap.Collapse.getOrCreateInstance(editCollapse, { toggle: false })
+                        : new bootstrap.Collapse(editCollapse, { toggle: false });
+                    collapse.show();
+                } else {
+                    editCollapse.classList.add("show");
+                }
+                editCollapse.scrollIntoView({ behavior: "smooth", block: "start" });
             }
             if (window.bootstrap) {
                 const modal = bootstrap.Modal.getInstance(editModalEl);

@@ -697,16 +697,14 @@ def update_payment_method_for_document(
 
 def _update_document_paid_status(uow: UnitOfWork, document: Document):
     """
-    Helper interno: ricalcola se la fattura è pagata totalmente.
+    Helper interno: ricalcola se la fattura ? pagata totalmente.
     """
     payments = uow.payments.get_by_document_id(document.id)
-    total_paid = sum(p.expected_amount for p in payments)
-
-    # Tolleranza per virgola mobile
-    if total_paid >= (float(document.total_gross_amount or 0) - 0.01):
-        document.is_paid = True
-    else:
+    if not payments:
         document.is_paid = False
+        return
+
+    document.is_paid = all(p.status == "paid" for p in payments)
 
 # --- FUNZIONE REINSERITA PER COMPATIBILITÀ DASHBOARD ---
 def list_overdue_payments_for_ui() -> List[Document]:

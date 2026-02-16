@@ -189,18 +189,17 @@
 
 {% block content %}
 <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap documents-header">
-        <h1 class="mb-0" data-nav-title>Elenco Documenti</h1>
-        <div class="documents-actions">
-            <a href="{{ url_for('import.run_view') }}" class="btn btn-success">
-                <i class="bi bi-cloud-upload"></i> Importa XML
-            </a>
-            <a href="{{ url_for('documents.manual_create_view') }}" class="btn btn-outline-secondary btn-manual-create">+ Nuovo (Manuale)</a>
-        </div>
-    </div>
-
     <div class="card mb-3">
         <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap documents-header">
+                <h1 class="mb-0" data-nav-title>Elenco Documenti</h1>
+                <div class="documents-actions">
+                    <a href="{{ url_for('import.run_view') }}" class="btn btn-success">
+                        <i class="bi bi-cloud-upload"></i> Importa XML
+                    </a>
+                    <a href="{{ url_for('documents.manual_create_view') }}" class="btn btn-outline-secondary btn-manual-create">+ Nuovo (Manuale)</a>
+                </div>
+            </div>
             <form id="documents-filters-form" class="documents-filters" method="GET">
                 <div class="filters-primary">
                     <div>

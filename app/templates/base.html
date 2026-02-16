@@ -152,13 +152,19 @@
                 });
             });
 
-            const navIcon = document.querySelector("body > nav > div > a > i");
-            const navTitleSource = document.querySelector("[data-nav-title]");
-            if (navIcon && navTitleSource) {
+            const navBrand = document.querySelector("body > nav > div > a");
+            const navIcon = navBrand?.querySelector("i");
+            const navTitleSource =
+                document.querySelector("[data-nav-title]") || document.querySelector("main h1");
+            if (navBrand && navTitleSource) {
                 const titleText = (navTitleSource.textContent || "").trim();
                 if (titleText) {
-                    navIcon.classList.add("me-1");
-                    navIcon.textContent = ` ${titleText}`;
+                    if (navIcon) {
+                        navIcon.classList.add("me-1");
+                        navIcon.textContent = ` ${titleText}`;
+                    } else {
+                        navBrand.textContent = titleText;
+                    }
                     navTitleSource.classList.add("visually-hidden");
                 }
             }
