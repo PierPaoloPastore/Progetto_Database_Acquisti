@@ -292,6 +292,78 @@
                 </div>
             </div>
 
+            <div class="mt-4 pt-3 border-top">
+                {% set missing_count = missing_category_count %}
+                <button class="review-collapse-toggle d-flex align-items-center justify-content-between"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#review-categories"
+                        aria-expanded="{{ 'true' if missing_count else 'false' }}"
+                        aria-controls="review-categories">
+                    <span>Categorie</span>
+                    {% if invoice_lines %}
+                        <span class="badge bg-secondary">{{ missing_count }} da assegnare</span>
+                    {% endif %}
+                </button>
+                <div id="review-categories" class="collapse review-collapse-body {% if missing_count %}show{% endif %}">
+                    <form method="POST"
+                          action="{{ url_for('documents.assign_category_bulk_view', document_id=invoice.id) }}"
+                          class="d-flex flex-wrap align-items-center gap-2">
+                        <select name="category_id" class="form-select form-select-sm" style="min-width: 220px;">
+                            <option value="">Seleziona categoria</option>
+                            {% for cat in categories %}
+                                <option value="{{ cat.id }}">{{ cat.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-check2-circle"></i> Applica a tutta la fattura
+                        </button>
+                    </form>
+                    <div class="mt-2">
+                        <strong>Righe documento:</strong>
+                        <div class="table-responsive scrollable-list" style="max-height: 240px;">
+                            <table class="table table-compact mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Descrizione</th>
+                                        <th class="text-end">Totale</th>
+                                        <th style="width: 320px;">Categoria</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for line in invoice_lines %}
+                                        <tr>
+                                            <td class="text-truncate" title="{{ line.description }}">{{ line.description }}</td>
+                                            <td class="text-end">{{ (line.total_line_amount or 0)|format_amount }} &euro;</td>
+                                            <td>
+                                                <form method="POST"
+                                                      action="{{ url_for('documents.assign_category_line_view', document_id=invoice.id) }}"
+                                                      class="d-flex align-items-center gap-2">
+                                                    <input type="hidden" name="line_id" value="{{ line.id }}">
+                                                    <select name="category_id" class="form-select form-select-sm">
+                                                        <option value="">Senza categoria</option>
+                                                        {% for cat in categories %}
+                                                            <option value="{{ cat.id }}" {% if line.category_id == cat.id %}selected{% endif %}>{{ cat.name }}</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                    <button type="submit" class="btn btn-sm btn-outline-primary">
+                                                        Salva
+                                                    </button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    {% else %}
+                                        <tr>
+                                            <td colspan="3" class="text-center text-muted py-2">Nessuna riga documento.</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {% if payment_method_visible %}
             <div class="mt-4 pt-3 border-top">
                 {% set payment_count = payment_method_codes|length %}

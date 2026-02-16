@@ -17,7 +17,15 @@ from flask import (
 )
 
 from app.models import Document
-from app.services import document_service as doc_service, ocr_service, list_all_bank_accounts, settings_service
+from app.services import (
+    document_service as doc_service,
+    ocr_service,
+    list_all_bank_accounts,
+    list_categories_for_ui,
+    assign_category_to_line,
+    bulk_assign_category_to_invoice_lines,
+    settings_service,
+)
 from app.services.document_service import DocumentService, render_invoice_html, update_document_core
 from app.services.ocr_mapping_service import parse_manual_document_fields
 from app.services.formatting_service import format_amount
@@ -39,6 +47,7 @@ from app.services.unit_of_work import UnitOfWork
 # FIX: Import dai service invece che dai repo diretti dove possibile
 from app.services.supplier_service import list_active_suppliers, list_all_suppliers
 from app.repositories.legal_entity_repo import list_legal_entities
+from app.repositories import get_document_line_by_id, list_lines_by_document
 from app.services.delivery_note_service import (
     find_delivery_note_candidates,
     list_delivery_notes_by_document,
@@ -575,6 +584,67 @@ def review_list_view():
         active_filter_chips=active_filter_chips,
     )
 
+
+@documents_bp.post("/<int:document_id>/categories/assign-line")
+def assign_category_line_view(document_id: int):
+    line_id_raw = request.form.get("line_id") or ""
+    category_id_raw = request.form.get("category_id") or ""
+
+    try:
+        line_id = int(line_id_raw)
+    except ValueError:
+        flash("Riga non valida.", "warning")
+        return redirect(url_for("documents.review_loop_invoice_view", document_id=document_id))
+
+    line = get_document_line_by_id(line_id)
+    if line is None or line.document_id != document_id:
+        flash("Riga documento non trovata.", "warning")
+        return redirect(url_for("documents.review_loop_invoice_view", document_id=document_id))
+
+    category_id = None
+    if category_id_raw:
+        try:
+            category_id = int(category_id_raw)
+        except ValueError:
+            category_id = None
+
+    updated = assign_category_to_line(line_id, category_id)
+    if updated is None:
+        flash("Categoria non trovata.", "warning")
+    else:
+        flash("Categoria aggiornata.", "success")
+
+    return redirect(url_for("documents.review_loop_invoice_view", document_id=document_id))
+
+
+@documents_bp.post("/<int:document_id>/categories/assign-all")
+def assign_category_bulk_view(document_id: int):
+    category_id_raw = request.form.get("category_id") or ""
+    if not category_id_raw:
+        flash("Seleziona una categoria.", "warning")
+        return redirect(url_for("documents.review_loop_invoice_view", document_id=document_id))
+
+    try:
+        category_id = int(category_id_raw)
+    except ValueError:
+        flash("Categoria non valida.", "warning")
+        return redirect(url_for("documents.review_loop_invoice_view", document_id=document_id))
+
+    result = bulk_assign_category_to_invoice_lines(
+        invoice_id=document_id,
+        category_id=category_id,
+        line_ids=None,
+    )
+    if result.get("success"):
+        flash(
+            f"Categoria assegnata a {result.get('updated_count', 0)} righe.",
+            "success",
+        )
+    else:
+        flash(result.get("message", "Errore durante l'assegnazione."), "danger")
+
+    return redirect(url_for("documents.review_loop_invoice_view", document_id=document_id))
+
 @documents_bp.route("/review", methods=["GET"])
 def review_loop_redirect_view():
     raw_skip_id = request.args.get("skip_id")
@@ -696,6 +766,9 @@ def review_loop_invoice_view(document_id: int):
             exclude_document_ids=[document_id],
         )
     linked_ddt = list_delivery_notes_by_document(document_id) if document else []
+    invoice_lines = list_lines_by_document(document_id)
+    categories = list_categories_for_ui()
+    missing_category_count = sum(1 for line in invoice_lines if not getattr(line, "category_id", None))
     legal_entities = list_legal_entities(include_inactive=False)
     saved_at = request.args.get("saved_at") or None
     method_context = _get_payment_method_context(document_id)
@@ -708,6 +781,9 @@ def review_loop_invoice_view(document_id: int):
         default_xsl=default_xsl,
         ddt_candidates=ddt_candidates,
         linked_ddt=linked_ddt,
+        invoice_lines=invoice_lines,
+        categories=categories,
+        missing_category_count=missing_category_count,
         legal_entities=legal_entities,
         saved_at=saved_at,
         payment_method_labels=method_context["labels"],
