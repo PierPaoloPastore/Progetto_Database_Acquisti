@@ -48,6 +48,18 @@
                                 <label for="payment-date" class="form-label">Data pagamento</label>
                                 <input type="date" class="form-control" name="payment_date" id="payment-date">
                             </div>
+                            <div class="col-lg-6">
+                                <label for="bank-account-iban" class="form-label">Conto bancario (IBAN)</label>
+                                <select class="form-select" name="bank_account_iban" id="bank-account-iban">
+                                    <option value="">Seleziona IBAN</option>
+                                    <option value="" id="bank-account-empty" class="d-none" disabled>Nessun conto disponibile</option>
+                                    {% for account in bank_accounts %}
+                                        <option value="{{ account.iban }}" data-legal-entity-id="{{ account.legal_entity_id }}">
+                                            {{ account.name }} · {{ account.iban }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
                             <div class="col-12">
                                 <label for="notes" class="form-label">Note</label>
                                 <textarea class="form-control" name="notes" id="notes" rows="2" placeholder="Dettagli aggiuntivi"></textarea>

@@ -14,6 +14,7 @@ from app.services.legal_entity_service import (
     get_legal_entity_detail,
     update_legal_entity,
 )
+from app.services.bank_account_service import create_bank_account
 
 legal_entities_bp = Blueprint("legal_entities", __name__)
 
@@ -91,4 +92,19 @@ def edit_view(legal_entity_id: int):
         flash("Intestazione non trovata.", "warning")
     else:
         flash("Intestazione aggiornata.", "success")
+    return redirect(url_for("legal_entities.detail_view", legal_entity_id=legal_entity_id))
+
+
+@legal_entities_bp.route("/<int:legal_entity_id>/bank-accounts", methods=["POST"])
+def add_bank_account_view(legal_entity_id: int):
+    account, error = create_bank_account(
+        legal_entity_id,
+        iban=request.form.get("iban"),
+        name=request.form.get("name"),
+        notes=request.form.get("notes"),
+    )
+    if error:
+        flash(error, "warning")
+    else:
+        flash("Conto bancario aggiunto.", "success")
     return redirect(url_for("legal_entities.detail_view", legal_entity_id=legal_entity_id))

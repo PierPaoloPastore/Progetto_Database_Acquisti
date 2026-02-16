@@ -116,6 +116,8 @@ function setupInvoiceFilter() {
     const chip = document.getElementById("invoice-entity-chip");
     const chipLabel = document.getElementById("invoice-entity-chip-label");
     const chipRemove = document.getElementById("invoice-entity-chip-remove");
+    const ibanSelect = document.getElementById("bank-account-iban");
+    const ibanEmptyOption = document.getElementById("bank-account-empty");
     let activeEntityId = null;
 
     if (!searchInput && !dateInput) return;
@@ -136,13 +138,44 @@ function setupInvoiceFilter() {
         });
     };
 
+    const updateBankAccounts = (entityId) => {
+        if (!ibanSelect) return;
+        const options = Array.from(ibanSelect.querySelectorAll("option")).filter(
+            (option) => option.value
+        );
+        let visibleCount = 0;
+        options.forEach((option) => {
+            const optionEntityId = option.getAttribute("data-legal-entity-id") || "";
+            const shouldShow = !entityId || optionEntityId === entityId;
+            option.hidden = !shouldShow;
+            option.disabled = !shouldShow;
+            if (shouldShow) {
+                visibleCount += 1;
+            }
+        });
+
+        if (ibanEmptyOption) {
+            const showEmpty = entityId && visibleCount === 0;
+            ibanEmptyOption.hidden = !showEmpty;
+            ibanEmptyOption.disabled = !showEmpty;
+        }
+
+        if (ibanSelect.value) {
+            const selected = options.find((option) => option.value === ibanSelect.value);
+            if (selected && selected.classList.contains("d-none")) {
+                ibanSelect.value = "";
+            }
+        }
+    };
+
     const setEntityFilter = (entityId, entityName) => {
         if (!entityId) return;
         activeEntityId = String(entityId);
         if (chip && chipLabel) {
-            chipLabel.textContent = entityName || "Intestatario";
+            chipLabel.textContent = entityName ? `Intestatario: ${entityName}` : "Intestatario";
             chip.classList.remove("d-none");
         }
+        updateBankAccounts(activeEntityId);
         applyFilter();
     };
 
@@ -151,6 +184,7 @@ function setupInvoiceFilter() {
         if (chip) {
             chip.classList.add("d-none");
         }
+        updateBankAccounts(null);
         applyFilter();
     };
 
@@ -179,6 +213,7 @@ function setupInvoiceFilter() {
             setEntityFilter(entityId, entityName);
         }
     }
+    updateBankAccounts(activeEntityId);
 
     searchInput?.addEventListener("keyup", applyFilter);
     dateInput?.addEventListener("change", applyFilter);

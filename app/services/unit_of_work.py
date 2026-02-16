@@ -12,6 +12,7 @@ from app.repositories.payment_repo import PaymentRepository
 from app.repositories.document_repo import DocumentRepository
 from app.repositories.delivery_note_repo import DeliveryNoteRepository
 from app.repositories.delivery_note_line_repo import DeliveryNoteLineRepository
+from app.repositories.bank_account_repo import BankAccountRepository
 
 class UnitOfWork:
     def __init__(self):
@@ -22,6 +23,7 @@ class UnitOfWork:
         self._documents: Optional[DocumentRepository] = None
         self._delivery_notes: Optional[DeliveryNoteRepository] = None
         self._delivery_note_lines: Optional[DeliveryNoteLineRepository] = None
+        self._bank_accounts: Optional[BankAccountRepository] = None
 
     def __enter__(self):
         return self
@@ -67,6 +69,12 @@ class UnitOfWork:
         if self._documents is None:
             self._documents = DocumentRepository(self.session)
         return self._documents
+
+    @property
+    def bank_accounts(self) -> BankAccountRepository:
+        if self._bank_accounts is None:
+            self._bank_accounts = BankAccountRepository(self.session)
+        return self._bank_accounts
 
     def commit(self):
         try:

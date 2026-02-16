@@ -9,7 +9,7 @@ from flask import Blueprint, request, redirect, url_for, flash, render_template,
 from sqlalchemy.orm import joinedload
 
 from app.models import Document
-from app.services import payment_service, ocr_service, settings_service
+from app.services import payment_service, ocr_service, settings_service, list_all_bank_accounts
 from app.services.document_service import mark_documents_as_programmed
 from app.services.settings_service import get_setting
 from app.services.ocr_mapping_service import parse_payment_fields
@@ -63,11 +63,13 @@ def payment_index():
         )
 
     payment_service.attach_payment_amounts(all_unpaid_invoices)
+    bank_accounts = list_all_bank_accounts()
 
     return render_template(
         "payments/inbox.html",
         all_unpaid_invoices=all_unpaid_invoices,
         payment_history=payment_history,
+        bank_accounts=bank_accounts,
     )
 
 
@@ -294,6 +296,7 @@ def batch_payment():
     file = request.files.get("file")
     method = request.form.get("method") or request.form.get("payment_method")
     notes = request.form.get("notes")
+    bank_account_iban = request.form.get("bank_account_iban")
     payment_date = None
     date_str = (request.form.get("payment_date") or "").strip()
     if date_str:
@@ -337,6 +340,7 @@ def batch_payment():
             document_allocations=doc_allocations,
             method=method,
             notes=notes,
+            bank_account_iban=bank_account_iban,
             payment_date=payment_date,
         )
 

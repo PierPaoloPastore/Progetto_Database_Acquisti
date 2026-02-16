@@ -27,6 +27,12 @@ class PaymentDocument(db.Model):
     payment_type = db.Column(db.String(32), nullable=False, default="sconosciuto")
     status = db.Column(db.String(32), nullable=False, default="pending_review", index=True)
     uploaded_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+    bank_account_iban = db.Column(
+        db.String(34),
+        db.ForeignKey("bank_accounts.iban", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     parsed_amount = db.Column(db.Numeric(15, 2), nullable=True)
     parsed_payment_date = db.Column(db.Date, nullable=True)
@@ -42,6 +48,7 @@ class PaymentDocument(db.Model):
     )
 
     supplier = db.relationship("Supplier", backref="payment_documents")
+    bank_account = db.relationship("BankAccount", backref="payment_documents")
     payments = db.relationship("Payment", back_populates="payment_document")
 
     def __repr__(self) -> str:

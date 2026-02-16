@@ -7,6 +7,7 @@ from .category_repo import CategoryRepository
 from .supplier_repo import SupplierRepository
 from .payment_repo import PaymentRepository
 from .document_repo import DocumentRepository # <--- Nuova Classe
+from .bank_account_repo import BankAccountRepository
 
 # Import Log e altre utilità rimaste a funzioni (se non le hai rifattorizzate)
 # Assumiamo che import_log_repo, legal_entity_repo ecc. siano ancora moduli con funzioni,
@@ -23,6 +24,7 @@ __all__ = [
     "SupplierRepository",
     "PaymentRepository",
     "DocumentRepository",
+    "BankAccountRepository",
     "create_import_log",
     "list_legal_entities",
     "get_document_line_by_id",

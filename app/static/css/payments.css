@@ -229,6 +229,11 @@
     text-overflow: ellipsis;
 }
 
+.invoice-col.supplier-col {
+    white-space: normal;
+    line-height: 1.1;
+}
+
 .invoice-empty {
     padding: 2rem 1rem;
 }

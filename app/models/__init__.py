@@ -11,6 +11,7 @@ from .document import Document
 from .document_line import DocumentLine
 from .vat_summary import VatSummary
 from .payment import Payment, PaymentDocument
+from .bank_account import BankAccount
 from .delivery_note import DeliveryNote
 from .delivery_note_line import DeliveryNoteLine
 from .rent_contract import RentContract
@@ -28,6 +29,7 @@ __all__ = [
     "VatSummary",
     "Payment",
     "PaymentDocument",
+    "BankAccount",
     "DeliveryNote",
     "DeliveryNoteLine",
     "RentContract",

@@ -166,6 +166,63 @@
         </div>
     </div>
 
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-bank"></i> Conti bancari</h5>
+            <span class="badge bg-light text-dark">{{ bank_accounts|length|format_int }} conti</span>
+        </div>
+        <div class="card-body">
+            <form method="post"
+                  action="{{ url_for('legal_entities.add_bank_account_view', legal_entity_id=legal_entity.id) }}"
+                  class="row g-2 mb-3">
+                <div class="col-md-4">
+                    <label class="form-label">Nome conto</label>
+                    <input type="text" name="name" class="form-control" placeholder="Es. Conto operativo" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">IBAN</label>
+                    <input type="text" name="iban" class="form-control text-uppercase" placeholder="IT00X0000000000000000000000" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Note</label>
+                    <input type="text" name="notes" class="form-control" placeholder="Opzionale">
+                </div>
+                <div class="col-12 d-flex justify-content-end">
+                    <button type="submit" class="btn btn-outline-primary">
+                        <i class="bi bi-plus-circle"></i> Aggiungi conto
+                    </button>
+                </div>
+            </form>
+
+            <div class="table-responsive scrollable-list">
+                <table class="table table-sm table-hover align-middle mb-0">
+                    <thead class="table-light">
+                    <tr>
+                        <th>Nome</th>
+                        <th>IBAN</th>
+                        <th>Note</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for account in bank_accounts %}
+                    <tr>
+                        <td class="fw-semibold">{{ account.name }}</td>
+                        <td class="font-monospace">{{ account.iban }}</td>
+                        <td>{{ account.notes or '-' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="3" class="text-center text-muted py-3">
+                            Nessun conto bancario registrato.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <div class="card shadow-sm">
         <div class="card-header">
             <h5 class="mb-0">Storico Documenti ({{ documents|length|format_int }})</h5>

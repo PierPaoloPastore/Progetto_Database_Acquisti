@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import or_
 
 from app.extensions import db
-from app.models import Document, LegalEntity, Payment, Supplier
+from app.models import BankAccount, Document, LegalEntity, Payment, Supplier
 from app.services.unit_of_work import UnitOfWork
 
 
@@ -92,6 +92,13 @@ def get_legal_entity_detail(
             .all()
         )
 
+        bank_accounts = (
+            uow.session.query(BankAccount)
+            .filter(BankAccount.legal_entity_id == legal_entity_id)
+            .order_by(BankAccount.name.asc())
+            .all()
+        )
+
         return {
             "legal_entity": entity,
             "documents": documents,
@@ -105,6 +112,7 @@ def get_legal_entity_detail(
             ],
             "selected_supplier_id": supplier_id,
             "account_snapshot": account_snapshot,
+            "bank_accounts": bank_accounts,
         }
 
 

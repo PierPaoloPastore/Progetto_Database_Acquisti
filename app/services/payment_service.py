@@ -16,6 +16,7 @@ from werkzeug.utils import secure_filename
 
 from app.models import Document, Payment, PaymentDocument
 from app.services import scan_service, settings_service
+from app.services.bank_account_service import normalize_iban
 from app.services.unit_of_work import UnitOfWork
 
 logger = logging.getLogger(__name__)
@@ -236,6 +237,7 @@ def create_batch_payment(
     allocations: Sequence[dict],
     method: Optional[str],
     notes: Optional[str],
+    bank_account_iban: Optional[str] = None,
     payment_date: Optional[date] = None,
 ) -> PaymentDocument:
     """Crea un pagamento cumulativo collegato a più scadenze."""
@@ -244,6 +246,7 @@ def create_batch_payment(
 
     today = date.today()
     paid_date = payment_date or today
+    cleaned_iban = normalize_iban(bank_account_iban)
 
     with UnitOfWork() as uow:
         # Gestione file allegato
@@ -267,9 +270,15 @@ def create_batch_payment(
             file_path=file_path,
             payment_type=method or "batch",
             status="reconciled",
+            bank_account_iban=cleaned_iban or None,
         )
         uow.session.add(payment_document)
         uow.session.flush()
+
+        if cleaned_iban:
+            account = uow.bank_accounts.get_by_iban(cleaned_iban)
+            if not account:
+                raise ValueError("IBAN non trovato.")
 
         touched_documents = set()
 
@@ -301,6 +310,20 @@ def create_batch_payment(
 
             touched_documents.add(payment.document_id)
 
+        if cleaned_iban:
+            doc_entities = {
+                doc.legal_entity_id
+                for doc in (
+                    uow.session.query(Document.id, Document.legal_entity_id)
+                    .filter(Document.id.in_(touched_documents))
+                    .all()
+                )
+            }
+            if len(doc_entities) > 1:
+                raise ValueError("Seleziona documenti della stessa intestazione per usare un IBAN.")
+            if doc_entities and account.legal_entity_id not in doc_entities:
+                raise ValueError("IBAN non appartenente all'intestazione selezionata.")
+
         for document_id in touched_documents:
             document = uow.session.query(Document).get(document_id)
             if not document:
@@ -318,6 +341,7 @@ def create_batch_payment_from_documents(
     document_allocations: List[dict],
     method: Optional[str],
     notes: Optional[str],
+    bank_account_iban: Optional[str] = None,
     payment_date: Optional[date] = None,
 ) -> dict:
     """
@@ -338,6 +362,7 @@ def create_batch_payment_from_documents(
 
     today = date.today()
     paid_date = payment_date or today
+    cleaned_iban = normalize_iban(bank_account_iban)
     results = []
 
     with UnitOfWork() as uow:
@@ -356,6 +381,7 @@ def create_batch_payment_from_documents(
                 file_path=relative_path,
                 payment_type=method or "batch",
                 status="reconciled",
+                bank_account_iban=cleaned_iban or None,
             )
         else:
             placeholder_name = f"batch_payment_{today.isoformat()}"
@@ -364,13 +390,32 @@ def create_batch_payment_from_documents(
                 file_path=placeholder_name,
                 payment_type=method or "batch",
                 status="reconciled",
+                bank_account_iban=cleaned_iban or None,
             )
 
         uow.session.add(payment_document)
         uow.session.flush()
 
+        if cleaned_iban:
+            account = uow.bank_accounts.get_by_iban(cleaned_iban)
+            if not account:
+                raise ValueError("IBAN non trovato.")
+
         # Step 2: Get all Document IDs
         doc_ids = [alloc["document_id"] for alloc in document_allocations]
+        doc_entities = {
+            row[1]
+            for row in (
+                uow.session.query(Document.id, Document.legal_entity_id)
+                .filter(Document.id.in_(doc_ids))
+                .all()
+            )
+        }
+        if cleaned_iban:
+            if len(doc_entities) > 1:
+                raise ValueError("Seleziona documenti della stessa intestazione per usare un IBAN.")
+            if doc_entities and account.legal_entity_id not in doc_entities:
+                raise ValueError("IBAN non appartenente all'intestazione selezionata.")
 
         # Step 3: Fetch all Payment records for these Documents
         payment_map = {}  # {document_id: [Payment, ...]}

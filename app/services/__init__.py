@@ -33,6 +33,11 @@ from .legal_entity_service import (
     get_legal_entity_detail,
     update_legal_entity,
 )
+from .bank_account_service import (
+    list_bank_accounts_by_legal_entity,
+    list_all_bank_accounts,
+    create_bank_account,
+)
 from .category_service import (
     list_categories_for_ui,
     list_all_categories,
@@ -88,6 +93,10 @@ __all__ = [
     "list_legal_entities_with_stats",
     "get_legal_entity_detail",
     "update_legal_entity",
+    # Bank Accounts
+    "list_bank_accounts_by_legal_entity",
+    "list_all_bank_accounts",
+    "create_bank_account",
     # Categories
     "list_categories_for_ui",
     "list_all_categories",
