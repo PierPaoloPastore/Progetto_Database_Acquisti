@@ -475,12 +475,13 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
         self.session.add(note)
 
     def _create_payment(self, doc: Document, dto: PaymentDTO):
+        from app.services.payment_method_catalog import normalize_payment_method_code
         payment = Payment(
             document_id=doc.id,
             due_date=dto.due_date,
             expected_amount=dto.expected_amount,
             payment_terms=dto.payment_terms,
-            payment_method=dto.payment_method,
+            payment_method=normalize_payment_method_code(dto.payment_method),
             status="unpaid",
         )
         self.session.add(payment)

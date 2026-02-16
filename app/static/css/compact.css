@@ -352,6 +352,9 @@ body {
 .status-received { background: #d4edda; color: #155724; }
 .status-received .status-dot { background: #28a745; }
 
+.status-not_required { background: #e2e3e5; color: #383d41; }
+.status-not_required .status-dot { background: #6c757d; }
+
 /* Stati pagamento */
 .status-unpaid { background: #f8d7da; color: #721c24; }
 .status-partial { background: #fff3cd; color: #856404; }

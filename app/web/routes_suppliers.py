@@ -95,6 +95,7 @@ def edit_view(supplier_id: int):
         country=data.get("country"),
         typical_due_rule=data.get("typical_due_rule"),
         typical_due_days=data.get("typical_due_days"),
+        is_active=data.get("is_active"),
     )
     if supplier is None:
         flash("Fornitore non trovato.", "warning")

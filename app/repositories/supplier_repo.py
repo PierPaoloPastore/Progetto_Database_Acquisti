@@ -27,6 +27,27 @@ class SupplierRepository(SqlAlchemyRepository[Supplier]):
             return None
         return self.session.query(Supplier).filter_by(fiscal_code=fiscal_code).first()
 
+    def get_by_vat_and_fiscal(self, vat_number: str, fiscal_code: str) -> Optional[Supplier]:
+        """Cerca fornitore per combinazione P.IVA + CF."""
+        if not vat_number or not fiscal_code:
+            return None
+        return (
+            self.session.query(Supplier)
+            .filter(Supplier.vat_number == vat_number, Supplier.fiscal_code == fiscal_code)
+            .first()
+        )
+
+    def list_by_vat_number(self, vat_number: str) -> List[Supplier]:
+        """Restituisce tutti i fornitori con la stessa P.IVA (ordinati per id)."""
+        if not vat_number:
+            return []
+        return (
+            self.session.query(Supplier)
+            .filter(Supplier.vat_number == vat_number)
+            .order_by(Supplier.id.asc())
+            .all()
+        )
+
     def list_active(self) -> List[Supplier]:
         """Restituisce l'elenco dei fornitori attivi ordinati per nome."""
         return (
@@ -75,15 +96,42 @@ class SupplierRepository(SqlAlchemyRepository[Supplier]):
                 return obj.get(name)
             return getattr(obj, name, None)
 
-        vat_number = _get(data, "vat_number")
-        fiscal_code = _get(data, "fiscal_code")
-        name = _get(data, "name")
+        def _clean(value):
+            if value is None:
+                return None
+            cleaned = str(value).strip()
+            return cleaned or None
+
+        vat_number = _clean(_get(data, "vat_number"))
+        fiscal_code = _clean(_get(data, "fiscal_code"))
+        name = _clean(_get(data, "name"))
 
         supplier: Optional[Supplier] = None
 
-        if vat_number:
-            supplier = self.get_by_vat_number(vat_number)
-        
+        if vat_number and fiscal_code:
+            supplier = self.get_by_vat_and_fiscal(vat_number, fiscal_code)
+            if not supplier:
+                # Se esiste un record con P.IVA uguale ma CF mancante, aggiorniamo quel record
+                candidate = (
+                    self.session.query(Supplier)
+                    .filter(
+                        Supplier.vat_number == vat_number,
+                        or_(Supplier.fiscal_code.is_(None), Supplier.fiscal_code == ""),
+                    )
+                    .first()
+                )
+                if candidate:
+                    candidate.fiscal_code = fiscal_code
+                    supplier = candidate
+
+        if not supplier and vat_number and not fiscal_code:
+            candidates = self.list_by_vat_number(vat_number)
+            if len(candidates) == 1:
+                supplier = candidates[0]
+            elif candidates:
+                blank_cf = next((s for s in candidates if not (s.fiscal_code or "").strip()), None)
+                supplier = blank_cf or candidates[0]
+
         if not supplier and fiscal_code:
             supplier = self.get_by_fiscal_code(fiscal_code)
 

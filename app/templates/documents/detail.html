@@ -20,6 +20,8 @@
     {% set status_class = 'verified' %}
 {% endif %}
 {% set physical_status = invoice.physical_copy_status or 'missing' %}
+{% set physical_labels = {'missing': 'Mancante', 'requested': 'Richiesta', 'received': 'Ricevuta', 'not_required': 'Non richiesta'} %}
+{% set physical_label = physical_labels.get(physical_status, physical_status) %}
 {% set supplier_email = (supplier.email or supplier.pec_email) if supplier else '' %}
 {% set doc_number_label = invoice.document_number or ('Documento #' ~ invoice.id) %}
 {% set doc_date_label = invoice.document_date.strftime('%d/%m/%Y') if invoice.document_date else '-' %}
@@ -102,22 +104,29 @@
                                     class="status-badge status-{{ physical_status }} is-link js-scroll"
                                     data-scroll-target="#physical-copy-section"
                                     title="Vai alla copia fisica">
-                                <span class="status-dot"></span> {{ physical_status|upper }}
+                                <span class="status-dot"></span> {{ physical_label|upper }}
                             </button>
                             <small class="hint">Nessun documento digitale allegato.</small>
+                        {% elif physical_status == 'not_required' %}
+                            <span class="status-badge status-{{ physical_status }}">
+                                <span class="status-dot"></span> NON RICHIESTA
+                            </span>
+                            <small class="hint">Metodo di pagamento senza copia fisica.</small>
                         {% else %}
                             <span class="status-badge status-{{ physical_status }}">
-                                <span class="status-dot"></span> {{ physical_status|upper }}
+                                <span class="status-dot"></span> {{ physical_label|upper }}
                             </span>
                         {% endif %}
                         {% if invoice.physical_copy_file_path %}
                             <small class="text-muted d-block text-truncate">{{ invoice.physical_copy_file_path.split('/')[-1] }}</small>
                         {% endif %}
-                        <a class="btn btn-primary btn-sm copy-request-btn"
-                           href="mailto:{{ supplier_email }}?subject={{ mail_subject|urlencode }}&body={{ mail_body|urlencode }}"
-                           title="Richiedi copia fisica via email">
-                            <i class="bi bi-envelope"></i> Richiedi
-                        </a>
+                        {% if physical_status != 'not_required' %}
+                            <a class="btn btn-primary btn-sm copy-request-btn"
+                               href="mailto:{{ supplier_email }}?subject={{ mail_subject|urlencode }}&body={{ mail_body|urlencode }}"
+                               title="Richiedi copia fisica via email">
+                                <i class="bi bi-envelope"></i> Richiedi
+                            </a>
+                        {% endif %}
                     </span>
                 </div>
                 <div class="summary-item secondary">
@@ -488,10 +497,14 @@
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <span class="small text-muted">Copia fisica</span>
                             <span class="status-badge status-{{ physical_status }}">
-                                <span class="status-dot"></span> {{ physical_status|upper }}
+                                <span class="status-dot"></span> {{ physical_label|upper }}
                             </span>
                         </div>
-                        {% if invoice.physical_copy_file_path %}
+                        {% if physical_status == 'not_required' %}
+                            <div class="alert alert-secondary p-2 mb-2 text-center small">
+                                Copia fisica non richiesta per questo metodo di pagamento.
+                            </div>
+                        {% elif invoice.physical_copy_file_path %}
                             <div class="small text-muted text-truncate mb-2">{{ invoice.physical_copy_file_path.split('/')[-1] }}</div>
                             <div class="d-grid gap-2">
                                 <a href="{{ url_for('documents.view_physical_copy', document_id=invoice.id) }}"

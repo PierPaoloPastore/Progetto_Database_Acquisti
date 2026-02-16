@@ -1,4 +1,4 @@
-Last updated: 2025-12-30
+Last updated: 2026-02-16
 
 # Documentazione - Indice
 
@@ -12,6 +12,7 @@ Benvenuto nel centro documentazione del Gestionale Acquisti. Usa questo indice c
 - Aggiornamenti recenti
   - [Aggiornamenti 2025-12-30](updates/2025-12-30.md)
   - [Aggiornamenti 2026-02-14](updates/2026-02-14.md)
+  - [Aggiornamenti 2026-02-16](updates/2026-02-16.md)
 - Piani
   - [Cleaning Plan](../Cleaning_Plan.md)
 - Roadmap

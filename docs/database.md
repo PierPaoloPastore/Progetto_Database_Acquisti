@@ -1,10 +1,10 @@
-Last updated: 2025-12-15
+Last updated: 2026-02-16
 
 # DB_ARCHITECTURE.md
 
 Architettura del database – Gestionale Acquisti  
-Versione: v3 (supertipo documents + Single Table Inheritance)  
-Ultimo aggiornamento: 11 Dicembre 2025
+Versione: v4 (supertipo documents + Single Table Inheritance)  
+Ultimo aggiornamento: 16 Febbraio 2026
 
 ---
 
@@ -69,7 +69,7 @@ Campi principali:
 CREATE TABLE suppliers (
   id INT PRIMARY KEY AUTO_INCREMENT,
   name VARCHAR(255) NOT NULL,
-  vat_number VARCHAR(32) UNIQUE,
+  vat_number VARCHAR(32),
   fiscal_code VARCHAR(32),
   sdi_code VARCHAR(16),
   pec_email VARCHAR(255),
@@ -89,7 +89,7 @@ CREATE TABLE suppliers (
 ```
 
 **Indici:**
-- `idx_suppliers_vat_unique` (UNIQUE su vat_number)
+- `uq_suppliers_vat_cf` (UNIQUE su vat_number, fiscal_code)
 - `idx_suppliers_name` (su name)
 - `idx_suppliers_created_at` (su created_at)
 
@@ -99,6 +99,7 @@ CREATE TABLE suppliers (
 - Relazionato a `delivery_notes.supplier_id`
 - Relazionato a `rent_contracts.supplier_id`
 - `typical_due_rule` / `typical_due_days` vengono usati come fallback per calcolare la scadenza delle fatture quando `due_date` manca o coincide con la data documento. Default operativo: `end_of_month`.
+- La P.IVA **non è più univoca** da sola: l’identità è definita da **(vat_number, fiscal_code)** per gestire varianti dello stesso fornitore.
 
 #### `legal_entities`
 Rappresenta l'intestatario "interno" (le varie società / partite IVA dell'azienda).
@@ -132,6 +133,32 @@ CREATE TABLE legal_entities (
 - Relazionato a `delivery_notes.legal_entity_id`
 - Relazionato a `rent_contracts.legal_entity_id`
 
+#### `bank_accounts`
+Conti bancari associati alle intestazioni (1:N).
+
+Campi principali:
+
+```sql
+CREATE TABLE bank_accounts (
+  iban VARCHAR(34) PRIMARY KEY,
+  legal_entity_id INT NOT NULL,
+  name VARCHAR(128) NOT NULL,
+  notes VARCHAR(255),
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  
+  FOREIGN KEY (legal_entity_id) REFERENCES legal_entities(id)
+);
+```
+
+**Indici:**
+- `PRIMARY` (iban)
+- `idx_bank_accounts_legal_entity` (legal_entity_id)
+
+**Uso:**
+- Relazionato a `payment_documents.bank_account_iban` (FK con `ON DELETE SET NULL`)
+- Usato per registrare il conto di uscita nei pagamenti istantanei e nei batch
+
 ---
 
 ### 3.2. Documenti (SUPERTIPO)
@@ -164,7 +191,7 @@ CREATE TABLE documents (
   total_gross_amount DECIMAL(15,2) NOT NULL,
   
   -- Stato
-  doc_status VARCHAR(32) NOT NULL DEFAULT 'imported',
+  doc_status VARCHAR(32) NOT NULL DEFAULT 'pending_physical_copy',
   
   -- Import
   import_source VARCHAR(255),
@@ -227,12 +254,11 @@ CREATE TABLE documents (
                              'cbill', 'receipt', 'rent', 'tax', 'other')),
   
   CONSTRAINT chk_documents_status 
-    CHECK (doc_status IN ('imported', 'verified', 'rejected', 
-                          'cancelled', 'archived')),
+    CHECK (doc_status IN ('pending_physical_copy', 'verified', 'archived')),
   
   CONSTRAINT chk_documents_physical_copy 
     CHECK (physical_copy_status IN ('missing', 'requested', 'received', 
-                                    'uploaded', 'not_required')),
+                                    'not_required')),
   
   CONSTRAINT chk_documents_invoice_type 
     CHECK ((document_type IN ('invoice', 'credit_note') AND invoice_type IN ('immediate', 'deferred'))
@@ -279,13 +305,13 @@ idx_documents_created_at (created_at)
   - Valori: `'invoice'`, `'credit_note'`, `'f24'`, `'insurance'`, `'mav'`, `'cbill'`, `'receipt'`, `'rent'`, `'tax'`, `'other'`
   - Discriminatore del tipo di documento
 
-- `doc_status` VARCHAR(32) NOT NULL DEFAULT 'imported'
-  - Valori: `'imported'`, `'verified'`, `'rejected'`, `'cancelled'`, `'archived'`
-  - Stato del documento nel workflow
+- `doc_status` VARCHAR(32) NOT NULL DEFAULT 'pending_physical_copy'
+  - Valori: `'pending_physical_copy'`, `'verified'`, `'archived'`
+  - Stato del documento nel workflow di revisione
 
 - `physical_copy_status` VARCHAR(32) NOT NULL DEFAULT 'missing'
-  - Valori: `'missing'`, `'requested'`, `'received'`, `'uploaded'`, `'not_required'`
-  - Stato della copia fisica cartacea
+  - Valori: `'missing'`, `'requested'`, `'received'`, `'not_required'`
+  - Stato della copia fisica cartacea (con `not_required` per pagamenti senza copia)
 
 **Colonne Specifiche per Tipo:**
 
@@ -448,7 +474,7 @@ CREATE TABLE payments (
   due_date DATE,
   expected_amount DECIMAL(15,2),
   payment_terms VARCHAR(128) COMMENT 'Condizioni pagamento (es. 30gg DFFM)',
-  payment_method VARCHAR(64) COMMENT 'Metodo previsto',
+  payment_method VARCHAR(64) COMMENT 'Metodo previsto (codice FatturaPA MP01-MP22)',
   paid_date DATE,
   paid_amount DECIMAL(15,2),
   status VARCHAR(32) NOT NULL DEFAULT 'unpaid',
@@ -486,6 +512,18 @@ CREATE TABLE payments (
   - `'cancelled'` – annullato
   - `'overdue'` – scaduto
 
+#### Metodi di pagamento (MP01–MP22)
+
+Nel sistema applicativo `payments.payment_method` utilizza i codici **FatturaPA** `MP01`–`MP22`.
+
+**Regola copia fisica:**
+- **Copia fisica obbligatoria**: `MP02`, `MP03`, `MP05`, `MP06`, `MP07`, `MP13`, `MP14`, `MP18`
+- **Senza copia fisica**: tutti gli altri metodi (lo stato diventa `not_required`)
+
+**Note operative:**
+- I metodi legacy (es. `bonifico`, `assegno`, `contanti`) vengono normalizzati ai codici MP.
+- I pagamenti istantanei (“già pagati”) sono consentiti solo sui metodi **senza copia fisica**.
+
 #### `payment_documents`
 
 PDF di **movimenti bancari/pagamenti reali** (estratti conto, ricevute).
@@ -493,12 +531,13 @@ PDF di **movimenti bancari/pagamenti reali** (estratti conto, ricevute).
 ```sql
 CREATE TABLE payment_documents (
   id INT PRIMARY KEY AUTO_INCREMENT,
-  supplier_id INT NOT NULL COMMENT 'Fornitore relativo al pagamento',
+  supplier_id INT COMMENT 'Fornitore relativo al pagamento (opzionale)',
   file_name VARCHAR(255) NOT NULL,
   file_path VARCHAR(500) NOT NULL,
   payment_type VARCHAR(32) NOT NULL DEFAULT 'sconosciuto',
   status VARCHAR(32) NOT NULL DEFAULT 'pending_review',
   uploaded_at DATETIME NOT NULL,
+  bank_account_iban VARCHAR(34),
   parsed_amount DECIMAL(12,2),
   parsed_payment_date DATE,
   parsed_document_number VARCHAR(100) COMMENT 'Numero documento pagato (da OCR)',
@@ -507,10 +546,11 @@ CREATE TABLE payment_documents (
   updated_at DATETIME NOT NULL,
   
   FOREIGN KEY (supplier_id) REFERENCES suppliers(id),
+  FOREIGN KEY (bank_account_iban) REFERENCES bank_accounts(iban),
   
   CONSTRAINT chk_payment_documents_payment_type 
     CHECK (payment_type IN ('sconosciuto', 'bonifico', 'rid', 'mav', 
-                            'cbill', 'assegno', 'contanti', 'carta', 'f24')),
+                            'assegno', 'contanti', 'carta', 'f24')),
   
   CONSTRAINT chk_payment_documents_status 
     CHECK (status IN ('pending_review', 'imported', 'reconciled', 
@@ -523,10 +563,12 @@ CREATE TABLE payment_documents (
 - `idx_payment_documents_supplier_date` (supplier_id, parsed_payment_date DESC)
 - `idx_payment_documents_status` (status)
 - `idx_payment_documents_date` (parsed_payment_date)
+- `idx_payment_documents_bank_account` (bank_account_iban)
 
 **Semantica:**
 
 - `payment_type` indica il metodo di pagamento rilevato dal PDF
+- `bank_account_iban` è il conto di uscita collegato al pagamento (se noto)
 - `status` indica lo stato di riconciliazione con le scadenze:
   - `'pending_review'` – caricato, da verificare
   - `'imported'` – importato, pronto per riconciliazione
@@ -787,7 +829,8 @@ Tutti i campi enum sono protetti da CHECK constraints per evitare typo:
 
 ### 4.3. UNIQUE Constraints
 
-- `suppliers.vat_number` → UNIQUE (no duplicati P.IVA fornitori)
+- `suppliers.(vat_number, fiscal_code)` → UNIQUE (identità fornitore)
+- `bank_accounts.iban` → UNIQUE/PK
 - `legal_entities.vat_number` → UNIQUE (no duplicati P.IVA intestatari)
 - `rent_contracts.contract_number` → UNIQUE
 - `categories.name` → UNIQUE
@@ -981,6 +1024,7 @@ ORDER BY pd.parsed_payment_date DESC;
 ```
 suppliers (1) ──────< (N) documents
 legal_entities (1) ──< (N) documents
+legal_entities (1) ──< (N) bank_accounts
 
 documents (1) ──────< (N) invoice_lines (solo invoice)
 documents (1) ──────< (N) vat_summaries (solo invoice)
@@ -991,6 +1035,7 @@ documents (1) ──────< (N) import_logs (TUTTI i tipi)
 
 payments (N) ──────> (1) payment_documents (opzionale)
 payment_documents (1) ──< (N) payment_document_links >──< (N) payments
+bank_accounts (1) ──< (N) payment_documents
 
 suppliers (1) ──────< (N) payment_documents
 suppliers (1) ──────< (N) delivery_notes
@@ -1055,4 +1100,4 @@ rent_contracts (1) ──< (N) documents (solo rent)
 - Il dump include anche database `world` e `sys` (demo/system), non pertinenti al gestionale
 - Il database applicativo effettivo è `databaseacquisti`
 - Tutti gli AUTO_INCREMENT values riflettono lo stato di sviluppo/test attuale
-Last updated: 2025-12-15
+Last updated: 2026-02-16

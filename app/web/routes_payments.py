@@ -13,6 +13,11 @@ from app.services import payment_service, ocr_service, settings_service, list_al
 from app.services.document_service import mark_documents_as_programmed
 from app.services.settings_service import get_setting
 from app.services.ocr_mapping_service import parse_payment_fields
+from app.services.payment_method_catalog import (
+    get_payment_method_label,
+    list_payment_method_choices,
+    normalize_payment_method_code,
+)
 from app.services.payment_service import (
     add_payment,
     create_batch_payment,
@@ -49,6 +54,10 @@ def payment_index():
     Mostra la dashboard dei pagamenti (Inbox).
     """
     payment_history = list_paid_payments()
+    payment_method_choices = list_payment_method_choices()
+    payment_method_labels = {
+        code: get_payment_method_label(code) or code for code, _ in payment_method_choices
+    }
 
     with UnitOfWork() as uow:
         all_unpaid_invoices = (
@@ -70,6 +79,8 @@ def payment_index():
         all_unpaid_invoices=all_unpaid_invoices,
         payment_history=payment_history,
         bank_accounts=bank_accounts,
+        payment_method_choices=payment_method_choices,
+        payment_method_labels=payment_method_labels,
     )
 
 
@@ -295,6 +306,7 @@ def batch_payment():
     """Registra un pagamento cumulativo su più documenti (invoices)."""
     file = request.files.get("file")
     method = request.form.get("method") or request.form.get("payment_method")
+    method = normalize_payment_method_code(method) if method else None
     notes = request.form.get("notes")
     bank_account_iban = request.form.get("bank_account_iban")
     payment_date = None
@@ -447,6 +459,13 @@ def payment_detail_view(payment_id: int):
         return redirect(url_for("payments.payment_index") + "#tab-history")
 
     payment_document = detail.get("payment_document")
+    payment = detail.get("payment")
+    method_label = None
+    if payment and payment.payment_method:
+        method_label = get_payment_method_label(payment.payment_method) or payment.payment_method
+    if not method_label and payment_document and payment_document.payment_type:
+        method_label = payment_document.payment_type
+    detail["payment_method_label"] = method_label
     has_payment_file = False
     if payment_document and payment_document.file_path:
         base_path = settings_service.get_payment_files_storage_path()

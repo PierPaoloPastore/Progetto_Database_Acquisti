@@ -17,11 +17,20 @@ from flask import (
 )
 
 from app.models import Document
-from app.services import document_service as doc_service, ocr_service
+from app.services import document_service as doc_service, ocr_service, list_all_bank_accounts
 from app.services.document_service import DocumentService, render_invoice_html
 from app.services.ocr_mapping_service import parse_manual_document_fields
 from app.services.formatting_service import format_amount
 from app.services.dto import DocumentSearchFilters
+from app.services.payment_method_catalog import (
+    is_instant_payment,
+    is_known_payment_method,
+    is_physical_copy_required,
+    normalize_payment_method_code,
+    summarize_payment_methods,
+)
+from app.services.payment_service import register_instant_payment_for_document
+from app.services.unit_of_work import UnitOfWork
 
 # FIX: Import dai service invece che dai repo diretti dove possibile
 from app.services.supplier_service import list_active_suppliers
@@ -76,6 +85,37 @@ def _parse_date(value: str) -> Optional[datetime.date]:
 
 def _parse_highlight_flag(raw_value: Optional[str]) -> bool:
     return (raw_value or "").strip().lower() in _HIGHLIGHT_TRUE_VALUES
+
+
+def _get_payment_method_context(document_id: int) -> dict:
+    with UnitOfWork() as uow:
+        payments = uow.payments.get_by_document_id(document_id)
+
+    codes = [
+        normalize_payment_method_code(p.payment_method)
+        for p in payments
+        if p.payment_method
+    ]
+    known_codes = [code for code in codes if is_known_payment_method(code)]
+    labels = summarize_payment_methods(known_codes)
+    requires_copy = any(is_physical_copy_required(code) for code in known_codes)
+    instant_allowed = bool(known_codes) and all(
+        is_instant_payment(code) for code in known_codes
+    )
+
+    reason = None
+    if not known_codes:
+        reason = "Metodo di pagamento non presente nel file."
+    elif requires_copy:
+        reason = "Metodo di pagamento con copia fisica obbligatoria."
+
+    return {
+        "codes": known_codes,
+        "labels": labels,
+        "instant_allowed": instant_allowed,
+        "instant_reason": reason,
+        "requires_copy": requires_copy,
+    }
 
 
 def _build_preview_highlights(document: Document) -> list[str]:
@@ -363,6 +403,7 @@ def list_view():
             "missing": "Mancante",
             "requested": "Richiesta",
             "received": "Ricevuta",
+            "not_required": "Non richiesta",
         }
         _add_chip(
             f"Copia fisica: {physical_labels.get(filters.physical_copy_status, filters.physical_copy_status)}",
@@ -502,6 +543,9 @@ def review_loop_redirect_view():
 @documents_bp.route("/review/<int:document_id>", methods=["GET", "POST"])
 def review_loop_invoice_view(document_id: int):
     if request.method == "POST":
+        def _as_bool(value: Optional[str]) -> bool:
+            return (value or "").strip().lower() in {"1", "true", "yes", "on"}
+
         action = request.form.get("action") or "review"
         if action == "review":
             success, message = DocumentService.review_and_confirm(document_id, request.form.to_dict())
@@ -509,6 +553,18 @@ def review_loop_invoice_view(document_id: int):
                 if message == "Documento non trovato": abort(404)
                 flash(message, "danger")
             else:
+                if _as_bool(request.form.get("instant_payment")):
+                    context = _get_payment_method_context(document_id)
+                    if not context["instant_allowed"]:
+                        flash(context["instant_reason"] or "Pagamento istantaneo non disponibile.", "warning")
+                        return redirect(url_for("documents.review_loop_invoice_view", document_id=document_id))
+                    ok, instant_msg = register_instant_payment_for_document(
+                        document_id,
+                        bank_account_iban=request.form.get("instant_payment_iban") or None,
+                    )
+                    if not ok:
+                        flash(instant_msg, "danger")
+                        return redirect(url_for("documents.review_loop_invoice_view", document_id=document_id))
                 flash("Documento confermato e passato al successivo.", "success")
                 return redirect(url_for("documents.review_loop_redirect_view"))
         elif action == "save":
@@ -517,6 +573,18 @@ def review_loop_invoice_view(document_id: int):
                 if message == "Documento non trovato": abort(404)
                 flash(message, "danger")
             else:
+                if _as_bool(request.form.get("instant_payment")):
+                    context = _get_payment_method_context(document_id)
+                    if not context["instant_allowed"]:
+                        flash(context["instant_reason"] or "Pagamento istantaneo non disponibile.", "warning")
+                        return redirect(url_for("documents.review_loop_invoice_view", document_id=document_id))
+                    ok, instant_msg = register_instant_payment_for_document(
+                        document_id,
+                        bank_account_iban=request.form.get("instant_payment_iban") or None,
+                    )
+                    if not ok:
+                        flash(instant_msg, "danger")
+                        return redirect(url_for("documents.review_loop_invoice_view", document_id=document_id))
                 saved_at = datetime.now().strftime("%H:%M")
                 flash(f"Documento salvato alle {saved_at}.", "success")
                 return redirect(
@@ -567,6 +635,8 @@ def review_loop_invoice_view(document_id: int):
     linked_ddt = list_delivery_notes_by_document(document_id) if document else []
     legal_entities = list_legal_entities(include_inactive=False)
     saved_at = request.args.get("saved_at") or None
+    method_context = _get_payment_method_context(document_id)
+    bank_accounts = list_all_bank_accounts()
     return render_template(
         'documents/review.html',
         invoice=document,
@@ -576,6 +646,10 @@ def review_loop_invoice_view(document_id: int):
         linked_ddt=linked_ddt,
         legal_entities=legal_entities,
         saved_at=saved_at,
+        payment_method_labels=method_context["labels"],
+        instant_payment_available=method_context["instant_allowed"],
+        instant_payment_reason=method_context["instant_reason"],
+        bank_accounts=bank_accounts,
     )
 
 @documents_bp.route("/review/<int:document_id>/delete", methods=["POST"])

@@ -29,6 +29,57 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    const instantToggle = document.getElementById("instant-payment-toggle");
+    const ibanSelect = document.getElementById("instant-payment-iban");
+    const ibanEmpty = document.getElementById("instant-iban-empty");
+    const baseIbanDisabled = ibanSelect ? ibanSelect.disabled : false;
+
+    const updateIbanEnabled = () => {
+        if (!ibanSelect) return;
+        const shouldDisable = baseIbanDisabled || (instantToggle && !instantToggle.checked);
+        ibanSelect.disabled = shouldDisable;
+    };
+
+    const updateIbanOptions = () => {
+        if (!ibanSelect || !entitySelect) return;
+        const entityId = entitySelect.value || "";
+        const options = Array.from(ibanSelect.querySelectorAll("option")).filter(
+            (option) => option.value
+        );
+        let visibleCount = 0;
+        options.forEach((option) => {
+            const optionEntityId = option.getAttribute("data-legal-entity-id") || "";
+            const shouldShow = !entityId || optionEntityId === entityId;
+            option.hidden = !shouldShow;
+            option.disabled = !shouldShow;
+            if (shouldShow) {
+                visibleCount += 1;
+            }
+        });
+
+        if (ibanEmpty) {
+            const showEmpty = Boolean(entityId) && visibleCount === 0;
+            ibanEmpty.hidden = !showEmpty;
+            ibanEmpty.disabled = !showEmpty;
+        }
+
+        if (ibanSelect.value) {
+            const selected = options.find((option) => option.value === ibanSelect.value);
+            if (selected && selected.hidden) {
+                ibanSelect.value = "";
+            }
+        }
+    };
+
+    if (instantToggle) {
+        instantToggle.addEventListener("change", updateIbanEnabled);
+    }
+    if (entitySelect && ibanSelect) {
+        entitySelect.addEventListener("change", updateIbanOptions);
+        updateIbanOptions();
+    }
+    updateIbanEnabled();
+
     const split = document.querySelector(".review-split");
     const splitter = document.querySelector(".review-splitter");
     if (split && splitter) {

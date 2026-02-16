@@ -38,10 +38,10 @@
                             <div class="col-lg-6">
                                 <label for="payment_method" class="form-label">Metodo di pagamento</label>
                                 <select class="form-select" name="method" id="payment_method">
-                                    <option value="bonifico">Bonifico</option>
-                                    <option value="assegno">Assegno</option>
-                                    <option value="contanti">Contanti</option>
-                                    <option value="altro">Altro</option>
+                                    <option value="">Seleziona metodo</option>
+                                    {% for code, label in payment_method_choices %}
+                                        <option value="{{ code }}">{{ code }} - {{ label }}</option>
+                                    {% endfor %}
                                 </select>
                             </div>
                             <div class="col-lg-6">
@@ -233,9 +233,11 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {% for payment in payment_history %}
+                                {% for payment in payment_history %}
                                 {% set invoice = payment.document %}
-                                <tr data-payment-search="{{ payment.id }} {{ invoice.document_number if invoice else '' }} {{ invoice.id if invoice else '' }} {{ invoice.supplier.name if invoice and invoice.supplier else '' }} {{ payment.paid_date.strftime('%d/%m/%Y') if payment.paid_date else '' }} {{ payment.updated_at.strftime('%d/%m/%Y') if payment.updated_at else '' }} {{ payment.payment_method or (payment.payment_document.payment_type if payment.payment_document) or '' }} {{ payment.status }} {{ payment.payment_document_id or '' }} {{ payment.payment_document.file_name if payment.payment_document else '' }} {{ payment.paid_amount or payment.expected_amount or '' }} {{ (payment.paid_amount or payment.expected_amount or 0)|format_amount }} {{ payment.notes or '' }}">
+                                {% set raw_method = payment.payment_method or '' %}
+                                {% set method_label = payment_method_labels.get(raw_method) or raw_method or (payment.payment_document.payment_type if payment.payment_document else '') %}
+                                <tr data-payment-search="{{ payment.id }} {{ invoice.document_number if invoice else '' }} {{ invoice.id if invoice else '' }} {{ invoice.supplier.name if invoice and invoice.supplier else '' }} {{ payment.paid_date.strftime('%d/%m/%Y') if payment.paid_date else '' }} {{ payment.updated_at.strftime('%d/%m/%Y') if payment.updated_at else '' }} {{ raw_method }} {{ method_label }} {{ payment.status }} {{ payment.payment_document_id or '' }} {{ payment.payment_document.file_name if payment.payment_document else '' }} {{ payment.paid_amount or payment.expected_amount or '' }} {{ (payment.paid_amount or payment.expected_amount or 0)|format_amount }} {{ payment.notes or '' }}">
                                     <td>{{ payment.paid_date.strftime('%d/%m/%Y') if payment.paid_date else (payment.updated_at.strftime('%d/%m/%Y') if payment.updated_at else '-') }}</td>
                                     <td>
                                         {% if invoice %}
@@ -254,7 +256,7 @@
                                         {% endif %}
                                     </td>
                                     <td class="text-end">{{ (payment.paid_amount or payment.expected_amount or 0)|format_amount }} &euro;</td>
-                                    <td>{{ payment.payment_method or (payment.payment_document.payment_type if payment.payment_document) or 'N/D' }}</td>
+                                    <td>{{ method_label or 'N/D' }}</td>
                                     <td>
                                         <span class="status-badge status-{{ payment.status }}">{{ payment.status }}</span>
                                     </td>

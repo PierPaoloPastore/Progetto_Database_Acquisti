@@ -127,6 +127,7 @@ def update_supplier(
     country: Optional[str] = None,
     typical_due_rule: Optional[str] = None,
     typical_due_days: Optional[int] = None,
+    is_active: Optional[bool | str] = None,
 ) -> Optional[Supplier]:
     """Aggiorna campi base di un fornitore."""
     with UnitOfWork() as uow:
@@ -164,6 +165,18 @@ def update_supplier(
                 return None
             return days
 
+        def _parse_bool(raw: Optional[bool | str]) -> Optional[bool]:
+            if raw is None:
+                return None
+            if isinstance(raw, bool):
+                return raw
+            raw_str = str(raw).strip().lower()
+            if raw_str in {"1", "true", "yes", "on"}:
+                return True
+            if raw_str in {"0", "false", "no", "off"}:
+                return False
+            return None
+
         if name is not None:
             supplier.name = name.strip()
         supplier.vat_number = _clean(vat_number)
@@ -182,6 +195,9 @@ def update_supplier(
         # Regola scadenza tipica
         supplier.typical_due_rule = _validate_rule(typical_due_rule)
         supplier.typical_due_days = _validate_days(typical_due_days)
+        active_flag = _parse_bool(is_active)
+        if active_flag is not None:
+            supplier.is_active = active_flag
 
         uow.commit()
         return supplier

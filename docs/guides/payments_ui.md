@@ -1,4 +1,4 @@
-Last updated: 2025-12-17
+Last updated: 2026-02-16
 
 # Pagamenti — UI/UX aggiornamenti
 
@@ -9,11 +9,13 @@ Modifiche introdotte nella vista Pagamenti (tab “Nuovo Pagamento”) per gesti
 - Colonne compattate: griglia ridotta (gap e larghezze minori) per far convivere form e PDF viewer, con `min-width: 0` per l’1fr e `white-space: nowrap` + ellissi.
 - Importo dovuto affiancato: nuova colonna “Dovuto” mostra il residuo da saldare accanto al campo “Importo pagato”.
 - Viewer PDF più stretto: `split-container` ora usa `grid-template-columns: 1.6fr 1fr` (form più ampio, viewer ~25% più stretto).
+- Metodo di pagamento: dropdown aggiornato ai codici FatturaPA `MP01`–`MP22`.
+- Conti bancari: selezione IBAN filtrata dall’intestatario scelto (chip automatico).
 
 ## File toccati
 - `app/templates/payments/inbox.html`: struttura lista e colonna “Dovuto”.
 - `app/static/css/payments.css`: griglia lista, overflow verticale, ellissi, proporzioni split view, riduzione font/padding nel form.
-- `app/static/js/payments.js`: filtro combinato testo+data (già presente; nessun cambiamento per questi punti).
+- `app/static/js/payments.js`: filtro combinato testo+data e chip intestatario/IBAN.
 
 ## Note di manutenzione CSS
 - La lista poggia su due wrapper (`invoice-list` > `invoice-body`): eventuali altezze vanno regolate su entrambi se si cambia il layout.

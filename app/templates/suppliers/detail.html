@@ -205,6 +205,13 @@
                     <input type="text" name="country" class="form-control" value="{{ supplier.country or '' }}"
                            data-editable="true" disabled>
                 </div>
+                <div class="col-md-3">
+                    <label class="form-label">Attivo</label>
+                    <select name="is_active" class="form-select" data-editable="true" disabled>
+                        <option value="1" {% if supplier.is_active %}selected{% endif %}>Si</option>
+                        <option value="0" {% if not supplier.is_active %}selected{% endif %}>No</option>
+                    </select>
+                </div>
                 <div class="col-12 d-flex justify-content-end">
                     <button type="submit" class="btn btn-success" id="save-supplier-btn" disabled>
                         <i class="bi bi-save"></i> Salva modifiche

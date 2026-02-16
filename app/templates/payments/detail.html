@@ -55,7 +55,7 @@
                         <dd class="col-7">{{ payment.paid_date.strftime('%d/%m/%Y') if payment.paid_date else '-' }}</dd>
 
                         <dt class="col-5 text-muted">Metodo</dt>
-                        <dd class="col-7">{{ payment.payment_method or (payment_document.payment_type if payment_document else '-') }}</dd>
+                        <dd class="col-7">{{ payment_method_label or '-' }}</dd>
 
                         <dt class="col-5 text-muted">Note</dt>
                         <dd class="col-7">{{ payment.notes or '-' }}</dd>

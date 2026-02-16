@@ -293,6 +293,7 @@
                                 <option value="missing" {% if filters.physical_copy_status == 'missing' %}selected{% endif %}>Mancante</option>
                                 <option value="requested" {% if filters.physical_copy_status == 'requested' %}selected{% endif %}>Richiesta</option>
                                 <option value="received" {% if filters.physical_copy_status == 'received' %}selected{% endif %}>Ricevuta</option>
+                                <option value="not_required" {% if filters.physical_copy_status == 'not_required' %}selected{% endif %}>Non richiesta</option>
                             </select>
                         </div>
                         <div>

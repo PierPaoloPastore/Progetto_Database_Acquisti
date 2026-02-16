@@ -17,6 +17,7 @@ from werkzeug.utils import secure_filename
 from app.models import Document, Payment, PaymentDocument
 from app.services import scan_service, settings_service
 from app.services.bank_account_service import normalize_iban
+from app.services.payment_method_catalog import map_payment_method_to_document_type
 from app.services.unit_of_work import UnitOfWork
 
 logger = logging.getLogger(__name__)
@@ -213,7 +214,7 @@ def attach_payment_document_file(payment_id: int, file) -> PaymentDocument:
                 supplier_id=payment.document.supplier_id if payment.document else None,
                 file_name=safe_name,
                 file_path=relative_path,
-                payment_type=payment.payment_method or "manual",
+                payment_type=map_payment_method_to_document_type(payment.payment_method) or (payment.payment_method or "manual"),
                 status="reconciled",
                 uploaded_at=datetime.utcnow(),
             )
@@ -223,8 +224,10 @@ def attach_payment_document_file(payment_id: int, file) -> PaymentDocument:
         else:
             payment_document.file_name = safe_name
             payment_document.file_path = relative_path
-            if not payment_document.payment_type and payment.payment_method:
-                payment_document.payment_type = payment.payment_method
+            if payment.payment_method:
+                mapped = map_payment_method_to_document_type(payment.payment_method)
+                if mapped and (not payment_document.payment_type or payment_document.payment_type == "sconosciuto"):
+                    payment_document.payment_type = mapped
             payment_document.status = "reconciled"
             payment_document.uploaded_at = datetime.utcnow()
 
@@ -268,7 +271,7 @@ def create_batch_payment(
         payment_document = PaymentDocument(
             file_name=file_name,
             file_path=file_path,
-            payment_type=method or "batch",
+            payment_type=map_payment_method_to_document_type(method) or (method or "batch"),
             status="reconciled",
             bank_account_iban=cleaned_iban or None,
         )
@@ -379,7 +382,7 @@ def create_batch_payment_from_documents(
             payment_document = PaymentDocument(
                 file_name=safe_name,
                 file_path=relative_path,
-                payment_type=method or "batch",
+                payment_type=map_payment_method_to_document_type(method) or (method or "batch"),
                 status="reconciled",
                 bank_account_iban=cleaned_iban or None,
             )
@@ -388,7 +391,7 @@ def create_batch_payment_from_documents(
             payment_document = PaymentDocument(
                 file_name=placeholder_name,
                 file_path=placeholder_name,
-                payment_type=method or "batch",
+                payment_type=map_payment_method_to_document_type(method) or (method or "batch"),
                 status="reconciled",
                 bank_account_iban=cleaned_iban or None,
             )
@@ -509,6 +512,97 @@ def create_batch_payment_from_documents(
         "error_count": error_count,
         "results": results
     }
+
+
+def register_instant_payment_for_document(
+    document_id: int,
+    *,
+    bank_account_iban: Optional[str] = None,
+    paid_date: Optional[date] = None,
+) -> tuple[bool, str]:
+    """
+    Registra un pagamento istantaneo senza documento PDF.
+    """
+    cleaned_iban = normalize_iban(bank_account_iban)
+
+    with UnitOfWork() as uow:
+        document = uow.session.get(Document, document_id)
+        if not document:
+            return False, "Documento non trovato."
+
+        if cleaned_iban:
+            account = uow.bank_accounts.get_by_iban(cleaned_iban)
+            if not account:
+                return False, "IBAN non trovato."
+            if document.legal_entity_id and account.legal_entity_id != document.legal_entity_id:
+                return False, "IBAN non appartenente all'intestazione selezionata."
+
+        payments = uow.payments.get_by_document_id(document_id)
+        if not payments:
+            expected = Decimal(document.total_gross_amount or 0)
+            fallback_due = document.due_date or paid_date or document.document_date or date.today()
+            payment = Payment(
+                document_id=document_id,
+                due_date=fallback_due,
+                expected_amount=expected,
+                status="unpaid",
+                payment_method=None,
+            )
+            uow.payments.add(payment)
+            uow.session.flush()
+            payments = [payment]
+
+        effective_date = paid_date or document.document_date or document.due_date or date.today()
+        method_code = payments[0].payment_method if payments else None
+        normalized_method = map_payment_method_to_document_type(method_code)
+        if not normalized_method and method_code:
+            from app.services.payment_method_catalog import normalize_payment_method_code
+            normalized_method = map_payment_method_to_document_type(
+                normalize_payment_method_code(method_code)
+            )
+        payment_type = normalized_method or "sconosciuto"
+
+        payment_document = None
+        for payment in payments:
+            if payment.payment_document:
+                payment_document = payment.payment_document
+                break
+
+        if payment_document is None:
+            placeholder_name = f"instant_payment_{document_id}_{effective_date.isoformat()}"
+            payment_document = PaymentDocument(
+                supplier_id=document.supplier_id,
+                file_name=placeholder_name,
+                file_path=placeholder_name,
+                payment_type=payment_type,
+                status="reconciled",
+                bank_account_iban=cleaned_iban or None,
+                uploaded_at=datetime.utcnow(),
+            )
+            uow.session.add(payment_document)
+            uow.session.flush()
+        else:
+            if not payment_document.payment_type or payment_document.payment_type == "sconosciuto":
+                payment_document.payment_type = payment_type
+            if cleaned_iban:
+                payment_document.bank_account_iban = cleaned_iban
+            payment_document.status = "reconciled"
+            payment_document.uploaded_at = datetime.utcnow()
+
+        for payment in payments:
+            if payment.expected_amount is not None:
+                paid_amount = Decimal(payment.expected_amount)
+            else:
+                paid_amount = Decimal(document.total_gross_amount or 0) if len(payments) == 1 else Decimal("0")
+            payment.paid_amount = paid_amount
+            payment.paid_date = effective_date
+            payment.status = "paid"
+            payment.payment_document = payment_document
+
+        document.is_paid = all(p.status == "paid" for p in payments)
+        uow.commit()
+
+    return True, "Pagamento istantaneo registrato."
 
 def _update_document_paid_status(uow: UnitOfWork, document: Document):
     """

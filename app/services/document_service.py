@@ -14,6 +14,11 @@ from app.services.unit_of_work import UnitOfWork
 from app.services import settings_service
 from app.services.dto import DocumentSearchFilters
 from app.models import Document, LegalEntity
+from app.services.payment_method_catalog import (
+    is_known_payment_method,
+    is_physical_copy_required,
+    normalize_payment_method_code,
+)
 
 class DocumentService:
     """
@@ -67,6 +72,23 @@ class DocumentService:
             if not chosen_status or chosen_status not in allowed_statuses:
                 chosen_status = "verified"
             doc.doc_status = chosen_status
+
+            # Copia fisica: auto-gestione per metodi di pagamento istantanei
+            payments = uow.payments.get_by_document_id(doc.id)
+            method_codes = [
+                normalize_payment_method_code(p.payment_method)
+                for p in payments
+                if p.payment_method
+            ]
+            known_codes = [code for code in method_codes if is_known_payment_method(code)]
+            if known_codes:
+                requires_copy = any(is_physical_copy_required(code) for code in known_codes)
+                if requires_copy:
+                    if doc.physical_copy_status == "not_required":
+                        doc.physical_copy_status = "missing"
+                else:
+                    if doc.physical_copy_status in {"missing", "requested"}:
+                        doc.physical_copy_status = "not_required"
             
             uow.commit()
             return True, "Documento confermato"

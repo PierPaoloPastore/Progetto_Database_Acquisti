@@ -198,16 +198,18 @@ def _format_date(day: str, month: str, year: str) -> Optional[str]:
 
 
 def _find_payment_method(text: str) -> Optional[str]:
-    mapping = {
-        "bonifico": ["bonifico", "sepa"],
-        "assegno": ["assegno"],
-        "contanti": ["contanti", "cash"],
-        "altro": ["carta", "pos", "paypal"],
-    }
-    for method, keys in mapping.items():
+    mapping = [
+        ("MP19", ["sdd", "sepa direct debit", "addebito diretto"]),
+        ("MP05", ["bonifico", "sepa bonifico", "sepa"]),
+        ("MP02", ["assegno", "assegno bancario", "assegno circolare"]),
+        ("MP01", ["contanti", "cash"]),
+        ("MP08", ["carta", "pos", "paypal"]),
+        ("MP09", ["rid"]),
+    ]
+    for code, keys in mapping:
         for key in keys:
             if key in text:
-                return method
+                return code
     return None
 
 

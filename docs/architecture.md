@@ -1,4 +1,4 @@
-Last updated: 2025-12-15
+Last updated: 2026-02-16
 
 # Architecture
 
@@ -48,6 +48,9 @@ Last updated: 2025-12-15
   - `LegalEntity`
     Intestatario interno (società/partita IVA dell'azienda).
     Il codice fiscale è gestito tramite la colonna `fiscal_code`.
+  - `BankAccount`
+    Conto bancario associato a una intestazione (IBAN come PK).
+    Usato per registrare il conto di uscita nei pagamenti batch e istantanei.
 
 - **Documenti di acquisto (SUPERTIPO)**
   - `Document`
@@ -81,10 +84,12 @@ Last updated: 2025-12-15
     Rappresenta una **scadenza** di un documento (qualsiasi tipo):
     - FK: `document_id` → `documents.id`
     - `due_date`, `expected_amount`, `paid_amount`, `paid_date`, `status`
+    - `payment_method` usa i codici FatturaPA `MP01`–`MP22`
   
   - `PaymentDocument`  
     PDF dei movimenti bancari (bonifici, MAV, assegni, ecc.).  
     **Novità:** ora ha `supplier_id` per facilitare riconciliazione.
+    **Novità:** può memorizzare `bank_account_iban` (conto di uscita).
   
   - `PaymentDocumentLink`  
     Tabella ponte M:N tra `Payment` e `PaymentDocument` per allocare un bonifico a più scadenze.
@@ -153,6 +158,15 @@ I repository incapsulano le query SQLAlchemy e centralizzano la logica di access
     - aggiornamento `status` (`planned`, `pending`, `partial`, `paid`, ecc.),
   - import e gestione `PaymentDocument` (PDF di pagamenti reali),
   - matching tra `Payment` e `PaymentDocument` (via `PaymentDocumentLink` quando usato).
+  - **pagamenti istantanei**: registrazione “già pagato” senza PDF quando il metodo MP non richiede copia fisica,
+  - **normalizzazione metodi**: mapping legacy (`bonifico`, `assegno`, `contanti`) → MP01–MP22.
+
+#### Metodi di pagamento MP01–MP22 (regole operative)
+
+- `payments.payment_method` adotta i codici **FatturaPA** `MP01`–`MP22`.
+- **Copia fisica obbligatoria** per: `MP02`, `MP03`, `MP05`, `MP06`, `MP07`, `MP13`, `MP14`, `MP18`.
+- **Senza copia fisica** per tutti gli altri codici (stato `physical_copy_status = not_required`).
+- Il flusso “**pagamento istantaneo**” è consentito solo quando **tutti** i metodi del documento rientrano tra quelli senza copia fisica.
 
 - `supplier_service`
   - liste fornitori con statistiche,
