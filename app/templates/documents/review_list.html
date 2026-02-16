@@ -2,41 +2,43 @@
 
 {% block title %}Documenti da Rivedere - Gestionale Acquisti{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/documents_list.css') }}">
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h1>Documenti da rivedere</h1>
+        <h1 class="mb-0" data-nav-title>Documenti da rivedere</h1>
     </div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            {% set filters_action = url_for('documents.review_list_view') %}
+            {% set reset_url = url_for('documents.review_list_view') %}
+            {% set show_review_actions = True %}
+            {% include "documents/_filters_form.html" %}
+        </div>
+    </div>
+
+    {% if has_active_filters %}
+    <div class="filter-chips">
+        {% for chip in active_filter_chips %}
+        <span class="filter-chip">
+            <span>{{ chip.label }}</span>
+            <a class="chip-remove" href="{{ chip.remove_url }}" aria-label="Rimuovi filtro">
+                <i class="bi bi-x"></i>
+            </a>
+        </span>
+        {% endfor %}
+        <a href="{{ reset_url }}" class="btn btn-sm btn-outline-secondary">Pulisci tutto</a>
+    </div>
+    {% endif %}
 
     <div class="card shadow-sm">
         <div class="card-header bg-white">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <h5 class="mb-0">Coda di lavorazione ({{ invoices|length|format_int }})</h5>
-                <form class="d-flex align-items-center gap-2" method="get" action="{{ url_for('documents.review_list_view') }}">
-                    <label for="legal_entity_id" class="small text-muted mb-0">Intestatario</label>
-                    <select id="legal_entity_id" name="legal_entity_id" class="form-select form-select-sm" style="min-width: 220px;">
-                        <option value="">Tutti {% if le_counts.get(None) %}({{ le_counts.get(None)|format_int }}){% endif %}</option>
-                        {% for le in legal_entities %}
-                            {% set count = le_counts.get(le.id) %}
-                            <option value="{{ le.id }}" {% if selected_legal_entity_id == le.id %}selected{% endif %}>
-                                {{ le.name }}{% if count %} ({{ count|format_int }}){% endif %}
-                            </option>
-                        {% endfor %}
-                    </select>
-                    <button type="submit" class="btn btn-sm btn-outline-primary">
-                        <i class="bi bi-filter"></i> Filtra
-                    </button>
-                    {% if next_invoice %}
-                        <a class="btn btn-sm btn-primary" href="{{ url_for('documents.review_loop_invoice_view', document_id=next_invoice.id) }}">
-                            <i class="bi bi-play-circle"></i> Avvia Revisione ({{ next_invoice.document_date }})
-                        </a>
-                    {% else %}
-                        <button class="btn btn-sm btn-secondary" type="button" disabled>Nessun documento da rivedere</button>
-                    {% endif %}
-                    {% if selected_legal_entity_id %}
-                        <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('documents.review_list_view') }}">Reset</a>
-                    {% endif %}
-                </form>
             </div>
         </div>
         <div class="card-body p-0">

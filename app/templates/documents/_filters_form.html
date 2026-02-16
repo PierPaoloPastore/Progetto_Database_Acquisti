@@ -1,0 +1,118 @@
+<form id="documents-filters-form" class="documents-filters" method="GET" action="{{ filters_action }}">
+    <div class="filters-primary">
+        <div>
+            <label class="form-label fw-bold small">Cerca</label>
+            <div class="input-group input-group-sm">
+                <span class="input-group-text">
+                    <i class="bi bi-search"></i>
+                </span>
+                <input type="text" name="q" class="form-control form-control-sm"
+                       value="{{ filters.q or '' }}" placeholder="Cerca per numero, fornitore, intestatario, voci">
+            </div>
+        </div>
+        <div class="filters-actions">
+            <button type="submit" class="btn btn-sm btn-primary">Filtra</button>
+            {% if show_review_actions %}
+                {% if next_invoice %}
+                    <a class="btn btn-sm btn-primary" href="{{ url_for('documents.review_loop_invoice_view', document_id=next_invoice.id) }}">
+                        <i class="bi bi-play-circle"></i> Avvia Revisione ({{ next_invoice.document_date }})
+                    </a>
+                {% else %}
+                    <button class="btn btn-sm btn-secondary" type="button" disabled>Nessun documento da rivedere</button>
+                {% endif %}
+            {% endif %}
+            <button type="button" class="btn btn-sm btn-outline-secondary"
+                    data-bs-toggle="collapse" data-bs-target="#advancedFilters"
+                    aria-expanded="{{ 'true' if has_advanced_filters else 'false' }}"
+                    aria-controls="advancedFilters">
+                Avanzati
+            </button>
+            <a href="{{ reset_url }}" class="btn btn-sm btn-outline-secondary">Reset</a>
+        </div>
+    </div>
+    <div class="collapse {% if has_advanced_filters %}show{% endif %}" id="advancedFilters">
+        <div class="filters-advanced">
+            <div>
+                <label class="form-label fw-bold small">Numero</label>
+                <input type="text" name="document_number" class="form-control form-control-sm"
+                       value="{{ filters.document_number or '' }}" placeholder="Es. 123/2025">
+            </div>
+            <div>
+                <label class="form-label fw-bold small">Data da</label>
+                <input type="date" name="date_from" class="form-control form-control-sm"
+                       value="{{ filters.date_from.isoformat() if filters.date_from else '' }}">
+            </div>
+            <div>
+                <label class="form-label fw-bold small">Data a</label>
+                <input type="date" name="date_to" class="form-control form-control-sm"
+                       value="{{ filters.date_to.isoformat() if filters.date_to else '' }}">
+            </div>
+            <div>
+                <label class="form-label fw-bold small">Anno</label>
+                <select name="year" class="form-select form-select-sm">
+                    <option value="">Tutti</option>
+                    {% for y in accounting_years %}
+                    <option value="{{ y }}" {% if filters.accounting_year == y %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="form-label fw-bold small">Fornitore</label>
+                <select name="supplier_id" class="form-select form-select-sm">
+                    <option value="">Tutti i Fornitori</option>
+                    {% for s in suppliers %}
+                    <option value="{{ s.id }}" {% if filters.supplier_id == s.id %}selected{% endif %}>{{ s.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="form-label fw-bold small">Intestatario</label>
+                <select name="legal_entity_id" class="form-select form-select-sm">
+                    <option value="">Tutte le societa</option>
+                    {% for le in legal_entities %}
+                    <option value="{{ le.id }}" {% if filters.legal_entity_id == le.id %}selected{% endif %}>{{ le.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="form-label fw-bold small">Stato documento</label>
+                <select name="doc_status" class="form-select form-select-sm">
+                    <option value="">Tutti gli stati</option>
+                    <option value="pending_physical_copy" {% if filters.doc_status == 'pending_physical_copy' %}selected{% endif %}>Da rivedere</option>
+                    <option value="verified" {% if filters.doc_status == 'verified' %}selected{% endif %}>Verificato</option>
+                    <option value="archived" {% if filters.doc_status == 'archived' %}selected{% endif %}>Archiviato</option>
+                </select>
+            </div>
+            <div>
+                <label class="form-label fw-bold small">Stato pagamento</label>
+                <select name="payment_status" class="form-select form-select-sm">
+                    <option value="">Tutti gli stati</option>
+                    <option value="unpaid" {% if filters.payment_status == 'unpaid' %}selected{% endif %}>Non pagato</option>
+                    <option value="partial" {% if filters.payment_status == 'partial' %}selected{% endif %}>Parziale</option>
+                    <option value="paid" {% if filters.payment_status == 'paid' %}selected{% endif %}>Pagato</option>
+                </select>
+            </div>
+            <div>
+                <label class="form-label fw-bold small">Copia fisica</label>
+                <select name="physical_copy_status" class="form-select form-select-sm">
+                    <option value="">Qualsiasi</option>
+                    <option value="missing" {% if filters.physical_copy_status == 'missing' %}selected{% endif %}>Mancante</option>
+                    <option value="requested" {% if filters.physical_copy_status == 'requested' %}selected{% endif %}>Richiesta</option>
+                    <option value="received" {% if filters.physical_copy_status == 'received' %}selected{% endif %}>Ricevuta</option>
+                    <option value="not_required" {% if filters.physical_copy_status == 'not_required' %}selected{% endif %}>Non richiesta</option>
+                </select>
+            </div>
+            <div>
+                <label class="form-label fw-bold small">Importo</label>
+                <div class="input-group input-group-sm">
+                    <select name="amount_operator" class="form-select form-select-sm amount-operator">
+                        <option value="gt" {% if filters.amount_operator != 'lt' %}selected{% endif %}>&gt;</option>
+                        <option value="lt" {% if filters.amount_operator == 'lt' %}selected{% endif %}>&lt;</option>
+                    </select>
+                    <input type="number" step="0.01" name="amount_value" class="form-control form-control-sm" placeholder="Importo"
+                           value="{{ filters.amount_value if filters.amount_value is not none else '' }}">
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
