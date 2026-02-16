@@ -223,66 +223,6 @@
         </div>
     </div>
 
-    <div class="card shadow-sm">
-        <div class="card-header">
-            <h5 class="mb-0">Storico Documenti ({{ documents|length|format_int }})</h5>
-        </div>
-        <div class="card-body p-0">
-            <div class="table-responsive scrollable-list">
-                <table class="table table-hover table-striped mb-0 align-middle">
-                    <thead class="table-light">
-                    <tr>
-                        <th style="width: 50px;">ID</th>
-                        <th>Data</th>
-                        <th>Numero</th>
-                        <th>Tipo</th>
-                        <th>Fornitore</th>
-                        <th class="text-end">Importo</th>
-                        <th>Stato</th>
-                        <th class="text-end">Azioni</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    {% for doc in documents %}
-                      <tr>
-                          <td><span class="text-muted">#{{ doc.id }}</span></td>
-                          <td>{{ doc.document_date.strftime('%d/%m/%Y') if doc.document_date else '-' }}</td>
-                          <td class="fw-bold">{{ doc.document_number or '-' }}</td>
-                          <td>{{ doc.document_type }}</td>
-                          <td>{{ doc.supplier.name if doc.supplier else 'N/D' }}</td>
-                          <td class="text-end font-monospace">
-                              {{ (doc.total_gross_amount or 0)|format_amount }} &euro;
-                          </td>
-                          <td>
-                              {% if doc.doc_status == 'pending_physical_copy' %}
-                                  <span class="badge bg-warning text-dark">Da revisionare</span>
-                              {% elif doc.doc_status == 'verified' %}
-                                  <span class="badge bg-success">Verificata</span>
-                              {% elif doc.doc_status == 'archived' %}
-                                  <span class="badge bg-secondary">Archiviata</span>
-                              {% else %}
-                                  <span class="badge bg-light text-dark border">{{ doc.doc_status }}</span>
-                              {% endif %}
-                          </td>
-                          <td class="text-end">
-                              <a href="{{ url_for('documents.detail_view', document_id=doc.id) }}"
-                                 class="btn btn-sm btn-outline-secondary">
-                                  <i class="bi bi-eye"></i> Visualizza
-                              </a>
-                          </td>
-                      </tr>
-                    {% else %}
-                      <tr>
-                          <td colspan="8" class="text-center py-4 text-muted">
-                              Nessun documento registrato per questa intestazione.
-                          </td>
-                      </tr>
-                    {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
 </div>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
