@@ -20,7 +20,7 @@
 
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-0 py-1">
         <div class="container-fluid">
-            {% set brand_label = 'Pagamenti' if request.blueprint == 'payments' else 'Progetto Acquisti' %}
+            {% set brand_label = 'Acquisti' %}
             <a class="navbar-brand" href="{{ url_for('main.index') }}">
                 <i class="bi bi-box-seam"></i> {{ brand_label }}
             </a>
