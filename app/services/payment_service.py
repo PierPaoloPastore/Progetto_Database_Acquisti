@@ -17,7 +17,12 @@ from werkzeug.utils import secure_filename
 from app.models import Document, Payment, PaymentDocument
 from app.services import scan_service, settings_service
 from app.services.bank_account_service import normalize_iban
-from app.services.payment_method_catalog import map_payment_method_to_document_type
+from app.services.payment_method_catalog import (
+    is_known_payment_method,
+    is_physical_copy_required,
+    map_payment_method_to_document_type,
+    normalize_payment_method_code,
+)
 from app.services.unit_of_work import UnitOfWork
 
 logger = logging.getLogger(__name__)
@@ -603,6 +608,39 @@ def register_instant_payment_for_document(
         uow.commit()
 
     return True, "Pagamento istantaneo registrato."
+
+def update_payment_method_for_document(
+    document_id: int,
+    method_code: Optional[str],
+) -> tuple[bool, str]:
+    """
+    Aggiorna il metodo di pagamento per tutte le scadenze del documento.
+    """
+    normalized = normalize_payment_method_code(method_code)
+    if not normalized or not is_known_payment_method(normalized):
+        return False, "Metodo di pagamento non valido."
+
+    with UnitOfWork() as uow:
+        document = uow.session.get(Document, document_id)
+        if not document:
+            return False, "Documento non trovato."
+
+        payments = uow.payments.get_by_document_id(document_id)
+        if not payments:
+            return False, "Nessuna scadenza collegata al documento."
+
+        for payment in payments:
+            payment.payment_method = normalized
+
+        if is_physical_copy_required(normalized):
+            if document.physical_copy_status == "not_required":
+                document.physical_copy_status = "missing"
+        else:
+            if document.physical_copy_status in {"missing", "requested"}:
+                document.physical_copy_status = "not_required"
+
+        uow.commit()
+        return True, "Metodo di pagamento aggiornato."
 
 def _update_document_paid_status(uow: UnitOfWork, document: Document):
     """

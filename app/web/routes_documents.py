@@ -17,7 +17,7 @@ from flask import (
 )
 
 from app.models import Document
-from app.services import document_service as doc_service, ocr_service, list_all_bank_accounts
+from app.services import document_service as doc_service, ocr_service, list_all_bank_accounts, settings_service
 from app.services.document_service import DocumentService, render_invoice_html
 from app.services.ocr_mapping_service import parse_manual_document_fields
 from app.services.formatting_service import format_amount
@@ -26,10 +26,14 @@ from app.services.payment_method_catalog import (
     is_instant_payment,
     is_known_payment_method,
     is_physical_copy_required,
+    list_payment_method_choices,
     normalize_payment_method_code,
     summarize_payment_methods,
 )
-from app.services.payment_service import register_instant_payment_for_document
+from app.services.payment_service import (
+    register_instant_payment_for_document,
+    update_payment_method_for_document,
+)
 from app.services.unit_of_work import UnitOfWork
 
 # FIX: Import dai service invece che dai repo diretti dove possibile
@@ -97,6 +101,14 @@ def _get_payment_method_context(document_id: int) -> dict:
         if p.payment_method
     ]
     known_codes = [code for code in codes if is_known_payment_method(code)]
+    filter_raw = (settings_service.get_setting("REVIEW_PAYMENT_METHOD_FILTER", "") or "").strip()
+    allowed_codes = [
+        normalize_payment_method_code(value)
+        for value in filter_raw.split(",")
+        if value.strip()
+    ]
+    if allowed_codes:
+        known_codes = [code for code in known_codes if code in allowed_codes]
     labels = summarize_payment_methods(known_codes)
     requires_copy = any(is_physical_copy_required(code) for code in known_codes)
     instant_allowed = bool(known_codes) and all(
@@ -106,12 +118,15 @@ def _get_payment_method_context(document_id: int) -> dict:
     reason = None
     if not known_codes:
         reason = "Metodo di pagamento non presente nel file."
+        if allowed_codes:
+            reason = "Metodo di pagamento diverso dal filtro impostato."
     elif requires_copy:
         reason = "Metodo di pagamento con copia fisica obbligatoria."
 
     return {
         "codes": known_codes,
         "labels": labels,
+        "visible": bool(known_codes),
         "instant_allowed": instant_allowed,
         "instant_reason": reason,
         "requires_copy": requires_copy,
@@ -615,6 +630,13 @@ def review_loop_invoice_view(document_id: int):
                     flash("Documento non trovato.", "warning")
                 else:
                     flash("Copia fisica caricata e collegata.", "success")
+        elif action == "update_payment_method":
+            method_code = request.form.get("payment_method_code") or None
+            ok, message = update_payment_method_for_document(document_id, method_code)
+            if ok:
+                flash(message, "success")
+            else:
+                flash(message, "warning")
 
     document = DocumentService.get_document_by_id(document_id)
     if document is None: abort(404)
@@ -636,6 +658,7 @@ def review_loop_invoice_view(document_id: int):
     legal_entities = list_legal_entities(include_inactive=False)
     saved_at = request.args.get("saved_at") or None
     method_context = _get_payment_method_context(document_id)
+    payment_method_choices = list_payment_method_choices()
     bank_accounts = list_all_bank_accounts()
     return render_template(
         'documents/review.html',
@@ -647,6 +670,9 @@ def review_loop_invoice_view(document_id: int):
         legal_entities=legal_entities,
         saved_at=saved_at,
         payment_method_labels=method_context["labels"],
+        payment_method_choices=payment_method_choices,
+        payment_method_visible=method_context["visible"],
+        payment_method_codes=method_context["codes"],
         instant_payment_available=method_context["instant_allowed"],
         instant_payment_reason=method_context["instant_reason"],
         bank_accounts=bank_accounts,

@@ -160,6 +160,7 @@ I repository incapsulano le query SQLAlchemy e centralizzano la logica di access
   - matching tra `Payment` e `PaymentDocument` (via `PaymentDocumentLink` quando usato).
   - **pagamenti istantanei**: registrazione “già pagato” senza PDF quando il metodo MP non richiede copia fisica,
   - **normalizzazione metodi**: mapping legacy (`bonifico`, `assegno`, `contanti`) → MP01–MP22.
+  - **revisione**: metodo pagamento mostrato e modificabile solo se presente nel file XML (sezione stile DDT).
 
 #### Metodi di pagamento MP01–MP22 (regole operative)
 

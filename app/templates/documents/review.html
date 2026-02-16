@@ -334,6 +334,42 @@
                     </div>
                 </div>
             </div>
+
+            {% if payment_method_visible %}
+            <div class="mt-4 pt-3 border-top">
+                {% set payment_count = payment_method_codes|length %}
+                <button class="review-collapse-toggle d-flex align-items-center justify-content-between"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#review-payment-method"
+                        aria-expanded="{{ 'true' if payment_count else 'false' }}"
+                        aria-controls="review-payment-method">
+                    <span>Metodo di pagamento</span>
+                    {% if payment_count %}
+                        <span class="badge bg-secondary">{{ payment_count }} metodi</span>
+                    {% endif %}
+                </button>
+                <div id="review-payment-method" class="collapse review-collapse-body {% if payment_count %}show{% endif %}">
+                    {% if payment_method_labels %}
+                        <div class="small text-muted mb-2">Metodo rilevato: {{ payment_method_labels|join(', ') }}</div>
+                    {% endif %}
+                    <form method="POST" action="{{ url_for('documents.review_loop_invoice_view', document_id=invoice.id) }}" class="d-flex flex-wrap align-items-center gap-2">
+                        <input type="hidden" name="action" value="update_payment_method">
+                        <select name="payment_method_code" class="form-select form-select-sm" style="min-width: 220px;">
+                            <option value="">Seleziona metodo pagamento</option>
+                            {% for code, label in payment_method_choices %}
+                                <option value="{{ code }}" {% if payment_method_codes|length == 1 and payment_method_codes[0] == code %}selected{% endif %}>
+                                    {{ code }} - {{ label }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-check2-circle"></i> Aggiorna metodo
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
         </div>
 
         <div class="review-splitter" aria-hidden="true" role="separator" tabindex="0" title="Ridimensiona pannelli"></div>
