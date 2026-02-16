@@ -281,6 +281,52 @@
                             </button>
                         </div>
                     </form>
+
+                    <hr class="my-4">
+
+                    <div class="mt-3">
+                        <h6 class="text-uppercase text-muted mb-2">Manutenzione</h6>
+                        <div class="alert alert-warning small mb-3">
+                            Questa operazione elimina tutti i dati applicativi dal database.
+                            Usa questa funzione solo se sei certo di voler ripartire da zero.
+                        </div>
+                        <form method="post" action="{{ url_for('settings.initialize_db') }}">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="confirm_check" name="confirm_check" value="1">
+                                        <label class="form-check-label" for="confirm_check">
+                                            Ho compreso che l'operazione è irreversibile
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label for="confirm_text" class="form-label fw-bold">Digita "INIZIALIZZA"</label>
+                                    <input type="text" class="form-control" id="confirm_text" name="confirm_text" placeholder="INIZIALIZZA">
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label fw-bold">Dati da mantenere</label>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="preserve_settings" name="preserve_settings" value="1" checked>
+                                        <label class="form-check-label" for="preserve_settings">
+                                            Mantieni impostazioni applicazione
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="preserve_users" name="preserve_users" value="1" checked>
+                                        <label class="form-check-label" for="preserve_users">
+                                            Mantieni utenti
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <button type="submit" class="btn btn-danger">
+                                        <i class="bi bi-exclamation-triangle"></i> Inizializza Database
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
                 </div>
             </div>
 

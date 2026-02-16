@@ -5,6 +5,7 @@ Route web per la gestione delle impostazioni applicative.
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 
 from app.services.settings_service import get_setting, set_setting
+from app.services.maintenance_service import initialize_database
 
 
 settings_bp = Blueprint("settings", __name__, url_prefix="/settings")
@@ -102,4 +103,34 @@ def save_settings():
     flash("Impostazioni salvate correttamente", "success")
     
     # FIX: Reindirizza all'endpoint corretto 'settings.index'
+    return redirect(url_for("settings.index"))
+
+
+@settings_bp.post("/initialize-db")
+def initialize_db():
+    """
+    Inizializza il database eliminando i dati applicativi.
+    """
+    confirm_text = (request.form.get("confirm_text") or "").strip().upper()
+    confirm_check = (request.form.get("confirm_check") or "") == "1"
+    preserve_settings = (request.form.get("preserve_settings") or "1") == "1"
+    preserve_users = (request.form.get("preserve_users") or "1") == "1"
+
+    if not confirm_check or confirm_text != "INIZIALIZZA":
+        flash("Conferma non valida. Operazione annullata.", "warning")
+        return redirect(url_for("settings.index"))
+
+    try:
+        cleaned_count = initialize_database(
+            preserve_settings=preserve_settings,
+            preserve_users=preserve_users,
+        )
+    except Exception as exc:
+        flash(f"Errore durante l'inizializzazione: {exc}", "danger")
+        return redirect(url_for("settings.index"))
+
+    flash(
+        f"Database inizializzato. Tabelle ripulite: {cleaned_count}.",
+        "success",
+    )
     return redirect(url_for("settings.index"))
