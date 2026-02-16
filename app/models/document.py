@@ -177,6 +177,13 @@ class Document(db.Model):
         foreign_keys="ImportLog.document_id",
     )
 
+    audit_logs = db.relationship(
+        "DocumentAuditLog",
+        back_populates="document",
+        lazy="dynamic",
+        foreign_keys="DocumentAuditLog.document_id",
+    )
+
     rent_contract = db.relationship(
         "RentContract",
         backref="documents",

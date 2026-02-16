@@ -4,6 +4,7 @@ Rifattorizzato con Pattern Unit of Work.
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 import shutil
@@ -14,7 +15,7 @@ from typing import Optional, List, Any
 from app.services.unit_of_work import UnitOfWork
 from app.services import settings_service
 from app.services.dto import DocumentSearchFilters
-from app.models import Document, LegalEntity
+from app.models import Document, DocumentAuditLog, LegalEntity
 from app.services.payment_method_catalog import (
     is_known_payment_method,
     is_physical_copy_required,
@@ -40,6 +41,7 @@ class DocumentService:
             doc = uow.documents.get_by_id(document_id)
             if not doc:
                 return False, "Documento non trovato"
+            before = _serialize_document(doc)
 
             # Aggiornamento campi base
             doc.document_number = form_data.get("document_number")
@@ -90,7 +92,15 @@ class DocumentService:
                 else:
                     if doc.physical_copy_status in {"missing", "requested"}:
                         doc.physical_copy_status = "not_required"
-            
+
+            after = _serialize_document(doc)
+            if before != after:
+                _create_document_audit_log(
+                    uow,
+                    document_id=doc.id,
+                    action="update",
+                    payload={"before": before, "after": after},
+                )
             uow.commit()
             return True, "Documento confermato"
 
@@ -100,6 +110,13 @@ class DocumentService:
             doc = uow.documents.get_by_id(document_id)
             if not doc:
                 return False
+            snapshot = _serialize_document(doc)
+            _create_document_audit_log(
+                uow,
+                document_id=doc.id,
+                action="delete",
+                payload={"before": snapshot, "document_id": doc.id},
+            )
             file_paths = _collect_document_file_paths(doc)
             uow.documents.delete(doc)
             uow.commit()
@@ -231,12 +248,21 @@ def update_document_status(document_id: int, doc_status: str, due_date: Optional
     with UnitOfWork() as uow:
         doc = uow.documents.get_by_id(document_id)
         if doc:
+            before = _serialize_document(doc)
             if doc_status:
                 doc.doc_status = doc_status
             if due_date:
                 doc.due_date = due_date
             if note is not None:
                 doc.note = note or None
+            after = _serialize_document(doc)
+            if before != after:
+                _create_document_audit_log(
+                    uow,
+                    document_id=doc.id,
+                    action="update",
+                    payload={"before": before, "after": after},
+                )
             uow.commit()
         return doc
 
@@ -248,6 +274,7 @@ def update_document_core(document_id: int, form_data: dict) -> tuple[bool, str, 
         doc = uow.documents.get_by_id(document_id)
         if not doc:
             return False, "Documento non trovato.", None
+        before = _serialize_document(doc)
 
         doc.document_number = (form_data.get("document_number") or "").strip() or None
         doc.document_date = _parse_date(form_data.get("document_date"))
@@ -271,6 +298,14 @@ def update_document_core(document_id: int, form_data: dict) -> tuple[bool, str, 
         doc.total_vat_amount = vat
         doc.total_gross_amount = gross
 
+        after = _serialize_document(doc)
+        if before != after:
+            _create_document_audit_log(
+                uow,
+                document_id=doc.id,
+                action="update",
+                payload={"before": before, "after": after},
+            )
         uow.commit()
         return True, "Documento aggiornato.", doc
 
@@ -342,6 +377,135 @@ def _remove_document_files(paths: list[str]) -> None:
                 extra={"file_path": path, "error": str(exc)},
             )
 
+
+def _create_document_audit_log(
+    uow: UnitOfWork,
+    *,
+    document_id: int,
+    action: str,
+    payload: dict,
+) -> None:
+    try:
+        serialized = json.dumps(payload, ensure_ascii=True, default=str)
+        uow.session.add(
+            DocumentAuditLog(
+                document_id=document_id,
+                action=action,
+                payload=serialized,
+            )
+        )
+    except Exception as exc:
+        logger.warning(
+            "Impossibile registrare audit documento.",
+            extra={"document_id": document_id, "action": action, "error": str(exc)},
+        )
+
+
+def _serialize_document(doc: Document) -> dict:
+    def _format_date(value: Optional[date]) -> Optional[str]:
+        return value.isoformat() if value else None
+
+    def _format_decimal(value: Optional[Decimal]) -> Optional[str]:
+        return str(value) if value is not None else None
+
+    return {
+        "id": doc.id,
+        "document_type": doc.document_type,
+        "supplier_id": doc.supplier_id,
+        "legal_entity_id": doc.legal_entity_id,
+        "document_number": doc.document_number,
+        "document_date": _format_date(doc.document_date),
+        "registration_date": _format_date(doc.registration_date),
+        "due_date": _format_date(doc.due_date),
+        "total_taxable_amount": _format_decimal(doc.total_taxable_amount),
+        "total_vat_amount": _format_decimal(doc.total_vat_amount),
+        "total_gross_amount": _format_decimal(doc.total_gross_amount),
+        "doc_status": doc.doc_status,
+        "print_status": doc.print_status,
+        "is_paid": bool(doc.is_paid),
+        "import_source": doc.import_source,
+        "file_name": doc.file_name,
+        "file_path": doc.file_path,
+        "physical_copy_file_path": doc.physical_copy_file_path,
+        "physical_copy_status": doc.physical_copy_status,
+        "physical_copy_requested_at": _format_date(doc.physical_copy_requested_at),
+        "physical_copy_received_at": _format_date(doc.physical_copy_received_at),
+        "note": doc.note,
+    }
+
+
+def _build_audit_view(log: DocumentAuditLog) -> dict:
+    payload = {}
+    if log.payload:
+        try:
+            payload = json.loads(log.payload)
+        except Exception:
+            payload = {}
+
+    before = payload.get("before") or {}
+    after = payload.get("after") or {}
+    snapshot = before or payload
+
+    document_number = snapshot.get("document_number") or payload.get("document_number")
+    doc_id = log.document_id or payload.get("document_id") or snapshot.get("id")
+
+    action_label = "Modifica" if log.action == "update" else "Eliminazione"
+    action_class = "warning" if log.action == "update" else "danger"
+
+    summary = _build_audit_summary(before, after, log.action)
+
+    return {
+        "id": log.id,
+        "document_id": doc_id,
+        "document_number": document_number,
+        "created_at": log.created_at,
+        "action": log.action,
+        "action_label": action_label,
+        "action_class": action_class,
+        "summary": summary,
+    }
+
+
+def _build_audit_summary(before: dict, after: dict, action: str) -> str:
+    if action == "delete":
+        number = before.get("document_number") or "-"
+        doc_type = before.get("document_type") or "documento"
+        return f"Eliminato {doc_type} {number}"
+
+    labels = {
+        "document_number": "Numero",
+        "document_date": "Data doc",
+        "registration_date": "Registrazione",
+        "due_date": "Scadenza",
+        "supplier_id": "Fornitore",
+        "legal_entity_id": "Intestatario",
+        "total_gross_amount": "Totale",
+        "doc_status": "Stato",
+        "physical_copy_status": "Copia fisica",
+        "note": "Note",
+        "file_name": "File XML",
+    }
+
+    changes = []
+    keys = set(before.keys()) | set(after.keys())
+    for key in sorted(keys):
+        if before.get(key) == after.get(key):
+            continue
+        if key not in labels:
+            continue
+        before_val = before.get(key)
+        after_val = after.get(key)
+        before_txt = "-" if before_val in (None, "") else str(before_val)
+        after_txt = "-" if after_val in (None, "") else str(after_val)
+        changes.append(f"{labels[key]}: {before_txt} -> {after_txt}")
+
+    if not changes:
+        return "Modifica dati documento"
+    if len(changes) > 6:
+        extra = len(changes) - 6
+        return ", ".join(changes[:6]) + f" (+{extra} altri)"
+    return ", ".join(changes)
+
 def list_documents_to_review(order: str = "desc", document_type: Optional[str] = None, legal_entity_id: Optional[int] = None):
     with UnitOfWork() as uow:
         return uow.documents.list_imported(
@@ -350,6 +514,16 @@ def list_documents_to_review(order: str = "desc", document_type: Optional[str] =
             legal_entity_id=legal_entity_id,
             doc_status="pending_physical_copy",
         )
+
+def list_document_audit_logs(limit: int = 200) -> list[dict]:
+    with UnitOfWork() as uow:
+        logs = uow.document_audit_logs.list_recent(limit=limit)
+    return [_build_audit_view(log) for log in logs]
+
+def list_document_audit_logs_by_document(document_id: int, limit: int = 100) -> list[dict]:
+    with UnitOfWork() as uow:
+        logs = uow.document_audit_logs.list_by_document(document_id, limit=limit)
+    return [_build_audit_view(log) for log in logs]
 
 def get_next_document_to_review(
     order: str = "desc",

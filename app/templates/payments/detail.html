@@ -187,7 +187,7 @@
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label small fw-bold">Metodo</label>
-                                <select name="payment_method" class="form-select form-select-sm" data-payment-edit disabled>
+                                <select name="payment_method" class="form-select form-select-sm js-select2" data-payment-edit disabled>
                                     <option value="">Seleziona metodo</option>
                                     {% for code, label in payment_method_choices %}
                                         <option value="{{ code }}" {% if payment.payment_method == code %}selected{% endif %}>{{ code }} - {{ label }}</option>

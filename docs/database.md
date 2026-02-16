@@ -752,6 +752,31 @@ CREATE TABLE import_logs (
 - Diagnostica errori di parsing o duplicati
 - Prevenzione re-import dello stesso file (via file_hash)
 
+#### `document_audit_logs`
+
+Storico modifiche ed eliminazioni sui documenti.
+
+```sql
+CREATE TABLE document_audit_logs (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  document_id INT,
+  action VARCHAR(16) NOT NULL,
+  payload LONGTEXT,
+  created_at DATETIME NOT NULL,
+
+  FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE SET NULL
+);
+```
+
+**Indici:**
+- `idx_document_audit_document_id` (document_id)
+- `idx_document_audit_created_at` (created_at)
+- `idx_document_audit_action` (action)
+
+**Uso:**
+- Traccia chi/che cosa ha modificato o eliminato un documento.
+- `payload` contiene snapshot `before/after` in JSON (campi principali documento).
+
 #### `app_settings`
 
 Configurazioni globali modificabili a runtime.

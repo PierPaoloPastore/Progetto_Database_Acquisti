@@ -34,7 +34,7 @@
                             </div>
                             <div class="col-lg-6">
                                 <label for="payment_method" class="form-label">Metodo di pagamento</label>
-                                <select class="form-select" name="method" id="payment_method">
+                                <select class="form-select js-select2" name="method" id="payment_method">
                                     <option value="">Seleziona metodo</option>
                                     {% for code, label in payment_method_choices %}
                                         <option value="{{ code }}">{{ code }} - {{ label }}</option>
@@ -47,12 +47,12 @@
                             </div>
                             <div class="col-lg-6">
                                 <label for="bank-account-iban" class="form-label">Conto bancario (IBAN)</label>
-                                <select class="form-select" name="bank_account_iban" id="bank-account-iban">
+                                <select class="form-select js-select2" name="bank_account_iban" id="bank-account-iban">
                                     <option value="">Seleziona IBAN</option>
                                     <option value="" id="bank-account-empty" class="d-none" disabled>Nessun conto disponibile</option>
                                     {% for account in bank_accounts %}
                                         <option value="{{ account.iban }}" data-legal-entity-id="{{ account.legal_entity_id }}">
-                                            {{ account.name }} · {{ account.iban }}
+                                            {{ account.name }} - {{ account.iban }} - {{ account.legal_entity.name if account.legal_entity else 'N/D' }}
                                         </option>
                                     {% endfor %}
                                 </select>

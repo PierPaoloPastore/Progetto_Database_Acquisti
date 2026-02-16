@@ -3,6 +3,8 @@ Repository per il modello BankAccount.
 """
 from typing import List, Optional
 
+from sqlalchemy.orm import joinedload
+
 from app.models import BankAccount
 from app.repositories.base import SqlAlchemyRepository
 
@@ -29,6 +31,7 @@ class BankAccountRepository(SqlAlchemyRepository[BankAccount]):
     def list_all_ordered(self) -> List[BankAccount]:
         return (
             self.session.query(BankAccount)
+            .options(joinedload(BankAccount.legal_entity))
             .order_by(BankAccount.legal_entity_id.asc(), BankAccount.name.asc())
             .all()
         )

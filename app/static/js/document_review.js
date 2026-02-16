@@ -1,4 +1,12 @@
 document.addEventListener("DOMContentLoaded", () => {
+    const refreshSelect2 = (select) => {
+        if (!select || !window.jQuery) return;
+        const $el = window.jQuery(select);
+        if ($el.data("select2")) {
+            $el.trigger("change.select2");
+        }
+    };
+
     const frame = document.getElementById("xsl-preview-frame");
     const selector = document.getElementById("xsl-style-selector");
     const openPreviewBtn = document.getElementById("preview-open");
@@ -40,6 +48,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!ibanSelect) return;
         const shouldDisable = baseIbanDisabled || (instantToggle && !instantToggle.checked);
         ibanSelect.disabled = shouldDisable;
+        refreshSelect2(ibanSelect);
     };
 
     const syncHidden = () => {
@@ -80,6 +89,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 ibanSelect.value = "";
             }
         }
+        refreshSelect2(ibanSelect);
     };
 
     if (instantToggle) {

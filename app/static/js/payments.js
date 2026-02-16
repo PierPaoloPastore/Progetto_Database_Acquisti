@@ -10,6 +10,14 @@ document.addEventListener("DOMContentLoaded", () => {
     applyPresetPayment();
 });
 
+const refreshSelect2 = (select) => {
+    if (!select || !window.jQuery) return;
+    const $el = window.jQuery(select);
+    if ($el.data("select2")) {
+        $el.trigger("change.select2");
+    }
+};
+
 function setupTabSwitching() {
     const tabButtons = document.querySelectorAll("[data-tab-target]");
     const sections = document.querySelectorAll(".tab-section");
@@ -33,6 +41,11 @@ function setupTabSwitching() {
 
         if (found) {
             history.replaceState(null, "", `#${targetId}`);
+        }
+
+        const targetSection = document.getElementById(targetId);
+        if (window.initSelect2Controls && targetSection) {
+            window.initSelect2Controls(targetSection);
         }
     };
 
@@ -166,6 +179,7 @@ function setupInvoiceFilter() {
                 ibanSelect.value = "";
             }
         }
+        refreshSelect2(ibanSelect);
     };
 
     const setEntityFilter = (entityId, entityName) => {
@@ -462,6 +476,7 @@ function applyPaymentMapping(fields, methodSelect, notesInput) {
         if (methodValue) {
             methodSelect.value = methodValue;
             if (badge) badge(methodSelect, fields.payment_method.confidence || 0, "OCR");
+            refreshSelect2(methodSelect);
         }
     }
 

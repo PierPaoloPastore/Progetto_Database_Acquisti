@@ -18,6 +18,7 @@ from .rent_contract import RentContract
 from .category import Category
 from .note import Note
 from .import_log import ImportLog
+from .document_audit_log import DocumentAuditLog
 from .user import User
 from .app_setting import AppSetting
 
@@ -36,6 +37,7 @@ __all__ = [
     "Category",
     "Note",
     "ImportLog",
+    "DocumentAuditLog",
     "User",
     "AppSetting",
 ]

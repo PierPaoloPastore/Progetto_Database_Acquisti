@@ -312,7 +312,7 @@
                     {% endif %}
                     <form method="POST" action="{{ url_for('documents.review_loop_invoice_view', document_id=invoice.id) }}" class="d-flex flex-wrap align-items-center gap-2">
                         <input type="hidden" name="action" value="update_payment_method">
-                        <select name="payment_method_code" class="form-select form-select-sm" style="min-width: 220px;">
+                        <select name="payment_method_code" class="form-select form-select-sm js-select2" style="min-width: 220px;">
                             <option value="">Seleziona metodo pagamento</option>
                             {% for code, label in payment_method_choices %}
                                 <option value="{{ code }}" {% if payment_method_codes|length == 1 and payment_method_codes[0] == code %}selected{% endif %}>
@@ -341,7 +341,7 @@
                     <div class="row g-2 mt-2">
                         <div class="col-md-6">
                             <label class="form-label small">IBAN pagamento</label>
-                            <select class="form-select form-select-sm"
+                            <select class="form-select form-select-sm js-select2"
                                     name="instant_payment_iban"
                                     id="instant-payment-iban"
                                     {% if not instant_payment_available %}disabled{% endif %}>
@@ -349,7 +349,7 @@
                                 <option value="" id="instant-iban-empty" class="d-none" disabled>Nessun conto disponibile</option>
                                 {% for account in bank_accounts %}
                                     <option value="{{ account.iban }}" data-legal-entity-id="{{ account.legal_entity_id }}">
-                                        {{ account.name }} · {{ account.iban }}
+                                        {{ account.name }} - {{ account.iban }} - {{ account.legal_entity.name if account.legal_entity else 'N/D' }}
                                     </option>
                                 {% endfor %}
                             </select>
