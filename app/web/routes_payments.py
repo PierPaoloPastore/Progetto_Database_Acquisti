@@ -26,6 +26,7 @@ from app.services.payment_service import (
     get_payment_event_detail,
     list_paid_payments,
     list_payments_by_document,
+    update_payment,
 )
 from app.services.unit_of_work import UnitOfWork
 
@@ -292,6 +293,12 @@ def delete_view(payment_id: int):
     # Recuperiamo document_id prima di cancellare per il redirect 
     # (idealmente il service potrebbe ritornarlo, ma qui usiamo il referrer)
     
+    confirm_text = (request.form.get("confirm_text") or "").strip()
+    expected = f"Pagamento #{payment_id}"
+    if confirm_text.lower() != expected.lower():
+        flash("Conferma non valida. Eliminazione annullata.", "warning")
+        return redirect(request.referrer or url_for("payments.payment_detail_view", payment_id=payment_id))
+
     if delete_payment(payment_id):
         flash("Pagamento cancellato.", "success")
     else:
@@ -299,6 +306,44 @@ def delete_view(payment_id: int):
 
     # Torna alla pagina da cui sei venuto (solitamente il dettaglio fattura)
     return redirect(request.referrer or url_for("documents.list_view"))
+
+
+@payments_bp.route("/history/<int:payment_id>/edit", methods=["POST"])
+def edit_payment_view(payment_id: int):
+    confirm_text = (request.form.get("confirm_text") or "").strip()
+    expected = f"Pagamento #{payment_id}"
+    if confirm_text.lower() != expected.lower():
+        flash("Conferma non valida. Modifica annullata.", "warning")
+        return redirect(url_for("payments.payment_detail_view", payment_id=payment_id))
+
+    paid_date = None
+    date_str = (request.form.get("paid_date") or "").strip()
+    if date_str:
+        try:
+            paid_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError:
+            flash("Data pagamento non valida.", "warning")
+            return redirect(url_for("payments.payment_detail_view", payment_id=payment_id))
+
+    paid_amount = (request.form.get("paid_amount") or "").replace(",", ".")
+    if paid_amount == "":
+        paid_amount_value = None
+    else:
+        try:
+            paid_amount_value = float(paid_amount)
+        except ValueError:
+            flash("Importo non valido.", "warning")
+            return redirect(url_for("payments.payment_detail_view", payment_id=payment_id))
+
+    ok, message = update_payment(
+        payment_id,
+        paid_date=paid_date,
+        paid_amount=paid_amount_value,
+        payment_method=request.form.get("payment_method") or None,
+        notes=request.form.get("notes") or None,
+    )
+    flash(message, "success" if ok else "danger")
+    return redirect(url_for("payments.payment_detail_view", payment_id=payment_id))
 
 
 @payments_bp.route("/batch", methods=["POST"])
@@ -466,6 +511,8 @@ def payment_detail_view(payment_id: int):
     if not method_label and payment_document and payment_document.payment_type:
         method_label = payment_document.payment_type
     detail["payment_method_label"] = method_label
+    detail["payment_confirm_label"] = f"Pagamento #{payment_id}"
+    detail["payment_method_choices"] = list_payment_method_choices()
     has_payment_file = False
     if payment_document and payment_document.file_path:
         base_path = settings_service.get_payment_files_storage_path()

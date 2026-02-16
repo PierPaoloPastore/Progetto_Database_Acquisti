@@ -94,6 +94,59 @@ def delete_payment(payment_id: int) -> bool:
         return True
 
 
+def update_payment(
+    payment_id: int,
+    *,
+    paid_date: Optional[date] = None,
+    paid_amount: Optional[float] = None,
+    payment_method: Optional[str] = None,
+    notes: Optional[str] = None,
+) -> tuple[bool, str]:
+    """
+    Aggiorna dati principali di un pagamento e ricalcola lo stato del documento.
+    """
+    cleaned_method = normalize_payment_method_code(payment_method)
+
+    def _parse_amount(value: Optional[float | str]) -> Optional[Decimal]:
+        if value in (None, ""):
+            return None
+        try:
+            return Decimal(str(value))
+        except Exception:
+            return None
+
+    with UnitOfWork() as uow:
+        payment = uow.payments.get_by_id(payment_id)
+        if not payment:
+            return False, "Pagamento non trovato."
+
+        if paid_date:
+            payment.paid_date = paid_date
+        if paid_amount is not None:
+            payment.paid_amount = _parse_amount(paid_amount)
+        if cleaned_method:
+            payment.payment_method = cleaned_method
+        if notes is not None:
+            payment.notes = notes.strip() or None
+
+        expected_amount = Decimal(payment.expected_amount or 0)
+        paid_value = Decimal(payment.paid_amount or 0)
+        if paid_value <= 0:
+            payment.status = "unpaid"
+        elif expected_amount and paid_value >= expected_amount:
+            payment.status = "paid"
+        else:
+            payment.status = "partial"
+
+        document = uow.session.get(Document, payment.document_id)
+        if document:
+            related = uow.payments.get_by_document_id(document.id)
+            document.is_paid = all(p.status == "paid" for p in related)
+
+        uow.commit()
+        return True, "Pagamento aggiornato."
+
+
 def list_paid_payments() -> List[Payment]:
     """
     Elenca i pagamenti eseguiti (stato paid/partial) ordinati per data di pagamento.

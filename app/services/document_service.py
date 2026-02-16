@@ -237,6 +237,40 @@ def update_document_status(document_id: int, doc_status: str, due_date: Optional
             uow.commit()
         return doc
 
+def update_document_core(document_id: int, form_data: dict) -> tuple[bool, str, Optional[Document]]:
+    """
+    Aggiorna i campi principali di un documento (modifica manuale).
+    """
+    with UnitOfWork() as uow:
+        doc = uow.documents.get_by_id(document_id)
+        if not doc:
+            return False, "Documento non trovato.", None
+
+        doc.document_number = (form_data.get("document_number") or "").strip() or None
+        doc.document_date = _parse_date(form_data.get("document_date"))
+        doc.registration_date = _parse_date(form_data.get("registration_date"))
+        doc.due_date = _parse_date(form_data.get("due_date"))
+        doc.note = (form_data.get("note") or "").strip() or None
+
+        supplier_id = _parse_int(form_data.get("supplier_id"))
+        doc.supplier_id = supplier_id
+
+        legal_entity_id = _parse_int(form_data.get("legal_entity_id"))
+        doc.legal_entity_id = legal_entity_id
+
+        taxable = _parse_decimal(form_data.get("total_taxable_amount"))
+        vat = _parse_decimal(form_data.get("total_vat_amount"))
+        gross = _parse_decimal(form_data.get("total_gross_amount"))
+        if gross is None and taxable is not None and vat is not None:
+            gross = taxable + vat
+
+        doc.total_taxable_amount = taxable
+        doc.total_vat_amount = vat
+        doc.total_gross_amount = gross
+
+        uow.commit()
+        return True, "Documento aggiornato.", doc
+
 def mark_documents_as_programmed(document_ids: List[int]) -> int:
     if not document_ids:
         return 0
@@ -280,13 +314,19 @@ def list_documents_to_review(order: str = "desc", document_type: Optional[str] =
             doc_status="pending_physical_copy",
         )
 
-def get_next_document_to_review(order: str = "desc", document_type: Optional[str] = None, legal_entity_id: Optional[int] = None):
+def get_next_document_to_review(
+    order: str = "desc",
+    document_type: Optional[str] = None,
+    legal_entity_id: Optional[int] = None,
+    exclude_id: Optional[int] = None,
+):
     with UnitOfWork() as uow:
         return uow.documents.get_next_imported(
             document_type=document_type,
             order=order,
             legal_entity_id=legal_entity_id,
             doc_status="pending_physical_copy",
+            exclude_id=exclude_id,
         )
 
 def count_documents_to_review_by_legal_entity() -> dict[int | None, int]:

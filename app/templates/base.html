@@ -151,6 +151,17 @@
                     window.history.back();
                 });
             });
+
+            const navIcon = document.querySelector("body > nav > div > a > i");
+            const navTitleSource = document.querySelector("[data-nav-title]");
+            if (navIcon && navTitleSource) {
+                const titleText = (navTitleSource.textContent || "").trim();
+                if (titleText) {
+                    navIcon.classList.add("me-1");
+                    navIcon.textContent = ` ${titleText}`;
+                    navTitleSource.classList.add("visually-hidden");
+                }
+            }
         });
     </script>
     

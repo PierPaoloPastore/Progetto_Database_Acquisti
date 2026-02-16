@@ -18,7 +18,7 @@ from flask import (
 
 from app.models import Document
 from app.services import document_service as doc_service, ocr_service, list_all_bank_accounts, settings_service
-from app.services.document_service import DocumentService, render_invoice_html
+from app.services.document_service import DocumentService, render_invoice_html, update_document_core
 from app.services.ocr_mapping_service import parse_manual_document_fields
 from app.services.formatting_service import format_amount
 from app.services.dto import DocumentSearchFilters
@@ -37,7 +37,7 @@ from app.services.payment_service import (
 from app.services.unit_of_work import UnitOfWork
 
 # FIX: Import dai service invece che dai repo diretti dove possibile
-from app.services.supplier_service import list_active_suppliers
+from app.services.supplier_service import list_active_suppliers, list_all_suppliers
 from app.repositories.legal_entity_repo import list_legal_entities
 from app.services.delivery_note_service import (
     find_delivery_note_candidates,
@@ -549,7 +549,17 @@ def review_list_view():
 
 @documents_bp.route("/review", methods=["GET"])
 def review_loop_redirect_view():
-    next_doc = doc_service.get_next_document_to_review(document_type=None)
+    raw_skip_id = request.args.get("skip_id")
+    skip_id = None
+    if raw_skip_id:
+        try:
+            skip_id = int(raw_skip_id)
+        except ValueError:
+            skip_id = None
+    next_doc = doc_service.get_next_document_to_review(
+        document_type=None,
+        exclude_id=skip_id,
+    )
     if next_doc:
         return redirect(url_for("documents.review_loop_invoice_view", document_id=next_doc.id))
     flash("Tutti i documenti importati sono stati gestiti.", "success")
@@ -563,6 +573,7 @@ def review_loop_invoice_view(document_id: int):
 
         action = request.form.get("action") or "review"
         if action == "review":
+            chosen_status = (request.form.get("doc_status") or "").strip()
             success, message = DocumentService.review_and_confirm(document_id, request.form.to_dict())
             if not success:
                 if message == "Documento non trovato": abort(404)
@@ -581,6 +592,8 @@ def review_loop_invoice_view(document_id: int):
                         flash(instant_msg, "danger")
                         return redirect(url_for("documents.review_loop_invoice_view", document_id=document_id))
                 flash("Documento confermato e passato al successivo.", "success")
+                if chosen_status == "pending_physical_copy":
+                    return redirect(url_for("documents.review_loop_redirect_view", skip_id=document_id))
                 return redirect(url_for("documents.review_loop_redirect_view"))
         elif action == "save":
             success, message = DocumentService.review_and_confirm(document_id, request.form.to_dict())
@@ -955,6 +968,10 @@ def detail_view(document_id: int):
         remaining_amount = 0.0
     detail["remaining_amount"] = remaining_amount
     detail["updated_at"] = request.args.get("updated_at")
+    detail["suppliers"] = list_all_suppliers()
+    detail["legal_entities"] = list_legal_entities(include_inactive=True)
+    doc_label = detail["invoice"].document_number or f"Documento #{document_id}"
+    detail["confirm_label"] = doc_label
 
     list_query_args = _extract_list_query_args(request.args)
     detail["list_query_args"] = list_query_args
@@ -1045,6 +1062,45 @@ def detail_view(document_id: int):
     detail["next_url"] = next_url
 
     return render_template("documents/detail.html", **detail)
+
+
+@documents_bp.route("/<int:document_id>/edit", methods=["POST"])
+def edit_document_view(document_id: int):
+    doc = DocumentService.get_document_by_id(document_id)
+    if doc is None:
+        flash("Documento non trovato.", "warning")
+        return redirect(url_for("documents.list_view"))
+
+    confirm_text = (request.form.get("confirm_text") or "").strip()
+    expected = (doc.document_number or f"Documento #{document_id}").strip()
+    if confirm_text.lower() != expected.lower():
+        flash("Conferma non valida. Modifica annullata.", "warning")
+        return redirect(url_for("documents.detail_view", document_id=document_id))
+
+    ok, message, _ = update_document_core(document_id, request.form.to_dict())
+    flash(message, "success" if ok else "danger")
+    return redirect(url_for("documents.detail_view", document_id=document_id))
+
+
+@documents_bp.route("/<int:document_id>/delete", methods=["POST"])
+def delete_document_view(document_id: int):
+    doc = DocumentService.get_document_by_id(document_id)
+    if doc is None:
+        flash("Documento non trovato.", "warning")
+        return redirect(url_for("documents.list_view"))
+
+    confirm_text = (request.form.get("confirm_text") or "").strip()
+    expected = (doc.document_number or f"Documento #{document_id}").strip()
+    if confirm_text.lower() != expected.lower():
+        flash("Conferma non valida. Eliminazione annullata.", "warning")
+        return redirect(url_for("documents.detail_view", document_id=document_id))
+
+    ok = DocumentService.delete_document(document_id)
+    if not ok:
+        flash("Documento non trovato.", "warning")
+        return redirect(url_for("documents.list_view"))
+    flash("Documento eliminato.", "success")
+    return redirect(url_for("documents.list_view"))
 
 
 @documents_bp.route("/<int:document_id>/match-ddt", methods=["GET", "POST"])

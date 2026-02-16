@@ -39,6 +39,8 @@
             <form method="POST" action="{{ url_for('documents.review_loop_invoice_view', document_id=invoice.id) }}">
                 <h5 class="text-primary border-bottom pb-2 mb-3">Modifica Dati Documento</h5>
                 <input type="hidden" name="invoice_id" value="{{ invoice.id }}">
+                <input type="hidden" name="instant_payment" id="instant-payment-hidden" value="">
+                <input type="hidden" name="instant_payment_iban" id="instant-payment-iban-hidden" value="">
 
                 <div class="row g-2">
                     <div class="col-12 col-lg-6 js-compare-group">
@@ -168,51 +170,6 @@
                     <div class="col-12 col-lg-8">
                         <label class="form-label fw-bold">Note</label>
                         <textarea name="note" rows="2" class="form-control form-control-sm js-autoresize" placeholder="Annotazioni interne">{{ invoice.note or '' }}</textarea>
-                    </div>
-                    <div class="col-12">
-                        <div class="border rounded p-2 bg-light">
-                            <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
-                                <div>
-                                    <div class="small text-muted">Metodo di pagamento</div>
-                                    {% if payment_method_labels %}
-                                        <div class="fw-semibold">{{ payment_method_labels|join(', ') }}</div>
-                                    {% else %}
-                                        <div class="text-muted">Non disponibile</div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                            {% if not instant_payment_available and instant_payment_reason %}
-                                <div class="small text-muted mt-1">{{ instant_payment_reason }}</div>
-                            {% endif %}
-                            <div class="form-check form-switch mt-2">
-                                <input class="form-check-input"
-                                       type="checkbox"
-                                       name="instant_payment"
-                                       value="1"
-                                       id="instant-payment-toggle"
-                                       {% if not instant_payment_available %}disabled{% endif %}>
-                                <label class="form-check-label" for="instant-payment-toggle">
-                                    Pagamento istantaneo (già pagato)
-                                </label>
-                            </div>
-                            <div class="row g-2 mt-2">
-                                <div class="col-md-6">
-                                    <label class="form-label small">IBAN pagamento</label>
-                                    <select class="form-select form-select-sm"
-                                            name="instant_payment_iban"
-                                            id="instant-payment-iban"
-                                            {% if not instant_payment_available %}disabled{% endif %}>
-                                        <option value="">Seleziona IBAN</option>
-                                        <option value="" id="instant-iban-empty" class="d-none" disabled>Nessun conto disponibile</option>
-                                        {% for account in bank_accounts %}
-                                            <option value="{{ account.iban }}" data-legal-entity-id="{{ account.legal_entity_id }}">
-                                                {{ account.name }} · {{ account.iban }}
-                                            </option>
-                                        {% endfor %}
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 </div>
 
@@ -367,6 +324,37 @@
                             <i class="bi bi-check2-circle"></i> Aggiorna metodo
                         </button>
                     </form>
+                    {% if not instant_payment_available and instant_payment_reason %}
+                        <div class="small text-muted mt-2">{{ instant_payment_reason }}</div>
+                    {% endif %}
+                    <div class="form-check form-switch mt-3">
+                        <input class="form-check-input"
+                               type="checkbox"
+                               name="instant_payment"
+                               value="1"
+                               id="instant-payment-toggle"
+                               {% if not instant_payment_available %}disabled{% endif %}>
+                        <label class="form-check-label" for="instant-payment-toggle">
+                            Pagamento istantaneo (già pagato)
+                        </label>
+                    </div>
+                    <div class="row g-2 mt-2">
+                        <div class="col-md-6">
+                            <label class="form-label small">IBAN pagamento</label>
+                            <select class="form-select form-select-sm"
+                                    name="instant_payment_iban"
+                                    id="instant-payment-iban"
+                                    {% if not instant_payment_available %}disabled{% endif %}>
+                                <option value="">Seleziona IBAN</option>
+                                <option value="" id="instant-iban-empty" class="d-none" disabled>Nessun conto disponibile</option>
+                                {% for account in bank_accounts %}
+                                    <option value="{{ account.iban }}" data-legal-entity-id="{{ account.legal_entity_id }}">
+                                        {{ account.name }} · {{ account.iban }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
                 </div>
             </div>
             {% endif %}

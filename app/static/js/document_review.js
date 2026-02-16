@@ -32,12 +32,23 @@ document.addEventListener("DOMContentLoaded", () => {
     const instantToggle = document.getElementById("instant-payment-toggle");
     const ibanSelect = document.getElementById("instant-payment-iban");
     const ibanEmpty = document.getElementById("instant-iban-empty");
+    const instantHidden = document.getElementById("instant-payment-hidden");
+    const ibanHidden = document.getElementById("instant-payment-iban-hidden");
     const baseIbanDisabled = ibanSelect ? ibanSelect.disabled : false;
 
     const updateIbanEnabled = () => {
         if (!ibanSelect) return;
         const shouldDisable = baseIbanDisabled || (instantToggle && !instantToggle.checked);
         ibanSelect.disabled = shouldDisable;
+    };
+
+    const syncHidden = () => {
+        if (instantHidden) {
+            instantHidden.value = instantToggle && instantToggle.checked ? "1" : "";
+        }
+        if (ibanHidden && ibanSelect) {
+            ibanHidden.value = ibanSelect.value || "";
+        }
     };
 
     const updateIbanOptions = () => {
@@ -72,13 +83,20 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     if (instantToggle) {
-        instantToggle.addEventListener("change", updateIbanEnabled);
+        instantToggle.addEventListener("change", () => {
+            updateIbanEnabled();
+            syncHidden();
+        });
+    }
+    if (ibanSelect) {
+        ibanSelect.addEventListener("change", syncHidden);
     }
     if (entitySelect && ibanSelect) {
         entitySelect.addEventListener("change", updateIbanOptions);
         updateIbanOptions();
     }
     updateIbanEnabled();
+    syncHidden();
 
     const split = document.querySelector(".review-split");
     const splitter = document.querySelector(".review-splitter");

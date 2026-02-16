@@ -229,6 +229,7 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
         order: str = "desc",
         legal_entity_id: Optional[int] = None,
         doc_status: str = "pending_physical_copy",
+        exclude_id: Optional[int] = None,
     ) -> Optional[Document]:
         """Recupera il prossimo documento da revisionare."""
         query = self.session.query(Document).filter(Document.doc_status == doc_status)
@@ -236,6 +237,8 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
             query = query.filter(Document.document_type == document_type)
         if legal_entity_id is not None:
             query = query.filter(Document.legal_entity_id == legal_entity_id)
+        if exclude_id is not None:
+            query = query.filter(Document.id != exclude_id)
             
         sort_order = Document.document_date.asc() if order == "asc" else Document.document_date.desc()
         return query.order_by(sort_order).first()

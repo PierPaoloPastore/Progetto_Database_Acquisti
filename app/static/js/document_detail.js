@@ -62,4 +62,55 @@ document.addEventListener("DOMContentLoaded", () => {
             field.addEventListener("change", updateState);
         });
     }
+
+    const normalizeConfirm = (value) => (value || "").trim().toLowerCase();
+
+    const editModalEl = document.getElementById("documentEditUnlockModal");
+    const editInput = document.getElementById("doc-edit-confirm-input");
+    const editConfirmBtn = document.getElementById("doc-edit-confirm-btn");
+    const editFields = document.querySelectorAll("[data-doc-edit]");
+    const editSaveBtn = document.getElementById("doc-edit-save-btn");
+    const editConfirmHidden = document.getElementById("doc-edit-confirm-text");
+
+    if (editInput && editConfirmBtn && editModalEl) {
+        const expected = normalizeConfirm(editInput.dataset.expected || "");
+        const toggleEditConfirm = () => {
+            const matches = normalizeConfirm(editInput.value) === expected && expected;
+            editConfirmBtn.disabled = !matches;
+        };
+        editInput.addEventListener("input", toggleEditConfirm);
+        editModalEl.addEventListener("show.bs.modal", () => {
+            editInput.value = "";
+            editConfirmBtn.disabled = true;
+        });
+        editConfirmBtn.addEventListener("click", () => {
+            editFields.forEach((field) => field.removeAttribute("disabled"));
+            if (editSaveBtn) {
+                editSaveBtn.removeAttribute("disabled");
+            }
+            if (editConfirmHidden) {
+                editConfirmHidden.value = editInput.dataset.expected || "";
+            }
+            if (window.bootstrap) {
+                const modal = bootstrap.Modal.getInstance(editModalEl);
+                modal?.hide();
+            }
+        });
+    }
+
+    const deleteInput = document.getElementById("doc-delete-confirm-input");
+    const deleteConfirmBtn = document.getElementById("doc-delete-confirm-btn");
+    if (deleteInput && deleteConfirmBtn) {
+        const expected = normalizeConfirm(deleteInput.dataset.expected || "");
+        const toggleDelete = () => {
+            const matches = normalizeConfirm(deleteInput.value) === expected && expected;
+            deleteConfirmBtn.disabled = !matches;
+        };
+        deleteInput.addEventListener("input", toggleDelete);
+        const deleteModalEl = document.getElementById("documentDeleteModal");
+        deleteModalEl?.addEventListener("show.bs.modal", () => {
+            deleteInput.value = "";
+            deleteConfirmBtn.disabled = true;
+        });
+    }
 });

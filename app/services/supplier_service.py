@@ -19,6 +19,14 @@ def list_active_suppliers() -> List[Supplier]:
         return uow.suppliers.list_active()
 
 
+def list_all_suppliers() -> List[Supplier]:
+    """
+    Restituisce l'elenco completo dei fornitori (attivi + inattivi).
+    """
+    with UnitOfWork() as uow:
+        return uow.suppliers.list_all_ordered()
+
+
 def list_suppliers_with_stats(search_term: Optional[str] = None) -> List[Dict[str, Any]]:
     """
     Restituisce l'elenco dei fornitori attivi con statistiche.

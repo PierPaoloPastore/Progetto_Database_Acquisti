@@ -15,6 +15,9 @@
             <a class="btn btn-outline-secondary" href="{{ url_for('payments.payment_index') }}#tab-history" data-history-back>
                 <i class="bi bi-arrow-left"></i> Indietro
             </a>
+            <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#paymentDeleteModal">
+                <i class="bi bi-trash"></i> Elimina
+            </button>
             {% if payment.document_id %}
                 <a class="btn btn-primary" href="{{ url_for('documents.detail_view', document_id=payment.document_id) }}">
                     <i class="bi bi-file-earmark-text"></i> Documento principale
@@ -165,7 +168,144 @@
                     {% endif %}
                 </div>
             </div>
+
+            <div class="card mb-4">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Modifica pagamento</h5>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="payment-edit-unlock-btn" data-bs-toggle="modal" data-bs-target="#paymentEditUnlockModal">
+                        <i class="bi bi-shield-lock"></i> Sblocca modifica
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning small">
+                        <strong>Attenzione:</strong> la modifica è bloccata. Inserisci “{{ payment_confirm_label }}” per sbloccare.
+                    </div>
+                    <form method="post" action="{{ url_for('payments.edit_payment_view', payment_id=payment.id) }}" id="payment-edit-form">
+                        <input type="hidden" name="confirm_text" id="payment-edit-confirm-text" value="">
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold">Data pagamento</label>
+                                <input type="date" name="paid_date" class="form-control form-control-sm" value="{{ payment.paid_date }}" data-payment-edit disabled>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold">Importo pagato</label>
+                                <input type="number" step="0.01" name="paid_amount" class="form-control form-control-sm text-end" value="{{ payment.paid_amount or payment.expected_amount or '' }}" data-payment-edit disabled>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold">Metodo</label>
+                                <select name="payment_method" class="form-select form-select-sm" data-payment-edit disabled>
+                                    <option value="">Seleziona metodo</option>
+                                    {% for code, label in payment_method_choices %}
+                                        <option value="{{ code }}" {% if payment.payment_method == code %}selected{% endif %}>{{ code }} - {{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small fw-bold">Note</label>
+                                <textarea name="notes" rows="2" class="form-control form-control-sm" data-payment-edit disabled>{{ payment.notes or '' }}</textarea>
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-end mt-3">
+                            <button type="submit" class="btn btn-sm btn-primary" id="payment-edit-save-btn" disabled>
+                                <i class="bi bi-save"></i> Salva modifiche
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="paymentEditUnlockModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Sblocca modifica pagamento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted mb-2">Inserisci <strong>{{ payment_confirm_label }}</strong> per sbloccare la modifica.</p>
+                <input type="text" id="payment-edit-confirm-input" class="form-control" data-expected="{{ payment_confirm_label }}">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Annulla</button>
+                <button type="button" class="btn btn-primary btn-sm" id="payment-edit-confirm-btn" disabled>Sblocca</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="paymentDeleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <form method="post" action="{{ url_for('payments.delete_view', payment_id=payment.id) }}" class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Elimina pagamento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted mb-2">Azione irreversibile. Inserisci <strong>{{ payment_confirm_label }}</strong> per confermare.</p>
+                <input type="text" name="confirm_text" id="payment-delete-confirm-input" class="form-control" data-expected="{{ payment_confirm_label }}">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Annulla</button>
+                <button type="submit" class="btn btn-danger btn-sm" id="payment-delete-confirm-btn" disabled>Elimina</button>
+            </div>
+        </form>
+    </div>
+</div>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const normalize = (value) => (value || "").trim().toLowerCase();
+
+    const editModal = document.getElementById("paymentEditUnlockModal");
+    const editInput = document.getElementById("payment-edit-confirm-input");
+    const editConfirmBtn = document.getElementById("payment-edit-confirm-btn");
+    const editFields = document.querySelectorAll("[data-payment-edit]");
+    const editSaveBtn = document.getElementById("payment-edit-save-btn");
+    const editConfirmHidden = document.getElementById("payment-edit-confirm-text");
+
+    if (editInput && editConfirmBtn && editModal) {
+        const expected = normalize(editInput.dataset.expected || "");
+        const toggleEdit = () => {
+            const matches = normalize(editInput.value) === expected && expected;
+            editConfirmBtn.disabled = !matches;
+        };
+        editInput.addEventListener("input", toggleEdit);
+        editModal.addEventListener("show.bs.modal", () => {
+            editInput.value = "";
+            editConfirmBtn.disabled = true;
+        });
+        editConfirmBtn.addEventListener("click", () => {
+            editFields.forEach((field) => field.removeAttribute("disabled"));
+            if (editSaveBtn) {
+                editSaveBtn.removeAttribute("disabled");
+            }
+            if (editConfirmHidden) {
+                editConfirmHidden.value = editInput.dataset.expected || "";
+            }
+            if (window.bootstrap) {
+                const modal = bootstrap.Modal.getInstance(editModal);
+                modal?.hide();
+            }
+        });
+    }
+
+    const deleteInput = document.getElementById("payment-delete-confirm-input");
+    const deleteBtn = document.getElementById("payment-delete-confirm-btn");
+    const deleteModal = document.getElementById("paymentDeleteModal");
+    if (deleteInput && deleteBtn) {
+        const expected = normalize(deleteInput.dataset.expected || "");
+        const toggleDelete = () => {
+            const matches = normalize(deleteInput.value) === expected && expected;
+            deleteBtn.disabled = !matches;
+        };
+        deleteInput.addEventListener("input", toggleDelete);
+        deleteModal?.addEventListener("show.bs.modal", () => {
+            deleteInput.value = "";
+            deleteBtn.disabled = true;
+        });
+    }
+});
+</script>
 {% endblock %}
