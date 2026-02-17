@@ -79,34 +79,12 @@
         &middot; Finestra in scadenza: {{ soon_days }} giorni
     </div>
 
-    <div class="summary">
-        <div class="summary-card">
-            <div class="label">Totale residuo</div>
-            <div class="value">{{ summary.total_amount|format_amount }} &euro;</div>
-        </div>
-        <div class="summary-card">
-            <div class="label">Documenti</div>
-            <div class="value">{{ summary.total|format_int }}</div>
-        </div>
-        <div class="summary-card">
-            <div class="label">Scadute</div>
-            <div class="value">{{ summary.overdue_count|format_int }}</div>
-        </div>
-        <div class="summary-card">
-            <div class="label">In scadenza</div>
-            <div class="value">{{ summary.soon_count|format_int }}</div>
-        </div>
-        <div class="summary-card">
-            <div class="label">Senza scadenza</div>
-            <div class="value">{{ summary.no_due_count|format_int }}</div>
-        </div>
-    </div>
-
     <table>
         <thead>
             <tr>
                 <th>Scadenza</th>
                 <th>Fornitore</th>
+                <th>IBAN fornitore</th>
                 <th>Intestatario</th>
                 <th>Documento</th>
                 <th class="text-end">Totale</th>
@@ -120,6 +98,7 @@
                 <tr>
                     <td>{{ doc.due_date.strftime('%d/%m/%Y') if doc.due_date else '-' }}</td>
                     <td>{{ row.supplier_name }}</td>
+                    <td>{{ doc.supplier.iban if doc.supplier and doc.supplier.iban else '-' }}</td>
                     <td>{{ row.legal_entity_name }}</td>
                     <td>{{ doc.document_number or 'N/D' }}</td>
                     <td class="text-end">{{ (doc.total_gross_amount or 0)|format_amount }} &euro;</td>
@@ -138,7 +117,7 @@
                 </tr>
             {% else %}
                 <tr>
-                    <td colspan="7">Nessun documento selezionato.</td>
+                    <td colspan="8">Nessun documento selezionato.</td>
                 </tr>
             {% endfor %}
         </tbody>
