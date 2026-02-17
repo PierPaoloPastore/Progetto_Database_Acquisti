@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>Scadenziario Pagamenti</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            color: #1f2d3d;
+            font-size: 12px;
+            margin: 24px;
+        }
+        h1 {
+            font-size: 18px;
+            margin: 0 0 4px 0;
+        }
+        .meta {
+            font-size: 11px;
+            color: #5f6b7a;
+            margin-bottom: 16px;
+        }
+        .summary {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+        .summary-card {
+            border: 1px solid #d9e2ef;
+            border-radius: 6px;
+            padding: 8px 10px;
+            min-width: 160px;
+        }
+        .summary-card .label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            color: #6b7682;
+            margin-bottom: 4px;
+        }
+        .summary-card .value {
+            font-weight: 700;
+            font-size: 13px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 8px;
+        }
+        th, td {
+            border: 1px solid #e2e8f0;
+            padding: 6px 8px;
+            vertical-align: top;
+        }
+        th {
+            background: #f5f7fb;
+            text-align: left;
+        }
+        .text-end {
+            text-align: right;
+        }
+        .badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 999px;
+            font-size: 10px;
+            font-weight: 700;
+        }
+        .badge-danger { background: #f8d7da; color: #842029; }
+        .badge-warning { background: #fff3cd; color: #664d03; }
+        .badge-info { background: #cff4fc; color: #055160; }
+        .badge-secondary { background: #e2e3e5; color: #41464b; }
+    </style>
+</head>
+<body>
+    <h1>Scadenziario Pagamenti</h1>
+    <div class="meta">
+        Generato il {{ updated_at.strftime('%d/%m/%Y %H:%M') }}
+        &middot; Finestra in scadenza: {{ soon_days }} giorni
+    </div>
+
+    <div class="summary">
+        <div class="summary-card">
+            <div class="label">Totale residuo</div>
+            <div class="value">{{ summary.total_amount|format_amount }} &euro;</div>
+        </div>
+        <div class="summary-card">
+            <div class="label">Documenti</div>
+            <div class="value">{{ summary.total|format_int }}</div>
+        </div>
+        <div class="summary-card">
+            <div class="label">Scadute</div>
+            <div class="value">{{ summary.overdue_count|format_int }}</div>
+        </div>
+        <div class="summary-card">
+            <div class="label">In scadenza</div>
+            <div class="value">{{ summary.soon_count|format_int }}</div>
+        </div>
+        <div class="summary-card">
+            <div class="label">Senza scadenza</div>
+            <div class="value">{{ summary.no_due_count|format_int }}</div>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Scadenza</th>
+                <th>Fornitore</th>
+                <th>Intestatario</th>
+                <th>Documento</th>
+                <th class="text-end">Totale</th>
+                <th class="text-end">Residuo</th>
+                <th>Stato</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in schedule_rows %}
+                {% set doc = row.doc %}
+                <tr>
+                    <td>{{ doc.due_date.strftime('%d/%m/%Y') if doc.due_date else '-' }}</td>
+                    <td>{{ row.supplier_name }}</td>
+                    <td>{{ row.legal_entity_name }}</td>
+                    <td>{{ doc.document_number or 'N/D' }}</td>
+                    <td class="text-end">{{ (doc.total_gross_amount or 0)|format_amount }} &euro;</td>
+                    <td class="text-end">{{ row.remaining_amount|format_amount }} &euro;</td>
+                    <td>
+                        {% if row.due_status == 'overdue' %}
+                            <span class="badge badge-danger">Scaduta</span>
+                        {% elif row.due_status == 'due_soon' %}
+                            <span class="badge badge-warning">In scadenza</span>
+                        {% elif row.due_status == 'scheduled' %}
+                            <span class="badge badge-info">Non scaduta</span>
+                        {% else %}
+                            <span class="badge badge-secondary">Senza scadenza</span>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="7">Nessun documento selezionato.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

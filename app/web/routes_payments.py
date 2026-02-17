@@ -3,6 +3,7 @@ Route per la gestione dei Pagamenti.
 """
 from __future__ import annotations
 from datetime import date, datetime, timedelta
+import io
 import os
 from pathlib import Path
 from flask import Blueprint, request, redirect, url_for, flash, render_template, jsonify, current_app, send_file
@@ -11,6 +12,7 @@ from sqlalchemy.orm import joinedload
 from app.models import Document
 from app.services import payment_service, ocr_service, settings_service, list_all_bank_accounts
 from app.services.document_service import mark_documents_as_programmed
+from app.services.pdf_service import render_pdf_from_html
 from app.services.settings_service import get_setting
 from app.services.ocr_mapping_service import parse_payment_fields
 from app.services.payment_method_catalog import (
@@ -47,6 +49,64 @@ def _resolve_due_status(due_date: date | None, today: date, soon_limit: date) ->
     if due_date <= soon_limit:
         return "due_soon", "In scadenza", "warning"
     return "scheduled", "Non scaduta", "info"
+
+
+def _build_schedule_rows(documents, today: date, soon_limit: date):
+    schedule_rows = []
+    summary = {
+        "total": 0,
+        "total_amount": 0.0,
+        "avg_amount": 0.0,
+        "overdue_count": 0,
+        "overdue_amount": 0.0,
+        "soon_count": 0,
+        "soon_amount": 0.0,
+        "no_due_count": 0,
+    }
+
+    for doc in documents:
+        remaining = float(
+            doc.remaining_amount
+            if getattr(doc, "remaining_amount", None) is not None
+            else (doc.total_gross_amount or 0)
+        )
+        due_status, status_label, status_class = _resolve_due_status(doc.due_date, today, soon_limit)
+        due_iso = doc.due_date.strftime("%Y-%m-%d") if doc.due_date else ""
+        supplier_name = doc.supplier.name if doc.supplier else "Senza fornitore"
+        legal_entity_name = doc.legal_entity.name if doc.legal_entity else "Senza intestatario"
+        print_status = (doc.print_status or "not_printed").strip()
+        schedule_rows.append(
+            {
+                "doc": doc,
+                "due_status": due_status,
+                "status_label": status_label,
+                "status_class": status_class,
+                "remaining_amount": remaining,
+                "remaining_amount_raw": f"{remaining:.2f}",
+                "due_iso": due_iso,
+                "supplier_name": supplier_name,
+                "supplier_id": doc.supplier_id,
+                "legal_entity_name": legal_entity_name,
+                "legal_entity_id": doc.legal_entity_id,
+                "print_status": print_status,
+            }
+        )
+
+        summary["total"] += 1
+        summary["total_amount"] += remaining
+        if due_status == "no_due":
+            summary["no_due_count"] += 1
+        elif due_status == "overdue":
+            summary["overdue_count"] += 1
+            summary["overdue_amount"] += remaining
+        elif due_status == "due_soon":
+            summary["soon_count"] += 1
+            summary["soon_amount"] += remaining
+
+    if summary["total"]:
+        summary["avg_amount"] = summary["total_amount"] / summary["total"]
+
+    return schedule_rows, summary
 
 @payments_bp.route("/", methods=["GET"], endpoint="payment_index")
 @payments_bp.route("/", methods=["GET"], endpoint="inbox_view")
@@ -123,56 +183,7 @@ def schedule_view():
     )
 
     payment_service.attach_payment_amounts(documents)
-
-    schedule_rows = []
-    summary = {
-        "total": 0,
-        "total_amount": 0.0,
-        "avg_amount": 0.0,
-        "overdue_count": 0,
-        "overdue_amount": 0.0,
-        "soon_count": 0,
-        "soon_amount": 0.0,
-        "no_due_count": 0,
-    }
-
-    for doc in documents:
-        remaining = float(doc.remaining_amount if getattr(doc, "remaining_amount", None) is not None else (doc.total_gross_amount or 0))
-        due_status, status_label, status_class = _resolve_due_status(doc.due_date, today, soon_limit)
-        due_iso = doc.due_date.strftime("%Y-%m-%d") if doc.due_date else ""
-        supplier_name = doc.supplier.name if doc.supplier else "Senza fornitore"
-        legal_entity_name = doc.legal_entity.name if doc.legal_entity else "Senza intestatario"
-        print_status = (doc.print_status or "not_printed").strip()
-        schedule_rows.append(
-            {
-                "doc": doc,
-                "due_status": due_status,
-                "status_label": status_label,
-                "status_class": status_class,
-                "remaining_amount": remaining,
-                "remaining_amount_raw": f"{remaining:.2f}",
-                "due_iso": due_iso,
-                "supplier_name": supplier_name,
-                "supplier_id": doc.supplier_id,
-                "legal_entity_name": legal_entity_name,
-                "legal_entity_id": doc.legal_entity_id,
-                "print_status": print_status,
-            }
-        )
-
-        summary["total"] += 1
-        summary["total_amount"] += remaining
-        if due_status == "no_due":
-            summary["no_due_count"] += 1
-        elif due_status == "overdue":
-            summary["overdue_count"] += 1
-            summary["overdue_amount"] += remaining
-        elif due_status == "due_soon":
-            summary["soon_count"] += 1
-            summary["soon_amount"] += remaining
-
-    if summary["total"]:
-        summary["avg_amount"] = summary["total_amount"] / summary["total"]
+    schedule_rows, summary = _build_schedule_rows(documents, today, soon_limit)
 
     status_priority = {"overdue": 0, "due_soon": 1, "scheduled": 2, "no_due": 3}
     schedule_rows.sort(
@@ -247,12 +258,70 @@ def schedule_print():
         flash("Seleziona almeno un documento.", "warning")
         return redirect(request.referrer or url_for("payments.schedule_view"))
 
-    updated = mark_documents_as_programmed(ids)
-    flash(
-        f"{updated} documenti segnati come programmati. Stampa PDF non ancora disponibile.",
-        "info",
+    today = date.today()
+    soon_days_raw = (get_setting("SCHEDULE_SOON_DAYS", "7") or "7").strip()
+    try:
+        soon_days = int(soon_days_raw)
+    except ValueError:
+        soon_days = 7
+    if soon_days < 1:
+        soon_days = 7
+    soon_limit = today + timedelta(days=soon_days)
+
+    with UnitOfWork() as uow:
+        documents = (
+            uow.session.query(Document)
+            .options(joinedload(Document.supplier), joinedload(Document.legal_entity))
+            .filter(
+                Document.document_type == "invoice",
+                Document.is_paid == False,
+                Document.id.in_(ids),
+            )
+            .all()
+        )
+
+    if not documents:
+        flash("Nessun documento valido da stampare.", "warning")
+        return redirect(request.referrer or url_for("payments.schedule_view"))
+
+    payment_service.attach_payment_amounts(documents)
+    schedule_rows, summary = _build_schedule_rows(documents, today, soon_limit)
+
+    status_priority = {"overdue": 0, "due_soon": 1, "scheduled": 2, "no_due": 3}
+    schedule_rows.sort(
+        key=lambda row: (
+            status_priority.get(row["due_status"], 9),
+            row["doc"].due_date or date.max,
+            -row["remaining_amount"],
+            row["doc"].id,
+        )
     )
-    return redirect(request.referrer or url_for("payments.schedule_view"))
+
+    updated_at = datetime.now()
+    html_content = render_template(
+        "payments/schedule_print.html",
+        schedule_rows=schedule_rows,
+        summary=summary,
+        today=today,
+        updated_at=updated_at,
+        soon_days=soon_days,
+    )
+    base_dir = os.path.abspath(os.path.join(current_app.root_path, os.pardir))
+    pdf_bytes = render_pdf_from_html(html_content, base_dir, current_app.logger)
+    if not pdf_bytes:
+        flash("Stampa PDF non disponibile: installa wkhtmltopdf o WeasyPrint.", "warning")
+        return redirect(request.referrer or url_for("payments.schedule_view"))
+
+    doc_ids = [row["doc"].id for row in schedule_rows]
+    mark_documents_as_programmed(doc_ids)
+
+    download_name = f"scadenziario_{today.isoformat()}.pdf"
+    return send_file(
+        io.BytesIO(pdf_bytes),
+        mimetype="application/pdf",
+        as_attachment=False,
+        download_name=download_name,
+    )
 
 @payments_bp.route("/add/<int:document_id>", methods=["POST"])
 def add_view(document_id: int):

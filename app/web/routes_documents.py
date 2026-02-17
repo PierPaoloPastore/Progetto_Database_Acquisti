@@ -5,9 +5,6 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
-import subprocess
-import tempfile
 import io
 from pathlib import Path
 from datetime import datetime, date, timedelta
@@ -27,6 +24,7 @@ from app.services import (
     settings_service,
 )
 from app.services.document_service import DocumentService, render_invoice_html, update_document_core
+from app.services.pdf_service import render_pdf_from_html
 from app.services.ocr_mapping_service import parse_manual_document_fields
 from app.services.formatting_service import format_amount
 from app.services.dto import DocumentSearchFilters
@@ -832,72 +830,6 @@ def _resolve_document_xml_path(document):
     return xml_full_path
 
 
-def _find_wkhtmltopdf_bin():
-    env_bin = os.environ.get("WKHTMLTOPDF_BIN")
-    if env_bin and os.path.isfile(env_bin):
-        return env_bin
-    bin_path = shutil.which("wkhtmltopdf")
-    if bin_path:
-        return bin_path
-    candidates = [
-        r"C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe",
-        r"C:\Program Files (x86)\wkhtmltopdf\bin\wkhtmltopdf.exe",
-    ]
-    for candidate in candidates:
-        if os.path.isfile(candidate):
-            return candidate
-    return None
-
-
-def _render_pdf_from_html(html_content: str, base_dir: str, logger):
-    wkhtmltopdf_bin = _find_wkhtmltopdf_bin()
-    if wkhtmltopdf_bin:
-        html_path = None
-        pdf_path = None
-        try:
-            with tempfile.NamedTemporaryFile(suffix=".html", delete=False, mode="w", encoding="utf-8") as html_file:
-                html_file.write(html_content)
-                html_path = html_file.name
-            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as pdf_file:
-                pdf_path = pdf_file.name
-            result = subprocess.run(
-                [wkhtmltopdf_bin, "--encoding", "utf-8", html_path, pdf_path],
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode == 0 and pdf_path and os.path.exists(pdf_path):
-                with open(pdf_path, "rb") as handle:
-                    return handle.read()
-            if logger:
-                logger.warning(
-                    "wkhtmltopdf fallito",
-                    extra={
-                        "component": "documents",
-                        "stderr": (result.stderr or "").strip(),
-                        "stdout": (result.stdout or "").strip(),
-                    },
-                )
-        finally:
-            if html_path and os.path.exists(html_path):
-                os.unlink(html_path)
-            if pdf_path and os.path.exists(pdf_path):
-                os.unlink(pdf_path)
-
-    try:
-        from weasyprint import HTML  # type: ignore
-    except Exception:
-        return None
-    try:
-        return HTML(string=html_content, base_url=base_dir).write_pdf()
-    except Exception as exc:
-        if logger:
-            logger.warning(
-                "WeasyPrint fallito",
-                extra={"component": "documents", "error": str(exc)},
-            )
-        return None
-
-
 def _build_pdf_download_name(document_id: int, file_name: Optional[str]) -> str:
     base_name = file_name or f"document_{document_id}"
     lowered = base_name.lower()
@@ -994,7 +926,7 @@ def download_pdf(document_id: int):
     except Exception as exc:
         return f"<h1>Errore generazione HTML</h1><p>{str(exc)}</p>", 500
 
-    pdf_bytes = _render_pdf_from_html(html_content, base_dir, current_app.logger)
+    pdf_bytes = render_pdf_from_html(html_content, base_dir, current_app.logger)
     if not pdf_bytes:
         return (
             "<h1>PDF non disponibile</h1>"
