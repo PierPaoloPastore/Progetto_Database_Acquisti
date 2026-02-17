@@ -17,7 +17,7 @@
         body { background-color: #f8f9fa; }
         .navbar-brand { font-weight: bold; }
         .js [data-nav-title],
-        .js main h1 {
+        .js main h1:not([data-nav-title-skip]) {
             visibility: hidden;
         }
     </style>
@@ -170,7 +170,8 @@
             const navBrand = document.querySelector("body > nav > div > a");
             const navIcon = navBrand?.querySelector("i");
             const navTitleSource =
-                document.querySelector("[data-nav-title]") || document.querySelector("main h1");
+                document.querySelector("[data-nav-title]:not([data-nav-title-skip])") ||
+                document.querySelector("main h1:not([data-nav-title-skip])");
             if (navBrand && navTitleSource) {
                 const titleText = (navTitleSource.textContent || "").trim();
                 if (titleText) {

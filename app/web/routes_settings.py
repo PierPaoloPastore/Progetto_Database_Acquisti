@@ -5,7 +5,7 @@ Route web per la gestione delle impostazioni applicative.
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 
 from app.services.settings_service import get_setting, set_setting
-from app.services.maintenance_service import initialize_database
+from app.services.maintenance_service import initialize_database, cleanup_physical_copies
 
 
 settings_bp = Blueprint("settings", __name__, url_prefix="/settings")
@@ -115,6 +115,7 @@ def initialize_db():
     confirm_check = (request.form.get("confirm_check") or "") == "1"
     preserve_settings = (request.form.get("preserve_settings") or "1") == "1"
     preserve_users = (request.form.get("preserve_users") or "1") == "1"
+    cleanup_physical = (request.form.get("cleanup_physical_copies") or "") == "1"
 
     if not confirm_check or confirm_text != "INIZIALIZZA":
         flash("Conferma non valida. Operazione annullata.", "warning")
@@ -129,8 +130,21 @@ def initialize_db():
         flash(f"Errore durante l'inizializzazione: {exc}", "danger")
         return redirect(url_for("settings.index"))
 
-    flash(
-        f"Database inizializzato. Tabelle ripulite: {cleaned_count}.",
-        "success",
-    )
+    cleanup_summary = None
+    if cleanup_physical:
+        try:
+            cleanup_summary = cleanup_physical_copies()
+        except Exception as exc:
+            flash(f"Database inizializzato, ma pulizia copie fisiche fallita: {exc}", "warning")
+            cleanup_summary = None
+
+    message = f"Database inizializzato. Tabelle ripulite: {cleaned_count}."
+    if cleanup_summary:
+        if cleanup_summary.get("skipped"):
+            message += " Deposito copie fisiche non trovato."
+        else:
+            removed = cleanup_summary.get("removed_files", 0)
+            message += f" Copie fisiche eliminate: {removed}."
+
+    flash(message, "success")
     return redirect(url_for("settings.index"))
