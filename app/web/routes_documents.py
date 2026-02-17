@@ -1329,29 +1329,6 @@ def reject_invoice(document_id: int):
     flash("Nessun altro documento da rivedere.", "info")
     return redirect(url_for("documents.review_list_view", order=order))
 
-@documents_bp.get("/<int:document_id>/attach-scan")
-def attach_scan_view(document_id: int):
-    document = Document.query.get_or_404(document_id)
-    return render_template("documents/attach_scan.html", invoice=document)
-
-@documents_bp.post("/<int:document_id>/attach-scan")
-def attach_scan_process(document_id: int):
-    document = Document.query.get_or_404(document_id)
-    
-    file = request.files.get("file")
-    if file is None or not file.filename:
-        flash("Seleziona un file da caricare.", "warning")
-        return redirect(url_for("documents.attach_scan_view", document_id=document_id))
-
-    if not _is_allowed_file(file.filename):
-        flash("Formato file non supportato (usa PDF, JPG, PNG).", "danger")
-        return redirect(url_for("documents.attach_scan_view", document_id=document_id))
-
-    doc_service.mark_physical_copy_received(document_id, file=file)
-    
-    flash("Scansione caricata e collegata correttamente.", "success")
-    return redirect(url_for("documents.detail_view", document_id=document_id))
-
 @documents_bp.route("/<int:document_id>/physical-copy/view", methods=["GET"])
 def view_physical_copy(document_id: int):
     document = Document.query.get_or_404(document_id)
