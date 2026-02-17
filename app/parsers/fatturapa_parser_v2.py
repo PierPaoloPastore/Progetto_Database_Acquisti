@@ -261,6 +261,10 @@ def _map_body(body, supplier_dto: SupplierDTO, original_file_name: str) -> Invoi
     payments_dto, main_due_date = _map_payments(body)
     attachments_dto = _map_attachments(body, warnings)
     delivery_notes_dto = _map_delivery_notes(body)
+    if not supplier_dto.iban:
+        payment_iban = _pick_preferred_iban([p.iban for p in payments_dto])
+        if payment_iban:
+            supplier_dto.iban = payment_iban
 
     computed_total = total_gross_amount
     if computed_total is None and total_taxable is not None and total_vat is not None:
@@ -378,6 +382,7 @@ def _map_payments(body) -> tuple[List[PaymentDTO], Optional[date]]:
             due_date = _to_date(getattr(det, "data_scadenza_pagamento", None))
             expected_amount = _to_decimal(getattr(det, "importo_pagamento", None))
             payment_method = _enum_to_str(getattr(det, "modalita_pagamento", None))
+            iban = _normalize_iban(getattr(det, "iban", None))
 
             payments.append(
                 PaymentDTO(
@@ -385,6 +390,7 @@ def _map_payments(body) -> tuple[List[PaymentDTO], Optional[date]]:
                     expected_amount=expected_amount,
                     payment_terms=condizioni,
                     payment_method=payment_method,
+                    iban=iban,
                 )
             )
 
@@ -392,6 +398,27 @@ def _map_payments(body) -> tuple[List[PaymentDTO], Optional[date]]:
                 main_due_date = due_date
 
     return payments, main_due_date
+
+
+def _normalize_iban(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return None
+    cleaned = re.sub(r"\s+", "", str(value)).strip().upper()
+    return cleaned or None
+
+
+def _pick_preferred_iban(values: List[Optional[str]]) -> Optional[str]:
+    cleaned = [val for val in values if val]
+    if not cleaned:
+        return None
+    counts: dict[str, int] = {}
+    first_index: dict[str, int] = {}
+    for idx, val in enumerate(cleaned):
+        if val not in counts:
+            counts[val] = 0
+            first_index[val] = idx
+        counts[val] += 1
+    return max(counts.keys(), key=lambda val: (counts[val], -first_index[val]))
 
 
 def _map_delivery_notes(body) -> List[DeliveryNoteDTO]:

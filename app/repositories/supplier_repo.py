@@ -102,9 +102,16 @@ class SupplierRepository(SqlAlchemyRepository[Supplier]):
             cleaned = str(value).strip()
             return cleaned or None
 
+        def _normalize_iban(value):
+            cleaned = _clean(value)
+            if not cleaned:
+                return None
+            return "".join(cleaned.split()).upper()
+
         vat_number = _clean(_get(data, "vat_number"))
         fiscal_code = _clean(_get(data, "fiscal_code"))
         name = _clean(_get(data, "name"))
+        iban = _normalize_iban(_get(data, "iban"))
 
         supplier: Optional[Supplier] = None
 
@@ -146,6 +153,7 @@ class SupplierRepository(SqlAlchemyRepository[Supplier]):
                 sdi_code=_get(data, "sdi_code"),
                 pec_email=_get(data, "pec_email"),
                 email=_get(data, "email"),
+                iban=iban,
                 phone=_get(data, "phone"),
                 address=_get(data, "address"),
                 postal_code=_get(data, "postal_code"),
@@ -159,5 +167,7 @@ class SupplierRepository(SqlAlchemyRepository[Supplier]):
             self.add(supplier)
             # Flush per ottenere l'ID se serve subito dopo nella transazione
             self.session.flush()
+        elif iban and not (supplier.iban or "").strip():
+            supplier.iban = iban
 
         return supplier

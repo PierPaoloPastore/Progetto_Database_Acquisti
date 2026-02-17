@@ -52,6 +52,7 @@ class SupplierDTO:
     sdi_code: Optional[str] = None
     pec_email: Optional[str] = None
     email: Optional[str] = None
+    iban: Optional[str] = None
 
     address: Optional[str] = None
     postal_code: Optional[str] = None
@@ -108,6 +109,7 @@ class PaymentDTO:
     expected_amount: Optional[Decimal] = None
     payment_terms: Optional[str] = None
     payment_method: Optional[str] = None
+    iban: Optional[str] = None
 
 
 @dataclass
@@ -592,6 +594,10 @@ def _parse_xml_file(xml_path: Path, original_file_name: str, *, validate_xsd: bo
         vat_summaries_dto, total_taxable, total_vat = _parse_vat_summaries(body)
         payments_dto, main_due_date = _parse_payments(body)
         attachments_dto = _parse_attachments(body, warnings)
+        if not supplier_dto.iban:
+            payment_iban = _pick_preferred_iban([p.iban for p in payments_dto])
+            if payment_iban:
+                supplier_dto.iban = payment_iban
 
         # Calcolo totale con fallback
         computed_total = total_gross_amount
@@ -1594,6 +1600,10 @@ def _parse_payments(body) -> tuple[List[PaymentDTO], Optional[date]]:
     payment_nodes = body.xpath(".//*[local-name()='DettaglioPagamento']")
 
     for p_node in payment_nodes:
+        iban = _normalize_iban(
+            _get_text(p_node, ".//*[local-name()='IBAN']")
+            or _get_text(p_node, ".//*[local-name()='Iban']")
+        )
         due_date_str = _get_text(
             p_node, ".//*[local-name()='DataScadenzaPagamento']"
         )
@@ -1616,6 +1626,7 @@ def _parse_payments(body) -> tuple[List[PaymentDTO], Optional[date]]:
                 expected_amount=expected_amount,
                 payment_terms=payment_terms,
                 payment_method=payment_method,
+                iban=iban,
             )
         )
 
@@ -1628,6 +1639,27 @@ def _parse_payments(body) -> tuple[List[PaymentDTO], Optional[date]]:
             main_due_date = p.due_date
 
     return payments, main_due_date
+
+
+def _normalize_iban(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return None
+    cleaned = re.sub(r"\s+", "", value).strip().upper()
+    return cleaned or None
+
+
+def _pick_preferred_iban(values: List[Optional[str]]) -> Optional[str]:
+    cleaned = [val for val in values if val]
+    if not cleaned:
+        return None
+    counts: dict[str, int] = {}
+    first_index: dict[str, int] = {}
+    for idx, val in enumerate(cleaned):
+        if val not in counts:
+            counts[val] = 0
+            first_index[val] = idx
+        counts[val] += 1
+    return max(counts.keys(), key=lambda val: (counts[val], -first_index[val]))
 
 
 def _parse_attachments(body, warnings: Optional[List[str]] = None) -> List[AttachmentDTO]:
