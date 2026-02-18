@@ -7,25 +7,9 @@ from __future__ import annotations
 import os
 import shutil
 from datetime import datetime
-from typing import List
-
 from werkzeug.datastructures import FileStorage
 
 from app.services import settings_service
-
-def list_inbox_files() -> List[str]:
-    """Elenca i file presenti nella cartella INBOX."""
-    inbox_path = settings_service.get_scan_inbox_path()
-    if not os.path.exists(inbox_path):
-        return []
-
-    files = []
-    for f in os.listdir(inbox_path):
-        full_path = os.path.join(inbox_path, f)
-        if os.path.isfile(full_path) and not f.startswith("."):
-            files.append(f)
-    return sorted(files)
-
 
 def store_payment_document_file(file: FileStorage, base_path: str, filename: str) -> str:
     """Salva un file di pagamento."""

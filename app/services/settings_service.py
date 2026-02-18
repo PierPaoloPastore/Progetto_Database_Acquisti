@@ -72,22 +72,6 @@ def get_physical_copy_storage_path() -> str:
     
     return _resolve_path(configured_path, ["storage", "documenti"])
 
-def get_scan_inbox_path() -> str:
-    """Restituisce il percorso assoluto della Inbox (scansioni in arrivo)."""
-    configured_path = get_setting("SCAN_INBOX_PATH", "")
-    
-    return _resolve_path(configured_path, ["storage", "inbox", "documenti"])
-
-def get_xml_inbox_path() -> str:
-    """Restituisce il percorso assoluto della Inbox XML (import fatture)."""
-    configured_path = get_setting("XML_INBOX_PATH", "") or get_setting("IMPORT_XML_FOLDER", "")
-    return _resolve_path(configured_path, ["storage", "inbox", "xml"])
-
-def get_payment_inbox_path() -> str:
-    """Restituisce il percorso assoluto della Inbox pagamenti."""
-    configured_path = get_setting("PAYMENT_INBOX_PATH", "")
-    return _resolve_path(configured_path, ["storage", "inbox", "pagamenti"])
-
 def get_payment_files_storage_path() -> str:
     """Restituisce il percorso assoluto per lo storage dei PDF di pagamento."""
     configured_path = get_setting("PAYMENT_FILES_STORAGE_PATH", "")
@@ -113,28 +97,28 @@ def get_documents_storage_path() -> str:
 
 
 def get_xml_archive_path(year: int, base_path: str | None = None) -> str:
-    base = os.path.abspath(base_path) if base_path else get_xml_inbox_path()
+    base = os.path.abspath(base_path) if base_path else get_xml_storage_path()
     target = os.path.join(base, "Archivio", "XML", str(year))
     os.makedirs(target, exist_ok=True)
     return target
 
 
 def get_documents_archive_path(year: int, base_path: str | None = None) -> str:
-    base = os.path.abspath(base_path) if base_path else get_scan_inbox_path()
+    base = os.path.abspath(base_path) if base_path else get_documents_storage_path()
     target = os.path.join(base, "Archivio", "Documenti", str(year))
     os.makedirs(target, exist_ok=True)
     return target
 
 
 def get_payments_archive_path(year: int, base_path: str | None = None) -> str:
-    base = os.path.abspath(base_path) if base_path else get_payment_inbox_path()
+    base = os.path.abspath(base_path) if base_path else get_payment_files_storage_path()
     target = os.path.join(base, "Archivio", "Pagamenti", str(year))
     os.makedirs(target, exist_ok=True)
     return target
 
 
 def get_ddt_archive_path(year: int, base_path: str | None = None) -> str:
-    base = os.path.abspath(base_path) if base_path else get_scan_inbox_path()
+    base = os.path.abspath(base_path) if base_path else get_delivery_note_storage_path()
     target = os.path.join(base, "Archivio", "DDT", str(year))
     os.makedirs(target, exist_ok=True)
     return target

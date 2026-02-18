@@ -38,7 +38,7 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
     logger = app.logger
     validate_xsd = bool(app.config.get("FATTURAPA_VALIDATE_XSD_WARN", False))
 
-    import_folder = Path(folder) if folder else Path(settings_service.get_xml_inbox_path())
+    import_folder = Path(folder) if folder else Path(settings_service.get_xml_storage_path())
     if not import_folder.exists():
         import_folder.mkdir(parents=True, exist_ok=True)
 
@@ -59,7 +59,7 @@ def run_import_files(files: Sequence[FileStorage], legal_entity_id: Optional[int
     logger = app.logger
     validate_xsd = bool(app.config.get("FATTURAPA_VALIDATE_XSD_WARN", False))
 
-    archive_base = Path(settings_service.get_xml_inbox_path())
+    archive_base = Path(settings_service.get_xml_storage_path())
     if not archive_base.exists():
         archive_base.mkdir(parents=True, exist_ok=True)
 

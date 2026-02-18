@@ -109,10 +109,9 @@ def _build_schedule_rows(documents, today: date, soon_limit: date):
     return schedule_rows, summary
 
 @payments_bp.route("/", methods=["GET"], endpoint="payment_index")
-@payments_bp.route("/", methods=["GET"], endpoint="inbox_view")
 def payment_index():
     """
-    Mostra la dashboard dei pagamenti (Inbox).
+    Mostra la dashboard dei pagamenti.
     """
     payment_history = list_paid_payments()
     payment_method_choices = list_payment_method_choices()
@@ -136,7 +135,7 @@ def payment_index():
     bank_accounts = list_all_bank_accounts()
 
     return render_template(
-        "payments/inbox.html",
+        "payments/index.html",
         all_unpaid_invoices=all_unpaid_invoices,
         payment_history=payment_history,
         bank_accounts=bank_accounts,
