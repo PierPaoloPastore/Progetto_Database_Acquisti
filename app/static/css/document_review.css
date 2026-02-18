@@ -13,58 +13,11 @@
     min-height: 64px;
 }
 .review-pane-left {
-    padding-bottom: 5.5rem;
+    padding-bottom: 6.5rem;
 }
 .review-pane-left .scrollable-list {
     max-height: none;
     overflow: visible;
-}
-.review-summary {
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    background: #f8fafc;
-    padding: 0.9rem;
-    margin-bottom: 1rem;
-}
-.review-summary-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 0.75rem 1rem;
-}
-.review-summary-item {
-    background: #ffffff;
-    border: 1px solid #edf0f4;
-    border-radius: 8px;
-    padding: 0.6rem 0.75rem;
-    min-height: 64px;
-}
-.review-summary-item.primary {
-    border-color: #d3e1f2;
-    background: #f3f7ff;
-}
-.review-summary-item.highlight {
-    border-color: #cfe3d6;
-    background: #f2fbf6;
-}
-.review-summary-item .label {
-    display: block;
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: #6b7280;
-    font-weight: 700;
-    margin-bottom: 0.2rem;
-}
-.review-summary-item .value {
-    display: block;
-    font-weight: 600;
-    color: #1f2d3d;
-}
-.review-summary-item .hint {
-    display: block;
-    font-size: 0.72rem;
-    color: #6b7280;
-    margin-top: 0.2rem;
 }
 .review-section {
     border: 1px solid #e5e7eb;
@@ -86,14 +39,15 @@
     font-weight: 700;
 }
 .review-actions-bar {
-    position: sticky;
+    position: fixed;
+    left: 0;
     bottom: 0;
+    width: calc(100% - var(--review-viewer-width, 55%) - 12px);
     background: #ffffff;
     border-top: 1px solid #e5e7eb;
-    padding: 0.75rem 0;
-    margin-top: 1rem;
-    box-shadow: 0 -8px 16px rgba(15, 23, 42, 0.05);
-    z-index: 2;
+    padding: 0.75rem 1.5rem;
+    box-shadow: 0 -8px 16px rgba(15, 23, 42, 0.06);
+    z-index: 4;
 }
 .review-split {
     display: flex;
@@ -197,6 +151,13 @@
 }
 .js-compare-group.is-mismatch .form-label {
     color: #a16207;
+}
+
+@media (max-width: 992px) {
+    .review-actions-bar {
+        width: 100%;
+        left: 0;
+    }
 }
 .review-actions {
     align-items: center;

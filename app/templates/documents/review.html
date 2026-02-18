@@ -36,59 +36,6 @@
             </div>
             {% endif %}
 
-            {% set status_labels = {
-                'pending_physical_copy': 'Da rivedere',
-                'verified': 'Verificata',
-                'archived': 'Archiviata'
-            } %}
-            {% set physical_labels = {
-                'missing': 'Mancante',
-                'requested': 'Richiesta',
-                'received': 'Ricevuta',
-                'not_required': 'Non richiesta'
-            } %}
-            <div class="review-summary">
-                <div class="review-summary-grid">
-                    <div class="review-summary-item primary">
-                        <span class="label">Fornitore</span>
-                        <span class="value">{{ invoice.supplier.name if invoice.supplier else 'N/D' }}</span>
-                        <span class="hint">P.IVA {{ invoice.supplier.vat_number if invoice.supplier and invoice.supplier.vat_number else '-' }}</span>
-                    </div>
-                    <div class="review-summary-item">
-                        <span class="label">Documento</span>
-                        <span class="value">{{ invoice.document_number or ('Doc #' ~ invoice.id) }}</span>
-                        <span class="hint">{{ invoice.document_date.strftime('%d/%m/%Y') if invoice.document_date else '-' }}</span>
-                    </div>
-                    <div class="review-summary-item highlight">
-                        <span class="label">Totale</span>
-                        <span class="value">{{ invoice.total_gross_amount|format_amount }} &euro;</span>
-                        <span class="hint">IVA {{ invoice.total_vat_amount|format_amount }} &euro;</span>
-                    </div>
-                    <div class="review-summary-item">
-                        <span class="label">Scadenza</span>
-                        <span class="value">{{ invoice.due_date.strftime('%d/%m/%Y') if invoice.due_date else '-' }}</span>
-                        <span class="hint">Reg. {{ invoice.registration_date.strftime('%d/%m/%Y') if invoice.registration_date else '-' }}</span>
-                    </div>
-                    <div class="review-summary-item">
-                        <span class="label">Intestatario</span>
-                        <span class="value">{{ invoice.legal_entity.name if invoice.legal_entity else 'N/D' }}</span>
-                        <span class="hint">{{ invoice.legal_entity.vat_number if invoice.legal_entity and invoice.legal_entity.vat_number else '' }}</span>
-                    </div>
-                    <div class="review-summary-item">
-                        <span class="label">Stato</span>
-                        <div class="value d-flex flex-wrap gap-2">
-                            <span class="status-badge status-{{ invoice.doc_status }}">
-                                {{ status_labels.get(invoice.doc_status, invoice.doc_status) }}
-                            </span>
-                            <span class="status-badge status-{{ invoice.physical_copy_status }}">
-                                {{ physical_labels.get(invoice.physical_copy_status, invoice.physical_copy_status) }}
-                            </span>
-                        </div>
-                        <span class="hint">Copia fisica</span>
-                    </div>
-                </div>
-            </div>
-
             <form method="POST" action="{{ url_for('documents.review_loop_invoice_view', document_id=invoice.id) }}" class="review-form">
                 <input type="hidden" name="invoice_id" value="{{ invoice.id }}">
                 <input type="hidden" name="instant_payment" id="instant-payment-hidden" value="">
