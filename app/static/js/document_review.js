@@ -187,7 +187,18 @@ document.addEventListener("DOMContentLoaded", () => {
     const toolbar = document.getElementById("preview-toolbar");
     if (toolbar && frame) {
         let zoomLevel = 1;
+        let fitMode = true;
+        const zoomLabel = document.getElementById("preview-zoom-label");
+        const zoomMode = document.getElementById("preview-zoom-mode");
         const clampZoom = (value) => Math.min(1.5, Math.max(0.6, value));
+        const updateZoomLabel = () => {
+            if (zoomLabel) {
+                zoomLabel.textContent = `${Math.round(zoomLevel * 100)}%`;
+            }
+            if (zoomMode) {
+                zoomMode.textContent = fitMode ? "Adatta larghezza" : "Zoom manuale";
+            }
+        };
         const applyZoom = () => {
             try {
                 const docEl = frame.contentDocument?.documentElement;
@@ -201,6 +212,7 @@ document.addEventListener("DOMContentLoaded", () => {
             } catch (error) {
                 // Cross-origin or sandboxed preview: ignore zoom.
             }
+            updateZoomLabel();
         };
         frame.addEventListener("load", applyZoom);
 
@@ -209,16 +221,21 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!button) return;
             const action = button.dataset.action;
             if (action === "zoom-in") {
+                fitMode = false;
                 zoomLevel = clampZoom(zoomLevel + 0.1);
                 applyZoom();
             } else if (action === "zoom-out") {
+                fitMode = false;
                 zoomLevel = clampZoom(zoomLevel - 0.1);
                 applyZoom();
             } else if (action === "fit-width") {
+                fitMode = true;
                 zoomLevel = 1;
                 applyZoom();
             }
         });
+
+        updateZoomLabel();
     }
 
     const discardModalEl = document.getElementById("discardModal");
@@ -377,6 +394,8 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!group) return;
         const indicator = group.querySelector(".field-indicator");
         const expectedEl = group.querySelector(".field-expected");
+        group.classList.toggle("is-mismatch", !matches && expectedRaw);
+        group.classList.toggle("is-match", matches && expectedRaw);
         if (indicator) {
             indicator.classList.toggle("is-visible", matches && expectedRaw);
         }

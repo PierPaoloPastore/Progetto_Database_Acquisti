@@ -1,25 +1,136 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard - Gestionale Acquisti{% endblock %}
+{% block title %}Dashboard | Acquisti{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>Dashboard</h1>
-</div>
+<div class="container-fluid dashboard-page">
+    <h1 class="visually-hidden" data-nav-title>Dashboard</h1>
 
-<div class="welcome-message">
-    <h2>Benvenuto nel gestionale acquisti</h2>
-    <p>Usa la barra in alto per navigare i moduli principali.</p>
-</div>
+    <section class="dashboard-hero">
+        <div class="dashboard-hero-main">
+            <div class="dashboard-hero-eyebrow">Panoramica</div>
+            <h2>Controllo rapido del flusso acquisti</h2>
+            <p class="text-muted mb-0">
+                Stato attuale documenti, scadenze e importazioni recenti.
+            </p>
+        </div>
+        <div class="dashboard-hero-actions">
+            <a class="btn btn-primary" href="{{ url_for('import.run_view') }}">
+                <i class="bi bi-cloud-arrow-up"></i> Importa XML
+            </a>
+            <a class="btn btn-outline-secondary" href="{{ url_for('documents.review_list_view') }}">
+                <i class="bi bi-clipboard-check"></i> Vai a Revisione
+            </a>
+            <a class="btn btn-outline-secondary" href="{{ url_for('payments.payment_index') }}#tab-new">
+                <i class="bi bi-credit-card-2-front"></i> Nuovo pagamento
+            </a>
+            <a class="btn btn-outline-secondary" href="{{ url_for('payments.schedule_view') }}">
+                <i class="bi bi-calendar-check"></i> Scadenziario
+            </a>
+        </div>
+    </section>
 
-<div class="card shadow-sm">
-    <div class="card-body">
-        <h5 class="card-title mb-2">Punti di partenza</h5>
-        <p class="mb-0 text-muted">
-            Vai su <a href="{{ url_for('documents.list_view') }}">Documenti</a> per la consultazione generale,
-            su <a href="{{ url_for('documents.review_list_view') }}">Revisione</a> per i documenti da confermare,
-            oppure usa <a href="{{ url_for('import.run_view') }}">Import</a> per caricare nuove fatture.
-        </p>
-    </div>
+    <section class="dashboard-kpis">
+        <a class="dashboard-kpi" href="{{ url_for('documents.review_list_view') }}">
+            <div class="kpi-label">Da rivedere</div>
+            <div class="kpi-value">{{ review_count|format_int }}</div>
+            <div class="kpi-meta">Copia fisica mancante: {{ missing_copy_count|format_int }}</div>
+        </a>
+        <a class="dashboard-kpi is-warning" href="{{ url_for('payments.schedule_view') }}">
+            <div class="kpi-label">In scadenza 7 giorni</div>
+            <div class="kpi-value">{{ due_soon_count|format_int }}</div>
+            <div class="kpi-meta">Fatture in arrivo</div>
+        </a>
+        <a class="dashboard-kpi is-danger" href="{{ url_for('payments.schedule_view') }}">
+            <div class="kpi-label">Scadute</div>
+            <div class="kpi-value">{{ overdue_count|format_int }}</div>
+            <div class="kpi-meta">Da recuperare</div>
+        </a>
+        <a class="dashboard-kpi" href="{{ url_for('documents.list_view', payment_status='unpaid') }}">
+            <div class="kpi-label">Non pagate</div>
+            <div class="kpi-value">{{ unpaid_count|format_int }}</div>
+            <div class="kpi-meta">Totale {{ total_unpaid_amount|format_amount }} &euro;</div>
+        </a>
+    </section>
+
+    <section class="dashboard-panels">
+        <div class="dashboard-panel">
+            <div class="dashboard-panel-header">
+                <h3>Prossime scadenze</h3>
+                <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('payments.schedule_view') }}">
+                    Vedi tutto
+                </a>
+            </div>
+            {% if upcoming_due %}
+                <div class="table-responsive">
+                    <table class="table table-compact table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>Scadenza</th>
+                                <th>Documento</th>
+                                <th>Fornitore</th>
+                                <th class="text-end">Residuo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for doc in upcoming_due %}
+                                {% set remaining = doc.remaining_amount if doc.remaining_amount is defined else doc.total_gross_amount %}
+                                <tr>
+                                    <td>{{ doc.due_date.strftime('%d/%m/%Y') if doc.due_date else '-' }}</td>
+                                    <td>
+                                        <a href="{{ url_for('documents.detail_view', document_id=doc.id) }}">
+                                            {{ doc.document_number or ('Doc #' ~ doc.id) }}
+                                        </a>
+                                    </td>
+                                    <td>{{ doc.supplier.name if doc.supplier else 'N/D' }}</td>
+                                    <td class="text-end">{{ remaining|format_amount }} &euro;</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="dashboard-empty">
+                    Nessuna scadenza imminente.
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="dashboard-panel">
+            <div class="dashboard-panel-header">
+                <h3>Ultime importazioni</h3>
+                <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('import.run_view') }}">
+                    Import
+                </a>
+            </div>
+            {% if last_imports %}
+                <ul class="dashboard-list">
+                    {% for doc in last_imports %}
+                        <li>
+                            <div>
+                                <div class="list-title">
+                                    {{ doc.file_name or ('Documento #' ~ doc.id) }}
+                                </div>
+                                <div class="list-meta">
+                                    {{ doc.supplier.name if doc.supplier else 'N/D' }}
+                                </div>
+                            </div>
+                            <div class="list-date">
+                                {{ doc.imported_at.strftime('%d/%m/%Y %H:%M') if doc.imported_at else '-' }}
+                            </div>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <div class="dashboard-empty">
+                    Nessuna importazione recente.
+                </div>
+            {% endif %}
+        </div>
+    </section>
 </div>
 {% endblock %}

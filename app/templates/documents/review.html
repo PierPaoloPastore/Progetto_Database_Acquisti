@@ -36,140 +36,214 @@
             </div>
             {% endif %}
 
-            <form method="POST" action="{{ url_for('documents.review_loop_invoice_view', document_id=invoice.id) }}">
-                <h5 class="text-primary border-bottom pb-2 mb-3">Modifica Dati Documento</h5>
+            {% set status_labels = {
+                'pending_physical_copy': 'Da rivedere',
+                'verified': 'Verificata',
+                'archived': 'Archiviata'
+            } %}
+            {% set physical_labels = {
+                'missing': 'Mancante',
+                'requested': 'Richiesta',
+                'received': 'Ricevuta',
+                'not_required': 'Non richiesta'
+            } %}
+            <div class="review-summary">
+                <div class="review-summary-grid">
+                    <div class="review-summary-item primary">
+                        <span class="label">Fornitore</span>
+                        <span class="value">{{ invoice.supplier.name if invoice.supplier else 'N/D' }}</span>
+                        <span class="hint">P.IVA {{ invoice.supplier.vat_number if invoice.supplier and invoice.supplier.vat_number else '-' }}</span>
+                    </div>
+                    <div class="review-summary-item">
+                        <span class="label">Documento</span>
+                        <span class="value">{{ invoice.document_number or ('Doc #' ~ invoice.id) }}</span>
+                        <span class="hint">{{ invoice.document_date.strftime('%d/%m/%Y') if invoice.document_date else '-' }}</span>
+                    </div>
+                    <div class="review-summary-item highlight">
+                        <span class="label">Totale</span>
+                        <span class="value">{{ invoice.total_gross_amount|format_amount }} &euro;</span>
+                        <span class="hint">IVA {{ invoice.total_vat_amount|format_amount }} &euro;</span>
+                    </div>
+                    <div class="review-summary-item">
+                        <span class="label">Scadenza</span>
+                        <span class="value">{{ invoice.due_date.strftime('%d/%m/%Y') if invoice.due_date else '-' }}</span>
+                        <span class="hint">Reg. {{ invoice.registration_date.strftime('%d/%m/%Y') if invoice.registration_date else '-' }}</span>
+                    </div>
+                    <div class="review-summary-item">
+                        <span class="label">Intestatario</span>
+                        <span class="value">{{ invoice.legal_entity.name if invoice.legal_entity else 'N/D' }}</span>
+                        <span class="hint">{{ invoice.legal_entity.vat_number if invoice.legal_entity and invoice.legal_entity.vat_number else '' }}</span>
+                    </div>
+                    <div class="review-summary-item">
+                        <span class="label">Stato</span>
+                        <div class="value d-flex flex-wrap gap-2">
+                            <span class="status-badge status-{{ invoice.doc_status }}">
+                                {{ status_labels.get(invoice.doc_status, invoice.doc_status) }}
+                            </span>
+                            <span class="status-badge status-{{ invoice.physical_copy_status }}">
+                                {{ physical_labels.get(invoice.physical_copy_status, invoice.physical_copy_status) }}
+                            </span>
+                        </div>
+                        <span class="hint">Copia fisica</span>
+                    </div>
+                </div>
+            </div>
+
+            <form method="POST" action="{{ url_for('documents.review_loop_invoice_view', document_id=invoice.id) }}" class="review-form">
                 <input type="hidden" name="invoice_id" value="{{ invoice.id }}">
                 <input type="hidden" name="instant_payment" id="instant-payment-hidden" value="">
                 <input type="hidden" name="instant_payment_iban" id="instant-payment-iban-hidden" value="">
 
-                <div class="row g-2">
-                    <div class="col-12 col-lg-6 js-compare-group">
-                        <label class="form-label fw-bold d-flex align-items-center gap-1">
-                            Intestatario
-                            <span class="field-indicator" aria-hidden="true"><i class="bi bi-check-circle-fill"></i></span>
-                        </label>
-                        <select name="legal_entity_id"
-                                id="legal-entity-id"
-                                class="form-select form-select-sm js-compare-field"
-                                data-compare-type="select"
-                                data-expected="{{ invoice.legal_entity_id or '' }}"
-                                data-expected-display="{{ invoice.legal_entity.name if invoice.legal_entity else '' }}">
-                            <option value="">Seleziona intestatario</option>
-                            {% for le in legal_entities %}
-                                <option value="{{ le.id }}" {% if invoice.legal_entity_id == le.id %}selected{% endif %}>{{ le.name }}</option>
-                            {% endfor %}
-                        </select>
-                        <div class="field-expected small text-muted review-expected-inline"></div>
+                <div class="review-section">
+                    <div class="review-section-header">
+                        <h6>Dati documento</h6>
+                        <span class="small text-muted">Verifica i campi principali prima di confermare.</span>
                     </div>
-                    <div class="col-12 col-lg-6 js-compare-group">
-                        <label class="form-label fw-bold d-flex align-items-center gap-1">
-                            Nome intestatario
-                            <span class="field-indicator" aria-hidden="true"><i class="bi bi-check-circle-fill"></i></span>
-                        </label>
-                        <input type="text"
-                               name="legal_entity_name"
-                               id="legal-entity-name"
-                               class="form-control form-control-sm js-compare-field"
-                               data-compare-type="text"
-                               data-expected="{{ invoice.legal_entity.name if invoice.legal_entity else '' }}"
-                               value="{{ invoice.legal_entity.name if invoice.legal_entity else '' }}">
-                        <div class="form-text small">Aggiorna il nome dell'intestatario selezionato.</div>
-                        <div class="field-expected small text-muted review-expected-inline"></div>
+                    <div class="row g-2">
+                        <div class="col-12 col-lg-6 js-compare-group">
+                            <label class="form-label fw-bold d-flex align-items-center gap-1">
+                                Intestatario
+                                <span class="field-indicator" aria-hidden="true"><i class="bi bi-check-circle-fill"></i></span>
+                            </label>
+                            <select name="legal_entity_id"
+                                    id="legal-entity-id"
+                                    class="form-select form-select-sm js-compare-field"
+                                    data-compare-type="select"
+                                    data-expected="{{ invoice.legal_entity_id or '' }}"
+                                    data-expected-display="{{ invoice.legal_entity.name if invoice.legal_entity else '' }}">
+                                <option value="">Seleziona intestatario</option>
+                                {% for le in legal_entities %}
+                                    <option value="{{ le.id }}" {% if invoice.legal_entity_id == le.id %}selected{% endif %}>{{ le.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="field-expected small text-muted review-expected-inline"></div>
+                        </div>
+                        <div class="col-12 col-lg-6 js-compare-group">
+                            <label class="form-label fw-bold d-flex align-items-center gap-1">
+                                Nome intestatario
+                                <span class="field-indicator" aria-hidden="true"><i class="bi bi-check-circle-fill"></i></span>
+                            </label>
+                            <input type="text"
+                                   name="legal_entity_name"
+                                   id="legal-entity-name"
+                                   class="form-control form-control-sm js-compare-field"
+                                   data-compare-type="text"
+                                   data-expected="{{ invoice.legal_entity.name if invoice.legal_entity else '' }}"
+                                   value="{{ invoice.legal_entity.name if invoice.legal_entity else '' }}">
+                            <div class="form-text small">Aggiorna il nome dell'intestatario selezionato.</div>
+                            <div class="field-expected small text-muted review-expected-inline"></div>
+                        </div>
+                        <div class="col-12 col-lg-6 js-compare-group">
+                            <label class="form-label fw-bold d-flex align-items-center gap-1">
+                                Numero Documento
+                                <span class="field-indicator" aria-hidden="true"><i class="bi bi-check-circle-fill"></i></span>
+                            </label>
+                            <input type="text"
+                                   name="document_number"
+                                   class="form-control form-control-sm js-compare-field"
+                                   data-compare-type="text"
+                                   data-expected="{{ invoice.document_number or '' }}"
+                                   value="{{ invoice.document_number or '' }}"
+                                   required>
+                            <div class="field-expected small text-muted review-expected-inline"></div>
+                        </div>
+                        <div class="col-6 col-lg-3 js-compare-group">
+                            <label class="form-label fw-bold d-flex align-items-center gap-1">
+                                Data Documento
+                                <span class="field-indicator" aria-hidden="true"><i class="bi bi-check-circle-fill"></i></span>
+                            </label>
+                            <input type="date"
+                                   name="document_date"
+                                   class="form-control form-control-sm js-compare-field"
+                                   data-compare-type="date"
+                                   data-expected="{{ invoice.document_date or '' }}"
+                                   data-expected-display="{{ invoice.document_date.strftime('%d/%m/%Y') if invoice.document_date else '' }}"
+                                   value="{{ invoice.document_date }}">
+                            <div class="field-expected small text-muted review-expected-inline"></div>
+                        </div>
+                        <div class="col-6 col-lg-3">
+                            <label class="form-label fw-bold">Registrazione</label>
+                            <input type="date" name="registration_date" class="form-control form-control-sm" value="{{ invoice.registration_date or today }}">
+                        </div>
+                        <div class="col-6 col-lg-3">
+                            <label class="form-label fw-bold">Scadenza</label>
+                            <input type="date" name="due_date" class="form-control form-control-sm" value="{{ invoice.due_date }}">
+                        </div>
+                        <div class="col-6 col-lg-3">
+                            <label class="form-label fw-bold">Stato documento</label>
+                            <select name="doc_status" class="form-select form-select-sm">
+                                <option value="" selected>Imposta come verificato</option>
+                                <option value="pending_physical_copy">In attesa copia</option>
+                                <option value="verified">Verificata</option>
+                                <option value="archived">Archiviata</option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="col-12 col-lg-6 js-compare-group">
-                        <label class="form-label fw-bold d-flex align-items-center gap-1">
-                            Numero Documento
-                            <span class="field-indicator" aria-hidden="true"><i class="bi bi-check-circle-fill"></i></span>
-                        </label>
-                        <input type="text"
-                               name="document_number"
-                               class="form-control form-control-sm js-compare-field"
-                               data-compare-type="text"
-                               data-expected="{{ invoice.document_number or '' }}"
-                               value="{{ invoice.document_number or '' }}"
-                               required>
-                        <div class="field-expected small text-muted review-expected-inline"></div>
+                </div>
+
+                <div class="review-section">
+                    <div class="review-section-header">
+                        <h6>Importi</h6>
                     </div>
-                    <div class="col-6 col-lg-3 js-compare-group">
-                        <label class="form-label fw-bold d-flex align-items-center gap-1">
-                            Data Documento
-                            <span class="field-indicator" aria-hidden="true"><i class="bi bi-check-circle-fill"></i></span>
-                        </label>
-                        <input type="date"
-                               name="document_date"
-                               class="form-control form-control-sm js-compare-field"
-                               data-compare-type="date"
-                               data-expected="{{ invoice.document_date or '' }}"
-                               data-expected-display="{{ invoice.document_date.strftime('%d/%m/%Y') if invoice.document_date else '' }}"
-                               value="{{ invoice.document_date }}">
-                        <div class="field-expected small text-muted review-expected-inline"></div>
-                    </div>
-                    <div class="col-6 col-lg-3">
-                        <label class="form-label fw-bold">Registrazione</label>
-                        <input type="date" name="registration_date" class="form-control form-control-sm" value="{{ invoice.registration_date or today }}">
-                    </div>
-                    <div class="col-6 col-lg-3">
-                        <label class="form-label fw-bold">Scadenza</label>
-                        <input type="date" name="due_date" class="form-control form-control-sm" value="{{ invoice.due_date }}">
-                    </div>
-                    <div class="col-6 col-lg-3">
-                        <label class="form-label fw-bold">Stato documento</label>
-                        <select name="doc_status" class="form-select form-select-sm">
-                            <option value="" selected>Imposta come verificato</option>
-                            <option value="pending_physical_copy">In attesa copia</option>
-                            <option value="verified">Verificata</option>
-                            <option value="archived">Archiviata</option>
-                        </select>
-                    </div>
-                    <div class="col-6 col-lg-3 js-compare-group">
-                        <label class="form-label fw-bold d-flex align-items-center gap-1">
-                            Imponibile
-                            <span class="field-indicator" aria-hidden="true"><i class="bi bi-check-circle-fill"></i></span>
-                        </label>
-                        <input type="number"
-                               step="0.01"
-                               name="total_taxable_amount"
-                               class="form-control form-control-sm text-end js-compare-field js-format-decimal"
-                               data-compare-type="number"
-                               data-expected="{{ invoice.total_taxable_amount or '' }}"
-                               value="{{ invoice.total_taxable_amount }}">
-                        <div class="field-expected small text-muted review-expected-inline"></div>
-                    </div>
-                    <div class="col-6 col-lg-3 js-compare-group">
-                        <label class="form-label fw-bold d-flex align-items-center gap-1">
-                            IVA
-                            <span class="field-indicator" aria-hidden="true"><i class="bi bi-check-circle-fill"></i></span>
-                        </label>
-                        <input type="number"
-                               step="0.01"
-                               name="total_vat_amount"
-                               class="form-control form-control-sm text-end js-compare-field js-format-decimal"
-                               data-compare-type="number"
-                               data-expected="{{ invoice.total_vat_amount or '' }}"
-                               value="{{ invoice.total_vat_amount }}">
-                        <div class="field-expected small text-muted review-expected-inline"></div>
-                    </div>
-                    <div class="col-12 col-lg-4 js-compare-group">
-                        <label class="form-label fw-bold d-flex align-items-center gap-1">
-                            Importo Totale
-                            <span class="field-indicator" aria-hidden="true"><i class="bi bi-check-circle-fill"></i></span>
-                        </label>
-                        <div class="input-group input-group-sm">
-                            <span class="input-group-text">€</span>
+                    <div class="row g-2">
+                        <div class="col-6 col-lg-3 js-compare-group">
+                            <label class="form-label fw-bold d-flex align-items-center gap-1">
+                                Imponibile
+                                <span class="field-indicator" aria-hidden="true"><i class="bi bi-check-circle-fill"></i></span>
+                            </label>
                             <input type="number"
                                    step="0.01"
-                                   name="total_gross_amount"
-                                   class="form-control fw-bold text-end js-compare-field js-format-decimal"
+                                   name="total_taxable_amount"
+                                   class="form-control form-control-sm text-end js-compare-field js-format-decimal"
                                    data-compare-type="number"
-                                   data-expected="{{ invoice.total_gross_amount or '' }}"
-                                   value="{{ invoice.total_gross_amount }}"
-                                   required>
+                                   data-expected="{{ invoice.total_taxable_amount or '' }}"
+                                   value="{{ invoice.total_taxable_amount }}">
+                            <div class="field-expected small text-muted review-expected-inline"></div>
                         </div>
-                        <div class="field-expected small text-muted review-expected-inline"></div>
+                        <div class="col-6 col-lg-3 js-compare-group">
+                            <label class="form-label fw-bold d-flex align-items-center gap-1">
+                                IVA
+                                <span class="field-indicator" aria-hidden="true"><i class="bi bi-check-circle-fill"></i></span>
+                            </label>
+                            <input type="number"
+                                   step="0.01"
+                                   name="total_vat_amount"
+                                   class="form-control form-control-sm text-end js-compare-field js-format-decimal"
+                                   data-compare-type="number"
+                                   data-expected="{{ invoice.total_vat_amount or '' }}"
+                                   value="{{ invoice.total_vat_amount }}">
+                            <div class="field-expected small text-muted review-expected-inline"></div>
+                        </div>
+                        <div class="col-12 col-lg-4 js-compare-group">
+                            <label class="form-label fw-bold d-flex align-items-center gap-1">
+                                Importo Totale
+                                <span class="field-indicator" aria-hidden="true"><i class="bi bi-check-circle-fill"></i></span>
+                            </label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text">&euro;</span>
+                                <input type="number"
+                                       step="0.01"
+                                       name="total_gross_amount"
+                                       class="form-control fw-bold text-end js-compare-field js-format-decimal"
+                                       data-compare-type="number"
+                                       data-expected="{{ invoice.total_gross_amount or '' }}"
+                                       value="{{ invoice.total_gross_amount }}"
+                                       required>
+                            </div>
+                            <div class="field-expected small text-muted review-expected-inline"></div>
+                        </div>
                     </div>
-                    <div class="col-12 col-lg-8">
-                        <label class="form-label fw-bold">Note</label>
-                        <textarea name="note" rows="2" class="form-control form-control-sm js-autoresize" placeholder="Annotazioni interne">{{ invoice.note or '' }}</textarea>
+                </div>
+
+                <div class="review-section">
+                    <div class="review-section-header">
+                        <h6>Note</h6>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-12">
+                            <label class="form-label fw-bold">Note</label>
+                            <textarea name="note" rows="2" class="form-control form-control-sm js-autoresize" placeholder="Annotazioni interne">{{ invoice.note or '' }}</textarea>
+                        </div>
                     </div>
                 </div>
 
@@ -177,21 +251,24 @@
                     <small><i class="bi bi-exclamation-triangle"></i> Verifica che i dati corrispondano al documento a destra.</small>
                 </div>
 
-                <div class="d-flex flex-wrap gap-2 mt-3 review-actions">
-                    <button type="submit" class="btn btn-success btn-sm shadow-sm" id="confirm-next" name="action" value="review">
-                        <i class="bi bi-check-circle-fill"></i> Conferma & Prossima
-                    </button>
-                    <button type="submit" class="btn btn-outline-secondary btn-sm" id="save-stay" name="action" value="save">
-                        <i class="bi bi-save"></i> Salva e resta qui
-                    </button>
-                    <button type="button" class="btn btn-danger btn-sm" id="discard-trigger">
-                        <i class="bi bi-trash"></i> Scarta (elimina)
-                    </button>
-                    {% if saved_at %}
-                        <span class="review-save-indicator" id="save-indicator">Salvato alle {{ saved_at }}</span>
-                    {% endif %}
+                <div class="review-actions-bar">
+                    <div class="d-flex flex-wrap gap-2 review-actions">
+                        <button type="submit" class="btn btn-success btn-sm shadow-sm" id="confirm-next" name="action" value="review">
+                            <i class="bi bi-check-circle-fill"></i> Conferma & Prossima
+                        </button>
+                        <button type="submit" class="btn btn-outline-secondary btn-sm" id="save-stay" name="action" value="save">
+                            <i class="bi bi-save"></i> Salva e resta qui
+                        </button>
+                        <button type="button" class="btn btn-danger btn-sm" id="discard-trigger">
+                            <i class="bi bi-trash"></i> Scarta (elimina)
+                        </button>
+                        {% if saved_at %}
+                            <span class="review-save-indicator" id="save-indicator">Salvato alle {{ saved_at }}</span>
+                        {% endif %}
+                    </div>
                 </div>
             </form>
+
 
             <div class="mt-4 pt-3 border-top">
                 {% set physical_count = 1 if invoice.physical_copy_file_path else 0 %}
@@ -254,7 +331,7 @@
                     </form>
                     <div class="mt-2">
                         <strong>DDT collegati:</strong>
-                        <div class="table-responsive scrollable-list" style="max-height: 200px;">
+                        <div class="table-responsive scrollable-list">
                             <table class="table table-compact mb-0">
                                 <thead>
                                     <tr>
@@ -321,7 +398,7 @@
                     </form>
                     <div class="mt-2">
                         <strong>Righe documento:</strong>
-                        <div class="table-responsive scrollable-list" style="max-height: 240px;">
+                        <div class="table-responsive scrollable-list">
                             <table class="table table-compact mb-0">
                                 <thead>
                                     <tr>
@@ -445,6 +522,8 @@
                 <button type="button" class="btn btn-outline-secondary" data-action="fit-width">
                     Adatta larghezza
                 </button>
+                <span class="review-toolbar-pill" id="preview-zoom-label">100%</span>
+                <span class="review-toolbar-mode" id="preview-zoom-mode">Adatta larghezza</span>
                 <span class="toolbar-divider" aria-hidden="true"></span>
                 <a class="btn btn-outline-secondary" id="preview-open" target="_blank" rel="noopener">
                     Apri in nuova finestra
