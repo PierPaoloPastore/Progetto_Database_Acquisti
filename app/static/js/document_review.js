@@ -445,6 +445,11 @@ document.addEventListener("DOMContentLoaded", () => {
         paymentMethodForm.addEventListener("submit", async (event) => {
             if (!select) return;
             event.preventDefault();
+            const ajaxUrl = paymentMethodForm.dataset.ajaxUrl || paymentMethodForm.getAttribute("action");
+            if (!ajaxUrl) {
+                setFeedback("URL di aggiornamento mancante.", false);
+                return;
+            }
             if (submitBtn) {
                 submitBtn.disabled = true;
             }
@@ -457,7 +462,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const formData = new FormData(paymentMethodForm);
 
             try {
-                const response = await fetch(paymentMethodForm.action, {
+                const response = await fetch(ajaxUrl, {
                     method: "POST",
                     headers: {
                         "X-Requested-With": "XMLHttpRequest",

@@ -409,7 +409,8 @@
                     <form method="POST"
                           action="{{ url_for('documents.review_loop_invoice_view', document_id=invoice.id) }}"
                           class="d-flex flex-wrap align-items-center gap-2"
-                          data-ajax="payment-method">
+                          data-ajax="payment-method"
+                          data-ajax-url="{{ url_for('documents.update_payment_method_ajax', document_id=invoice.id) }}">
                         <input type="hidden" name="action" value="update_payment_method">
                         <select name="payment_method_code" class="form-select form-select-sm js-select2" style="min-width: 220px;">
                             <option value="">Seleziona metodo pagamento</option>

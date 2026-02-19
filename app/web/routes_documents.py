@@ -804,6 +804,22 @@ def review_loop_invoice_view(document_id: int):
         bank_accounts=bank_accounts,
     )
 
+
+@documents_bp.post("/review/<int:document_id>/payment-method", endpoint="update_payment_method_ajax")
+def update_payment_method_ajax(document_id: int):
+    method_code = request.form.get("payment_method_code") or None
+    ok, message = update_payment_method_for_document(document_id, method_code)
+    context = _get_payment_method_context(document_id) if ok else None
+    payload = {
+        "ok": ok,
+        "message": message,
+        "method_code": normalize_payment_method_code(method_code) if ok else None,
+        "labels": context["labels"] if context else [],
+        "instant_allowed": context["instant_allowed"] if context else False,
+        "instant_reason": context["instant_reason"] if context else "",
+    }
+    return jsonify(payload), (200 if ok else 400)
+
 @documents_bp.route("/review/<int:document_id>/delete", methods=["POST"])
 def delete_document(document_id: int):
     ok = DocumentService.delete_document(document_id)
