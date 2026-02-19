@@ -459,12 +459,25 @@ document.addEventListener("DOMContentLoaded", () => {
             try {
                 const response = await fetch(paymentMethodForm.action, {
                     method: "POST",
-                    headers: { "X-Requested-With": "XMLHttpRequest" },
+                    headers: {
+                        "X-Requested-With": "XMLHttpRequest",
+                        "Accept": "application/json",
+                    },
+                    credentials: "same-origin",
                     body: formData,
                 });
-                const data = await response.json().catch(() => null);
-                if (!response.ok || !data) {
-                    throw new Error(data?.message || "Errore durante l'aggiornamento.");
+
+                const contentType = response.headers.get("content-type") || "";
+                let data = null;
+                let textPayload = "";
+                if (contentType.includes("application/json")) {
+                    data = await response.json().catch(() => null);
+                } else {
+                    textPayload = await response.text().catch(() => "");
+                }
+
+                if (!response.ok || (!data && !textPayload)) {
+                    throw new Error(data?.message || textPayload || "Errore durante l'aggiornamento.");
                 }
 
                 setFeedback(data.message || "Metodo aggiornato.", true);
