@@ -223,14 +223,14 @@
                         type="button"
                         data-bs-toggle="collapse"
                         data-bs-target="#review-physical-copy"
-                        aria-expanded="{{ 'true' if physical_count else 'false' }}"
+                        aria-expanded="false"
                         aria-controls="review-physical-copy">
                     <span>Copia fisica</span>
                     {% if physical_count %}
                         <span class="badge bg-secondary">1 allegato</span>
                     {% endif %}
                 </button>
-                <div id="review-physical-copy" class="collapse review-collapse-body {% if physical_count %}show{% endif %}">
+                <div id="review-physical-copy" class="collapse review-collapse-body">
                     <div class="d-flex flex-wrap align-items-center gap-2">
                         {% if invoice.physical_copy_file_path %}
                             <a class="btn btn-outline-primary btn-sm" href="{{ url_for('documents.view_physical_copy', document_id=invoice.id) }}" target="_blank" rel="noopener">
@@ -252,14 +252,14 @@
                         type="button"
                         data-bs-toggle="collapse"
                         data-bs-target="#review-ddt"
-                        aria-expanded="{{ 'true' if ddt_count else 'false' }}"
+                        aria-expanded="false"
                         aria-controls="review-ddt">
                     <span>DDT</span>
                     {% if ddt_count %}
                         <span class="badge bg-secondary">{{ ddt_count }} collegati</span>
                     {% endif %}
                 </button>
-                <div id="review-ddt" class="collapse review-collapse-body {% if ddt_count %}show{% endif %}">
+                <div id="review-ddt" class="collapse review-collapse-body">
                     <form method="POST" action="{{ url_for('documents.review_loop_invoice_view', document_id=invoice.id) }}" class="d-flex flex-wrap align-items-center gap-2">
                         <input type="hidden" name="action" value="match_ddt">
                         <select name="delivery_note_id" class="form-select form-select-sm" style="min-width: 220px;">
@@ -322,14 +322,14 @@
                         type="button"
                         data-bs-toggle="collapse"
                         data-bs-target="#review-categories"
-                        aria-expanded="{{ 'true' if missing_count else 'false' }}"
+                        aria-expanded="false"
                         aria-controls="review-categories">
                     <span>Categorie</span>
                     {% if invoice_lines %}
                         <span class="badge bg-secondary">{{ missing_count }} da assegnare</span>
                     {% endif %}
                 </button>
-                <div id="review-categories" class="collapse review-collapse-body {% if missing_count %}show{% endif %}">
+                <div id="review-categories" class="collapse review-collapse-body">
                     <form method="POST"
                           action="{{ url_for('documents.assign_category_bulk_view', document_id=invoice.id) }}"
                           class="d-flex flex-wrap align-items-center gap-2">
@@ -395,14 +395,14 @@
                         type="button"
                         data-bs-toggle="collapse"
                         data-bs-target="#review-payment-method"
-                        aria-expanded="{{ 'true' if payment_count else 'false' }}"
+                        aria-expanded="false"
                         aria-controls="review-payment-method">
                     <span>Metodo di pagamento</span>
                     {% if payment_count %}
                         <span class="badge bg-secondary">{{ payment_count }} metodi</span>
                     {% endif %}
                 </button>
-                <div id="review-payment-method" class="collapse review-collapse-body {% if payment_count %}show{% endif %}">
+                <div id="review-payment-method" class="collapse review-collapse-body">
                     {% if payment_method_labels %}
                         <div class="small text-muted mb-2">Metodo rilevato: {{ payment_method_labels|join(', ') }}</div>
                     {% endif %}
