@@ -18,6 +18,9 @@ from app.services import (
     get_delivery_note_with_lines,
     upsert_delivery_note_lines,
     link_delivery_note_to_document,
+    attach_delivery_note_file,
+    update_delivery_note,
+    delete_delivery_note,
     ocr_service,
 )
 from app.services.ocr_mapping_service import parse_ddt_fields
@@ -188,6 +191,69 @@ def detail_view(delivery_note_id: int):
         return redirect(url_for("delivery_notes.list_view"))
 
     if request.method == "POST":
+        action = request.form.get("action") or "update_lines"
+        if action == "update_info":
+            try:
+                supplier_id = int(request.form.get("supplier_id") or 0)
+                legal_entity_id_raw = request.form.get("legal_entity_id") or ""
+                legal_entity_id = int(legal_entity_id_raw) if legal_entity_id_raw else None
+                ddt_number = (request.form.get("ddt_number") or "").strip()
+                ddt_date_str = request.form.get("ddt_date") or ""
+                total_amount_raw = (request.form.get("total_amount") or "").strip()
+                status = (request.form.get("status") or "").strip() or None
+
+                if not ddt_date_str:
+                    raise ValueError("Data DDT obbligatoria")
+                ddt_date = datetime.strptime(ddt_date_str, "%Y-%m-%d").date()
+
+                total_amount = None
+                if total_amount_raw:
+                    total_amount = Decimal(total_amount_raw.replace(",", "."))
+
+                update_delivery_note(
+                    delivery_note_id,
+                    supplier_id=supplier_id,
+                    legal_entity_id=legal_entity_id,
+                    ddt_number=ddt_number,
+                    ddt_date=ddt_date,
+                    total_amount=total_amount,
+                    status=status,
+                )
+                flash("DDT aggiornato.", "success")
+                return redirect(url_for("delivery_notes.detail_view", delivery_note_id=delivery_note_id))
+            except Exception as exc:
+                flash(f"Errore aggiornamento DDT: {exc}", "danger")
+
+        elif action == "upload_file":
+            file = request.files.get("file")
+            if file is None or not file.filename:
+                flash("Seleziona un PDF da caricare.", "warning")
+            else:
+                try:
+                    suffix = Path(file.filename).suffix.lower()
+                    if suffix != ".pdf":
+                        raise ValueError("Formato non valido: carica un PDF.")
+                    attach_delivery_note_file(delivery_note_id, file)
+                    flash("PDF DDT aggiornato.", "success")
+                    return redirect(url_for("delivery_notes.detail_view", delivery_note_id=delivery_note_id))
+                except Exception as exc:
+                    flash(f"Errore caricamento PDF: {exc}", "danger")
+
+        elif action == "delete":
+            confirm_text = (request.form.get("confirm_text") or "").strip()
+            if confirm_text != (note.ddt_number or ""):
+                flash("Conferma non valida: inserisci il numero DDT esatto.", "warning")
+            else:
+                ok = delete_delivery_note(delivery_note_id)
+                if not ok:
+                    flash("DDT non trovato.", "warning")
+                else:
+                    flash("DDT eliminato.", "success")
+                    return redirect(url_for("delivery_notes.list_view"))
+
+        if action != "update_lines":
+            return redirect(url_for("delivery_notes.detail_view", delivery_note_id=delivery_note_id))
+
         # Collect lines from form arrays
         ids = request.form.getlist("line_id")
         numbers = request.form.getlist("line_number")
@@ -219,9 +285,14 @@ def detail_view(delivery_note_id: int):
         except Exception as exc:
             flash(f"Errore salvataggio righe: {exc}", "danger")
 
+    suppliers = list_active_suppliers()
+    legal_entities = list_legal_entities(include_inactive=False)
+
     return render_template(
         "delivery_notes/detail.html",
         note=note,
+        suppliers=suppliers,
+        legal_entities=legal_entities,
     )
 
 

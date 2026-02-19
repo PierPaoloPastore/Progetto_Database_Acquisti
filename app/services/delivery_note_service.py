@@ -3,8 +3,10 @@ Servizi per la gestione dei DDT (DeliveryNote).
 """
 from __future__ import annotations
 
+import os
 from datetime import date, datetime
 from decimal import Decimal
+from pathlib import Path
 from typing import List, Optional
 
 from werkzeug.utils import secure_filename
@@ -210,3 +212,109 @@ def get_delivery_note_file_path(note: DeliveryNote) -> Optional[str]:
         return None
     base = settings_service.get_delivery_note_storage_path()
     return settings_service.resolve_storage_path(base, note.file_path)
+
+
+def _remove_delivery_note_file(note: DeliveryNote) -> None:
+    if not note or not note.file_path:
+        return
+    base = settings_service.get_delivery_note_storage_path()
+    full_path = settings_service.resolve_storage_path(base, note.file_path)
+    try:
+        if os.path.exists(full_path):
+            os.remove(full_path)
+    except OSError:
+        pass
+
+    try:
+        parts = Path(note.file_path).parts
+        if parts:
+            year = parts[0]
+            if str(year).isdigit():
+                archive_dir = settings_service.get_ddt_archive_path(int(year))
+                archive_path = os.path.join(archive_dir, Path(note.file_path).name)
+                if os.path.exists(archive_path):
+                    os.remove(archive_path)
+    except OSError:
+        pass
+
+
+def attach_delivery_note_file(note_id: int, file) -> DeliveryNote:
+    """Allega o sostituisce il PDF del DDT."""
+    if file is None or not getattr(file, "filename", None):
+        raise ValueError("File PDF mancante.")
+
+    with UnitOfWork() as uow:
+        note = uow.delivery_notes.get_by_id(note_id)
+        if not note:
+            raise ValueError("DDT non trovato")
+
+        base_path = settings_service.get_delivery_note_storage_path()
+        safe_name = secure_filename(file.filename) or f"ddt_{note.ddt_number}.pdf"
+        rel_path = scan_service.store_delivery_note_file(
+            file=file,
+            base_path=base_path,
+            filename=safe_name,
+        )
+
+        _remove_delivery_note_file(note)
+        note.file_path = rel_path
+        note.file_name = safe_name
+        if note.imported_at is None:
+            note.imported_at = datetime.utcnow()
+
+        uow.commit()
+        return note
+
+
+def update_delivery_note(
+    note_id: int,
+    *,
+    supplier_id: int,
+    legal_entity_id: Optional[int],
+    ddt_number: str,
+    ddt_date: date,
+    total_amount: Optional[Decimal],
+    status: Optional[str] = None,
+) -> DeliveryNote:
+    """Aggiorna i dati anagrafici del DDT."""
+    if not ddt_number:
+        raise ValueError("Numero DDT obbligatorio")
+    if not ddt_date:
+        raise ValueError("Data DDT obbligatoria")
+
+    with UnitOfWork() as uow:
+        note = uow.delivery_notes.get_by_id(note_id)
+        if not note:
+            raise ValueError("DDT non trovato")
+
+        supplier = uow.suppliers.get_by_id(supplier_id)
+        if not supplier:
+            raise ValueError("Fornitore non valido")
+        if legal_entity_id:
+            legal_entity = uow.session.query(LegalEntity).get(legal_entity_id)
+            if legal_entity is None:
+                raise ValueError("Intestatario non valido")
+
+        note.supplier_id = supplier_id
+        note.legal_entity_id = legal_entity_id
+        note.ddt_number = ddt_number
+        note.ddt_date = ddt_date
+        note.total_amount = total_amount
+        if status:
+            note.status = status
+
+        uow.commit()
+        return note
+
+
+def delete_delivery_note(note_id: int) -> bool:
+    """Elimina un DDT e i file associati."""
+    with UnitOfWork() as uow:
+        note = uow.delivery_notes.get_by_id(note_id)
+        if not note:
+            return False
+
+        _remove_delivery_note_file(note)
+        uow.delivery_notes.delete(note)
+        uow.commit()
+        return True

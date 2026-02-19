@@ -67,6 +67,9 @@ from .delivery_note_service import (
     upsert_delivery_note_lines,
     find_delivery_note_candidates,
     link_delivery_note_to_document,
+    attach_delivery_note_file,
+    update_delivery_note,
+    delete_delivery_note,
 )
 
 __all__ = [
@@ -126,4 +129,7 @@ __all__ = [
     "upsert_delivery_note_lines",
     "find_delivery_note_candidates",
     "link_delivery_note_to_document",
+    "attach_delivery_note_file",
+    "update_delivery_note",
+    "delete_delivery_note",
 ]
