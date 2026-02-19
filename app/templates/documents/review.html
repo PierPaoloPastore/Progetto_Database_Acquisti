@@ -403,10 +403,13 @@
                     {% endif %}
                 </button>
                 <div id="review-payment-method" class="collapse review-collapse-body">
-                    {% if payment_method_labels %}
-                        <div class="small text-muted mb-2">Metodo rilevato: {{ payment_method_labels|join(', ') }}</div>
-                    {% endif %}
-                    <form method="POST" action="{{ url_for('documents.review_loop_invoice_view', document_id=invoice.id) }}" class="d-flex flex-wrap align-items-center gap-2">
+                    <div class="small text-muted mb-2" data-payment-label>
+                        Metodo rilevato: {{ payment_method_labels|join(', ') if payment_method_labels else '-' }}
+                    </div>
+                    <form method="POST"
+                          action="{{ url_for('documents.review_loop_invoice_view', document_id=invoice.id) }}"
+                          class="d-flex flex-wrap align-items-center gap-2"
+                          data-ajax="payment-method">
                         <input type="hidden" name="action" value="update_payment_method">
                         <select name="payment_method_code" class="form-select form-select-sm js-select2" style="min-width: 220px;">
                             <option value="">Seleziona metodo pagamento</option>
@@ -420,9 +423,11 @@
                             <i class="bi bi-check2-circle"></i> Aggiorna metodo
                         </button>
                     </form>
-                    {% if not instant_payment_available and instant_payment_reason %}
-                        <div class="small text-muted mt-2">{{ instant_payment_reason }}</div>
-                    {% endif %}
+                    <div class="small mt-2 d-none" data-payment-feedback></div>
+                    {% set reason_visible = (not instant_payment_available and instant_payment_reason) %}
+                    <div class="small text-muted mt-2 {% if not reason_visible %}d-none{% endif %}" data-instant-reason>
+                        {{ instant_payment_reason or '' }}
+                    </div>
                     <div class="form-check form-switch mt-3">
                         <input class="form-check-input"
                                type="checkbox"

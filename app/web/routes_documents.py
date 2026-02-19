@@ -742,6 +742,17 @@ def review_loop_invoice_view(document_id: int):
         elif action == "update_payment_method":
             method_code = request.form.get("payment_method_code") or None
             ok, message = update_payment_method_for_document(document_id, method_code)
+            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                context = _get_payment_method_context(document_id) if ok else None
+                payload = {
+                    "ok": ok,
+                    "message": message,
+                    "method_code": normalize_payment_method_code(method_code) if ok else None,
+                    "labels": context["labels"] if context else [],
+                    "instant_allowed": context["instant_allowed"] if context else False,
+                    "instant_reason": context["instant_reason"] if context else "",
+                }
+                return jsonify(payload), (200 if ok else 400)
             if ok:
                 flash(message, "success")
             else:

@@ -426,4 +426,83 @@ document.addEventListener("DOMContentLoaded", () => {
         applyFormat();
         field.addEventListener("blur", applyFormat);
     });
+
+    const paymentMethodForm = document.querySelector("form[data-ajax='payment-method']");
+    if (paymentMethodForm) {
+        const feedback = document.querySelector("[data-payment-feedback]");
+        const labelEl = document.querySelector("[data-payment-label]");
+        const reasonEl = document.querySelector("[data-instant-reason]");
+        const select = paymentMethodForm.querySelector("select[name='payment_method_code']");
+        const submitBtn = paymentMethodForm.querySelector("button[type='submit']");
+
+        const setFeedback = (message, ok) => {
+            if (!feedback) return;
+            feedback.textContent = message || "";
+            feedback.classList.remove("d-none", "text-danger", "text-success", "text-muted");
+            feedback.classList.add(ok ? "text-success" : "text-danger");
+        };
+
+        paymentMethodForm.addEventListener("submit", async (event) => {
+            if (!select) return;
+            event.preventDefault();
+            if (submitBtn) {
+                submitBtn.disabled = true;
+            }
+            if (feedback) {
+                feedback.textContent = "Aggiorno metodo...";
+                feedback.classList.remove("text-danger", "text-success", "d-none");
+                feedback.classList.add("text-muted");
+            }
+
+            const formData = new FormData(paymentMethodForm);
+
+            try {
+                const response = await fetch(paymentMethodForm.action, {
+                    method: "POST",
+                    headers: { "X-Requested-With": "XMLHttpRequest" },
+                    body: formData,
+                });
+                const data = await response.json().catch(() => null);
+                if (!response.ok || !data) {
+                    throw new Error(data?.message || "Errore durante l'aggiornamento.");
+                }
+
+                setFeedback(data.message || "Metodo aggiornato.", true);
+
+                if (labelEl) {
+                    if (Array.isArray(data.labels) && data.labels.length) {
+                        labelEl.textContent = `Metodo rilevato: ${data.labels.join(", ")}`;
+                    } else {
+                        const selectedText = select.options[select.selectedIndex]?.textContent?.trim() || "-";
+                        labelEl.textContent = `Metodo selezionato: ${selectedText}`;
+                    }
+                }
+
+                if (instantToggle) {
+                    instantToggle.disabled = !data.instant_allowed;
+                    if (!data.instant_allowed) {
+                        instantToggle.checked = false;
+                    }
+                    instantToggle.dispatchEvent(new Event("change", { bubbles: true }));
+                }
+
+                if (reasonEl) {
+                    if (data.instant_reason) {
+                        reasonEl.textContent = data.instant_reason;
+                        reasonEl.classList.remove("d-none");
+                    } else {
+                        reasonEl.textContent = "";
+                        reasonEl.classList.add("d-none");
+                    }
+                }
+            } catch (error) {
+                const message = error?.message || "Errore durante l'aggiornamento.";
+                setFeedback(message, false);
+            } finally {
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                }
+            }
+        });
+    }
 });
