@@ -427,6 +427,21 @@ document.addEventListener("DOMContentLoaded", () => {
         field.addEventListener("blur", applyFormat);
     });
 
+    const applyAllCategoriesBtn = document.getElementById("category-apply-all-btn");
+    const applyAllCategoriesSelect = document.getElementById("category-apply-all-select");
+    const categoryLineSelects = document.querySelectorAll(".js-category-line-select");
+    if (applyAllCategoriesBtn && applyAllCategoriesSelect && categoryLineSelects.length) {
+        applyAllCategoriesBtn.addEventListener("click", () => {
+            const targetValue = applyAllCategoriesSelect.value || "";
+            if (!targetValue) return;
+            categoryLineSelects.forEach((select) => {
+                select.value = targetValue;
+                select.dispatchEvent(new Event("change", { bubbles: true }));
+                refreshSelect2(select);
+            });
+        });
+    }
+
     const paymentMethodForm = document.querySelector("form[data-ajax='payment-method']");
     if (paymentMethodForm) {
         const feedback = document.querySelector("[data-payment-feedback]");

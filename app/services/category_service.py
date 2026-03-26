@@ -159,6 +159,62 @@ def bulk_assign_category_to_invoice_lines(
             "updated_count": updated_count,
         }
 
+
+def assign_categories_to_invoice_lines(
+    invoice_id: int,
+    assignments: Dict[int, Optional[int]],
+) -> Dict[str, Any]:
+    """
+    Assegna categorie diverse a piu' righe della stessa fattura in un'unica operazione.
+    """
+    with UnitOfWork() as uow:
+        lines = list_lines_by_document(invoice_id)
+        line_map = {line.id: line for line in lines}
+
+        category_ids = {
+            category_id for category_id in assignments.values() if category_id is not None
+        }
+        valid_category_ids = set()
+        for category_id in category_ids:
+            category = uow.categories.get_by_id(category_id)
+            if category is None:
+                return {
+                    "success": False,
+                    "message": f"Categoria non trovata: {category_id}",
+                    "updated_count": 0,
+                }
+            valid_category_ids.add(category.id)
+
+        updated_count = 0
+        for line_id, category_id in assignments.items():
+            line = line_map.get(line_id)
+            if line is None:
+                return {
+                    "success": False,
+                    "message": f"Riga documento non trovata: {line_id}",
+                    "updated_count": 0,
+                }
+
+            target_category_id = None if category_id is None else category_id
+            if target_category_id is not None and target_category_id not in valid_category_ids:
+                return {
+                    "success": False,
+                    "message": f"Categoria non trovata: {target_category_id}",
+                    "updated_count": 0,
+                }
+
+            if line.category_id != target_category_id:
+                line.category_id = target_category_id
+                updated_count += 1
+
+        uow.commit()
+
+        return {
+            "success": True,
+            "message": "Categorie salvate con successo",
+            "updated_count": updated_count,
+        }
+
 def predict_category_for_line(description: str) -> Optional[int]:
     """
     PLACEHOLDER per futura implementazione AI/ML.

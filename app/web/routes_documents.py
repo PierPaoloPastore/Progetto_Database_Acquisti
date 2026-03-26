@@ -21,6 +21,7 @@ from app.services import (
     list_categories_for_ui,
     assign_category_to_line,
     bulk_assign_category_to_invoice_lines,
+    assign_categories_to_invoice_lines,
     settings_service,
 )
 from app.services.document_service import DocumentService, render_invoice_html, update_document_core
@@ -643,6 +644,51 @@ def assign_category_bulk_view(document_id: int):
 
     return redirect(url_for("documents.review_loop_invoice_view", document_id=document_id))
 
+
+@documents_bp.post("/<int:document_id>/categories/save")
+def assign_category_batch_view(document_id: int):
+    assignments: dict[int, Optional[int]] = {}
+
+    for key, raw_value in request.form.items():
+        if not key.startswith("line_category_"):
+            continue
+
+        line_id_raw = key.removeprefix("line_category_")
+        try:
+            line_id = int(line_id_raw)
+        except ValueError:
+            flash("Riga non valida.", "warning")
+            return redirect(url_for("documents.review_loop_invoice_view", document_id=document_id))
+
+        category_id = None
+        if (raw_value or "").strip():
+            try:
+                category_id = int(raw_value)
+            except ValueError:
+                flash("Categoria non valida.", "warning")
+                return redirect(url_for("documents.review_loop_invoice_view", document_id=document_id))
+
+        assignments[line_id] = category_id
+
+    if not assignments:
+        flash("Nessuna categoria da salvare.", "warning")
+        return redirect(url_for("documents.review_loop_invoice_view", document_id=document_id))
+
+    result = assign_categories_to_invoice_lines(
+        invoice_id=document_id,
+        assignments=assignments,
+    )
+    if result.get("success"):
+        updated_count = result.get("updated_count", 0)
+        if updated_count:
+            flash(f"Categorie aggiornate su {updated_count} righe.", "success")
+        else:
+            flash("Nessuna modifica da salvare.", "info")
+    else:
+        flash(result.get("message", "Errore durante il salvataggio delle categorie."), "danger")
+
+    return redirect(url_for("documents.review_loop_invoice_view", document_id=document_id))
+
 @documents_bp.route("/review", methods=["GET"])
 def review_loop_redirect_view():
     raw_skip_id = request.args.get("skip_id")
@@ -691,6 +737,9 @@ def review_loop_invoice_view(document_id: int):
                 if chosen_status == "pending_physical_copy":
                     return redirect(url_for("documents.review_loop_redirect_view", skip_id=document_id))
                 return redirect(url_for("documents.review_loop_redirect_view"))
+        elif action == "skip":
+            flash("Documento saltato. Nessuna modifica salvata.", "info")
+            return redirect(url_for("documents.review_loop_redirect_view", skip_id=document_id))
         elif action == "save":
             success, message = DocumentService.review_and_confirm(document_id, request.form.to_dict())
             if not success:

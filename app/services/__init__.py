@@ -45,6 +45,7 @@ from .category_service import (
     create_or_update_category,
     assign_category_to_line,
     bulk_assign_category_to_invoice_lines,
+    assign_categories_to_invoice_lines,
     set_category_active,
 )
 # AGGIORNATO: Importiamo solo le funzioni esistenti nel nuovo payment_service
@@ -108,6 +109,7 @@ __all__ = [
     "create_or_update_category",
     "assign_category_to_line",
     "bulk_assign_category_to_invoice_lines",
+    "assign_categories_to_invoice_lines",
     "set_category_active",
     # Payments
     "list_overdue_payments_for_ui",
