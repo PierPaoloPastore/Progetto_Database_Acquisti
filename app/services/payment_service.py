@@ -53,7 +53,6 @@ def add_payment(
             expected_amount=amount,
             due_date=payment_date,
             notes=description,
-            supplier_id=document.supplier_id # Denormalizzazione utile
         )
         uow.payments.add(payment)
         
@@ -511,7 +510,6 @@ def create_batch_payment_from_documents(
                         due_date=document.due_date or today,
                         expected_amount=Decimal(str(amount)),
                         status='unpaid',
-                        supplier_id=document.supplier_id
                     )
                     uow.payments.add(payment)
                     uow.session.flush()
