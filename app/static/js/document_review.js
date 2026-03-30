@@ -10,20 +10,50 @@ document.addEventListener("DOMContentLoaded", () => {
     const frame = document.getElementById("xsl-preview-frame");
     const selector = document.getElementById("xsl-style-selector");
     const openPreviewBtn = document.getElementById("preview-open");
+    const highlightToggleBtn = document.getElementById("preview-highlight-toggle");
+    let highlightEnabled = false;
+    const buildPreviewUrl = () => {
+        if (!frame) return null;
+        const url = new URL(frame.src, window.location.origin);
+        const style = selector ? (selector.value || "ordinaria") : (url.searchParams.get("style") || "ordinaria");
+        url.searchParams.set("style", style);
+        if (highlightEnabled) {
+            url.searchParams.set("highlight", "1");
+        } else {
+            url.searchParams.delete("highlight");
+        }
+        return url;
+    };
+    const updateHighlightToggle = () => {
+        if (!highlightToggleBtn) return;
+        highlightToggleBtn.textContent = highlightEnabled ? "Highlight on" : "Highlight off";
+        highlightToggleBtn.classList.toggle("btn-outline-warning", highlightEnabled);
+        highlightToggleBtn.classList.toggle("btn-outline-secondary", !highlightEnabled);
+        highlightToggleBtn.setAttribute("aria-pressed", highlightEnabled ? "true" : "false");
+    };
+    const refreshPreview = () => {
+        const url = buildPreviewUrl();
+        if (!url) return;
+        frame.src = url.toString();
+        if (openPreviewBtn) {
+            openPreviewBtn.href = url.toString();
+        }
+        updateHighlightToggle();
+    };
     if (selector && frame) {
         selector.addEventListener("change", () => {
-            const style = selector.value || "ordinaria";
-            const url = new URL(frame.src, window.location.origin);
-            url.searchParams.set("style", style);
-            url.searchParams.set("highlight", "1");
-            frame.src = url.toString();
-            if (openPreviewBtn) {
-                openPreviewBtn.href = url.toString();
-            }
+            refreshPreview();
         });
         if (openPreviewBtn) {
             openPreviewBtn.href = frame.src;
         }
+    }
+    if (highlightToggleBtn && frame) {
+        highlightToggleBtn.addEventListener("click", () => {
+            highlightEnabled = !highlightEnabled;
+            refreshPreview();
+        });
+        updateHighlightToggle();
     }
 
     const entitySelect = document.getElementById("legal-entity-id");
@@ -42,11 +72,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const ibanEmpty = document.getElementById("instant-iban-empty");
     const instantHidden = document.getElementById("instant-payment-hidden");
     const ibanHidden = document.getElementById("instant-payment-iban-hidden");
-    const baseIbanDisabled = ibanSelect ? ibanSelect.disabled : false;
+    const ibanAccountsUrl = ibanSelect ? (ibanSelect.dataset.accountsUrl || "") : "";
+    const ibanCache = new Map();
+    let instantAvailable = instantToggle ? !instantToggle.disabled : false;
 
     const updateIbanEnabled = () => {
         if (!ibanSelect) return;
-        const shouldDisable = baseIbanDisabled || (instantToggle && !instantToggle.checked);
+        const shouldDisable = !instantAvailable || (instantToggle && !instantToggle.checked);
         ibanSelect.disabled = shouldDisable;
         refreshSelect2(ibanSelect);
     };
@@ -60,40 +92,91 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     };
 
-    const updateIbanOptions = () => {
-        if (!ibanSelect || !entitySelect) return;
-        const entityId = entitySelect.value || "";
-        const options = Array.from(ibanSelect.querySelectorAll("option")).filter(
-            (option) => option.value
-        );
-        let visibleCount = 0;
-        options.forEach((option) => {
-            const optionEntityId = option.getAttribute("data-legal-entity-id") || "";
-            const shouldShow = !entityId || optionEntityId === entityId;
-            option.hidden = !shouldShow;
-            option.disabled = !shouldShow;
-            if (shouldShow) {
-                visibleCount += 1;
-            }
+    const clearIbanOptions = () => {
+        if (!ibanSelect) return;
+        Array.from(ibanSelect.querySelectorAll("option[data-dynamic-account='1']")).forEach((option) => option.remove());
+        ibanSelect.value = "";
+    };
+
+    const setIbanEmptyState = (message, visible) => {
+        if (!ibanEmpty) return;
+        ibanEmpty.textContent = message;
+        ibanEmpty.hidden = !visible;
+        ibanEmpty.disabled = !visible;
+    };
+
+    const populateIbanOptions = (accounts) => {
+        if (!ibanSelect) return;
+        const currentValue = ibanSelect.value || "";
+        clearIbanOptions();
+        accounts.forEach((account) => {
+            const option = document.createElement("option");
+            option.value = account.iban;
+            option.textContent = `${account.name} - ${account.iban}`;
+            option.setAttribute("data-legal-entity-id", String(account.legal_entity_id || ""));
+            option.setAttribute("data-dynamic-account", "1");
+            ibanSelect.appendChild(option);
         });
+        if (accounts.some((account) => account.iban === currentValue)) {
+            ibanSelect.value = currentValue;
+        }
+        const entityId = entitySelect ? (entitySelect.value || "") : "";
+        if (!entityId) {
+            setIbanEmptyState("Seleziona prima un intestatario.", true);
+        } else if (!accounts.length) {
+            setIbanEmptyState("Nessun conto disponibile", true);
+        } else {
+            setIbanEmptyState("Nessun conto disponibile", false);
+        }
+        if (window.initSelect2Controls) {
+            window.initSelect2Controls(ibanSelect.parentElement || ibanSelect);
+        } else {
+            refreshSelect2(ibanSelect);
+        }
+        syncHidden();
+    };
 
-        if (ibanEmpty) {
-            const showEmpty = Boolean(entityId) && visibleCount === 0;
-            ibanEmpty.hidden = !showEmpty;
-            ibanEmpty.disabled = !showEmpty;
+    const ensureIbanOptions = async ({ forceReload = false } = {}) => {
+        if (!ibanSelect || !entitySelect || !ibanAccountsUrl) return;
+        const entityId = entitySelect.value || "";
+        if (!entityId) {
+            populateIbanOptions([]);
+            return;
+        }
+        if (!forceReload && ibanCache.has(entityId)) {
+            populateIbanOptions(ibanCache.get(entityId) || []);
+            return;
         }
 
-        if (ibanSelect.value) {
-            const selected = options.find((option) => option.value === ibanSelect.value);
-            if (selected && selected.hidden) {
-                ibanSelect.value = "";
-            }
-        }
+        setIbanEmptyState("Carico conti...", true);
         refreshSelect2(ibanSelect);
+
+        try {
+            const url = new URL(ibanAccountsUrl, window.location.origin);
+            url.searchParams.set("legal_entity_id", entityId);
+            const response = await fetch(url.toString(), {
+                method: "GET",
+                headers: { "Accept": "application/json" },
+                credentials: "same-origin",
+            });
+            const data = await response.json().catch(() => null);
+            if (!response.ok || !data?.ok) {
+                throw new Error(data?.message || "Errore nel caricamento dei conti.");
+            }
+            ibanCache.set(entityId, Array.isArray(data.accounts) ? data.accounts : []);
+            populateIbanOptions(ibanCache.get(entityId) || []);
+        } catch (error) {
+            console.error(error);
+            populateIbanOptions([]);
+            setIbanEmptyState("Errore caricamento conti", true);
+        }
     };
 
     if (instantToggle) {
-        instantToggle.addEventListener("change", () => {
+        instantToggle.addEventListener("change", async () => {
+            if (instantToggle.checked && instantAvailable) {
+                await ensureIbanOptions();
+            }
             updateIbanEnabled();
             syncHidden();
         });
@@ -102,10 +185,18 @@ document.addEventListener("DOMContentLoaded", () => {
         ibanSelect.addEventListener("change", syncHidden);
     }
     if (entitySelect && ibanSelect) {
-        entitySelect.addEventListener("change", updateIbanOptions);
-        updateIbanOptions();
+        entitySelect.addEventListener("change", async () => {
+            clearIbanOptions();
+            if (instantAvailable && instantToggle && instantToggle.checked) {
+                await ensureIbanOptions();
+            } else {
+                populateIbanOptions([]);
+            }
+            updateIbanEnabled();
+        });
     }
     updateIbanEnabled();
+    populateIbanOptions([]);
     syncHidden();
 
     const split = document.querySelector(".review-split");
@@ -512,9 +603,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
 
                 if (instantToggle) {
+                    instantAvailable = Boolean(data.instant_allowed);
                     instantToggle.disabled = !data.instant_allowed;
                     if (!data.instant_allowed) {
                         instantToggle.checked = false;
+                        clearIbanOptions();
+                        populateIbanOptions([]);
                     }
                     instantToggle.dispatchEvent(new Event("change", { bubbles: true }));
                 }

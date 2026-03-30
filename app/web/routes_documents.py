@@ -17,7 +17,7 @@ from app.models import Document
 from app.services import (
     document_service as doc_service,
     ocr_service,
-    list_all_bank_accounts,
+    list_bank_accounts_by_legal_entity,
     list_categories_for_ui,
     assign_category_to_line,
     bulk_assign_category_to_invoice_lines,
@@ -831,7 +831,6 @@ def review_loop_invoice_view(document_id: int):
     saved_at = request.args.get("saved_at") or None
     method_context = _get_payment_method_context(document_id)
     payment_method_choices = list_payment_method_choices()
-    bank_accounts = list_all_bank_accounts()
     return render_template(
         'documents/review.html',
         invoice=document,
@@ -850,7 +849,6 @@ def review_loop_invoice_view(document_id: int):
         payment_method_codes=method_context["codes"],
         instant_payment_available=method_context["instant_allowed"],
         instant_payment_reason=method_context["instant_reason"],
-        bank_accounts=bank_accounts,
     )
 
 
@@ -868,6 +866,33 @@ def update_payment_method_ajax(document_id: int):
         "instant_reason": context["instant_reason"] if context else "",
     }
     return jsonify(payload), (200 if ok else 400)
+
+
+@documents_bp.get("/review/bank-accounts", endpoint="review_bank_accounts_ajax")
+def review_bank_accounts_ajax():
+    raw_legal_entity_id = (request.args.get("legal_entity_id") or "").strip()
+    if not raw_legal_entity_id:
+        return jsonify({"ok": True, "accounts": []})
+
+    try:
+        legal_entity_id = int(raw_legal_entity_id)
+    except ValueError:
+        return jsonify({"ok": False, "message": "Intestatario non valido.", "accounts": []}), 400
+
+    accounts = list_bank_accounts_by_legal_entity(legal_entity_id)
+    return jsonify(
+        {
+            "ok": True,
+            "accounts": [
+                {
+                    "iban": account.iban,
+                    "name": account.name,
+                    "legal_entity_id": account.legal_entity_id,
+                }
+                for account in accounts
+            ],
+        }
+    )
 
 @documents_bp.route("/review/<int:document_id>/delete", methods=["POST"])
 def delete_document(document_id: int):
