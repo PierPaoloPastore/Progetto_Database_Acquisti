@@ -106,6 +106,14 @@
                                     </span>
                                 </div>
                             </div>
+                            <div class="payment-selection-summary" id="payment-selection-summary" aria-live="polite">
+                                <div class="payment-selection-summary-label">Selezione corrente</div>
+                                <div class="payment-selection-summary-count">
+                                    <strong id="payment-selected-count">0</strong> documenti
+                                </div>
+                                <div class="payment-selection-summary-total" id="payment-selected-total">0,00 &euro;</div>
+                                <div class="payment-selection-summary-meta" id="payment-selected-suppliers">Nessun fornitore selezionato</div>
+                            </div>
                             <button type="submit" class="btn btn-success">
                                 <i class="bi bi-check2-circle"></i> Registra Pagamento Multiplo
                             </button>
@@ -136,6 +144,9 @@
                                         data-search="{{ supplier_name }} {{ legal_entity_name }} {{ doc_number }} {{ doc.id }}"
                                         data-date="{{ doc.due_date.isoformat() if doc.due_date else '' }}"
                                         data-due="{{ due_val_raw }}"
+                                        data-document-id="{{ doc.id }}"
+                                        data-document-label="{{ doc_number or ('Documento #' ~ doc.id) }}"
+                                        data-supplier-name="{{ supplier_name }}"
                                         data-legal-entity-id="{{ doc.legal_entity_id or '' }}"
                                         data-legal-entity-name="{{ legal_entity_name }}"
                                     >
@@ -273,6 +284,50 @@
             </div>
         </div>
     </section>
+
+    <div class="modal fade" id="payment-confirm-modal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Conferma pagamento multiplo</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="payment-confirm-overview">
+                        <div class="payment-confirm-stat">
+                            <span class="payment-confirm-stat-label">Documenti</span>
+                            <strong id="payment-confirm-count">0</strong>
+                        </div>
+                        <div class="payment-confirm-stat">
+                            <span class="payment-confirm-stat-label">Fornitori</span>
+                            <strong id="payment-confirm-supplier-count">0</strong>
+                        </div>
+                        <div class="payment-confirm-stat">
+                            <span class="payment-confirm-stat-label">Totale pagamento</span>
+                            <strong id="payment-confirm-total">0,00 &euro;</strong>
+                        </div>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-lg-7">
+                            <h6 class="mb-2">Cosa sto pagando</h6>
+                            <div class="payment-confirm-list" id="payment-confirm-lines"></div>
+                        </div>
+                        <div class="col-lg-5">
+                            <h6 class="mb-2">A chi lo sto pagando</h6>
+                            <div class="payment-confirm-list" id="payment-confirm-groups"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annulla</button>
+                    <button type="button" class="btn btn-success" id="payment-confirm-submit">
+                        <i class="bi bi-check2-circle"></i> Conferma e registra
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
 </div>
 {% endblock %}

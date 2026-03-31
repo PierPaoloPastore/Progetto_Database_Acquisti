@@ -2,6 +2,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setupTabSwitching();
     setupInvoiceFilter();
     setupPaymentAmountAutofill();
+    setupPaymentSelectionUX();
     setupPaymentHistoryFilter();
     setupPdfPreview();
     setupPaymentsSplitter();
@@ -103,6 +104,8 @@ function applyPresetPayment() {
 
         if (amountInput && withAmount) {
             amountInput.value = withAmount;
+            amountInput.dispatchEvent(new Event("input", { bubbles: true }));
+            amountInput.dispatchEvent(new Event("change", { bubbles: true }));
         }
     };
 
@@ -254,6 +257,217 @@ function setupPaymentAmountAutofill() {
             amountInput.value = due;
         });
     });
+}
+
+function setupPaymentSelectionUX() {
+    const form = document.querySelector('#tab-new form[action]');
+    const invoiceBody = document.querySelector(".invoice-body");
+    const rows = Array.from(document.querySelectorAll(".invoice-row"));
+    const summaryCount = document.getElementById("payment-selected-count");
+    const summaryTotal = document.getElementById("payment-selected-total");
+    const summarySuppliers = document.getElementById("payment-selected-suppliers");
+    const modalEl = document.getElementById("payment-confirm-modal");
+    const confirmSubmitButton = document.getElementById("payment-confirm-submit");
+    const confirmCount = document.getElementById("payment-confirm-count");
+    const confirmSupplierCount = document.getElementById("payment-confirm-supplier-count");
+    const confirmTotal = document.getElementById("payment-confirm-total");
+    const confirmLines = document.getElementById("payment-confirm-lines");
+    const confirmGroups = document.getElementById("payment-confirm-groups");
+
+    if (!form || !invoiceBody || !rows.length) return;
+
+    let selectionSequence = 0;
+    let bypassConfirmation = false;
+    const confirmModal = modalEl && window.bootstrap?.Modal ? new window.bootstrap.Modal(modalEl) : null;
+
+    const escapeHtml = (value) => String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+
+    const formatCurrency = (value) => {
+        const amount = Number(value || 0);
+        if (Number.isNaN(amount)) return "0,00 €";
+        return amount.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+    };
+
+    const getCheckbox = (row) => row.querySelector('input[name="payment_id"]');
+
+    const getAmountInput = (row, checkbox) => {
+        const targetCheckbox = checkbox || getCheckbox(row);
+        if (!targetCheckbox) return null;
+        return row.querySelector(`input[name="amount_${targetCheckbox.value}"]`);
+    };
+
+    const getRowAmount = (row, checkbox) => {
+        const amountInput = getAmountInput(row, checkbox);
+        const rawValue = (amountInput?.value || "0").replace(",", ".");
+        const amount = Number(rawValue);
+        return Number.isNaN(amount) ? 0 : amount;
+    };
+
+    const getSelectedRows = () => rows.filter((row) => getCheckbox(row)?.checked);
+
+    const updateSelectionSummary = () => {
+        const selectedRows = getSelectedRows();
+        const total = selectedRows.reduce((sum, row) => sum + getRowAmount(row), 0);
+        const supplierNames = Array.from(new Set(
+            selectedRows
+                .map((row) => (row.getAttribute("data-supplier-name") || "").trim())
+                .filter(Boolean)
+        ));
+
+        if (summaryCount) summaryCount.textContent = selectedRows.length.toString();
+        if (summaryTotal) summaryTotal.innerHTML = `${formatCurrency(total)}`;
+        if (summarySuppliers) {
+            if (!supplierNames.length) {
+                summarySuppliers.textContent = "Nessun fornitore selezionato";
+            } else if (supplierNames.length === 1) {
+                summarySuppliers.textContent = supplierNames[0];
+            } else {
+                summarySuppliers.textContent = `${supplierNames.length} fornitori selezionati`;
+            }
+        }
+    };
+
+    const reorderRows = () => {
+        const orderedRows = [...rows].sort((leftRow, rightRow) => {
+            const leftChecked = Boolean(getCheckbox(leftRow)?.checked);
+            const rightChecked = Boolean(getCheckbox(rightRow)?.checked);
+            if (leftChecked !== rightChecked) {
+                return leftChecked ? -1 : 1;
+            }
+            if (leftChecked && rightChecked) {
+                return Number(rightRow.dataset.selectedOrder || "0") - Number(leftRow.dataset.selectedOrder || "0");
+            }
+            return Number(leftRow.dataset.originalOrder || "0") - Number(rightRow.dataset.originalOrder || "0");
+        });
+
+        orderedRows.forEach((row) => invoiceBody.appendChild(row));
+    };
+
+    const buildSelectionItems = () => getSelectedRows().map((row) => {
+        const checkbox = getCheckbox(row);
+        const amount = getRowAmount(row, checkbox);
+        return {
+            documentId: row.getAttribute("data-document-id") || checkbox?.value || "",
+            documentLabel: row.getAttribute("data-document-label") || `Documento #${checkbox?.value || ""}`,
+            supplierName: row.getAttribute("data-supplier-name") || "Fornitore non disponibile",
+            legalEntityName: row.getAttribute("data-legal-entity-name") || "",
+            amount,
+        };
+    });
+
+    const renderConfirmation = () => {
+        const items = buildSelectionItems();
+        const groupedBySupplier = new Map();
+
+        items.forEach((item) => {
+            const key = item.supplierName || "Fornitore non disponibile";
+            if (!groupedBySupplier.has(key)) {
+                groupedBySupplier.set(key, {
+                    supplierName: key,
+                    total: 0,
+                    count: 0,
+                });
+            }
+            const group = groupedBySupplier.get(key);
+            group.total += item.amount;
+            group.count += 1;
+        });
+
+        const total = items.reduce((sum, item) => sum + item.amount, 0);
+
+        if (confirmCount) confirmCount.textContent = items.length.toString();
+        if (confirmSupplierCount) confirmSupplierCount.textContent = groupedBySupplier.size.toString();
+        if (confirmTotal) confirmTotal.innerHTML = `${formatCurrency(total)}`;
+
+        if (confirmLines) {
+            confirmLines.innerHTML = items.map((item) => `
+                <div class="payment-confirm-item">
+                    <div class="payment-confirm-item-header">
+                        <div>
+                            <div class="payment-confirm-item-title">${escapeHtml(item.documentLabel)}</div>
+                            <div class="payment-confirm-item-meta">${escapeHtml(item.supplierName)}</div>
+                            <div class="payment-confirm-item-meta">${escapeHtml(item.legalEntityName || "Intestatario non indicato")}</div>
+                        </div>
+                        <div class="payment-confirm-item-amount">${escapeHtml(formatCurrency(item.amount))}</div>
+                    </div>
+                </div>
+            `).join("");
+        }
+
+        if (confirmGroups) {
+            confirmGroups.innerHTML = Array.from(groupedBySupplier.values()).map((group) => `
+                <div class="payment-confirm-item">
+                    <div class="payment-confirm-item-header">
+                        <div>
+                            <div class="payment-confirm-item-title">${escapeHtml(group.supplierName)}</div>
+                            <div class="payment-confirm-item-meta">${escapeHtml(`${group.count} documenti`)}</div>
+                        </div>
+                        <div class="payment-confirm-item-amount">${escapeHtml(formatCurrency(group.total))}</div>
+                    </div>
+                </div>
+            `).join("");
+        }
+    };
+
+    rows.forEach((row, index) => {
+        row.dataset.originalOrder = String(index);
+        const checkbox = getCheckbox(row);
+        const amountInput = getAmountInput(row, checkbox);
+        if (checkbox?.checked) {
+            selectionSequence += 1;
+            row.dataset.selectedOrder = String(selectionSequence);
+            row.classList.add("invoice-row-selected");
+        }
+
+        checkbox?.addEventListener("change", () => {
+            if (checkbox.checked) {
+                selectionSequence += 1;
+                row.dataset.selectedOrder = String(selectionSequence);
+            } else {
+                row.dataset.selectedOrder = "0";
+            }
+            row.classList.toggle("invoice-row-selected", checkbox.checked);
+            reorderRows();
+            updateSelectionSummary();
+        });
+
+        amountInput?.addEventListener("input", updateSelectionSummary);
+        amountInput?.addEventListener("change", updateSelectionSummary);
+    });
+
+    form.addEventListener("submit", (event) => {
+        if (bypassConfirmation) {
+            bypassConfirmation = false;
+            return;
+        }
+
+        if (!confirmModal) {
+            return;
+        }
+
+        const selectedRows = getSelectedRows();
+        if (!selectedRows.length) {
+            return;
+        }
+
+        event.preventDefault();
+        renderConfirmation();
+        confirmModal.show();
+    });
+
+    confirmSubmitButton?.addEventListener("click", () => {
+        bypassConfirmation = true;
+        confirmModal?.hide();
+        form.requestSubmit();
+    });
+
+    reorderRows();
+    updateSelectionSummary();
 }
 
 function setupPaymentHistoryFilter() {
@@ -508,6 +722,8 @@ function applyPaymentMapping(fields, methodSelect, notesInput) {
             const amountInput = document.querySelector(`input[name="amount_${targetDocId}"]`);
             if (amountInput && amountValue) {
                 amountInput.value = amountValue;
+                amountInput.dispatchEvent(new Event("input", { bubbles: true }));
+                amountInput.dispatchEvent(new Event("change", { bubbles: true }));
                 if (badge) badge(amountInput, fields.amount.confidence || 0, "OCR");
             }
         }
