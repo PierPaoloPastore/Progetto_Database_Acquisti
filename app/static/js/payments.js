@@ -439,6 +439,17 @@ function setupPaymentSelectionUX() {
         amountInput?.addEventListener("change", updateSelectionSummary);
     });
 
+    invoiceBody.addEventListener("click", (event) => {
+        const target = event.target;
+        const row = target.closest(".invoice-row");
+        if (!row) return;
+        if (target.closest("a, button, input, label, select, textarea")) return;
+        const checkbox = getCheckbox(row);
+        if (!checkbox || checkbox.disabled) return;
+        checkbox.checked = !checkbox.checked;
+        checkbox.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
     form.addEventListener("submit", (event) => {
         if (bypassConfirmation) {
             bypassConfirmation = false;
