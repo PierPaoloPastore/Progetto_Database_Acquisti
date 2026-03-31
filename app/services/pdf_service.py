@@ -44,12 +44,35 @@ html, body {{
     max-width: 100% !important;
     overflow: visible !important;
 }}
+#fattura-container,
+#fattura-elettronica {{
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+}}
+#fattura-elettronica div.page {{
+    width: auto !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 0 8mm 0 !important;
+    padding: 8mm !important;
+    box-sizing: border-box !important;
+}}
+#fattura-elettronica .tbHeader,
+#fattura-elettronica .tableHead,
+#fattura-elettronica table {{
+    width: 100% !important;
+    max-width: 100% !important;
+}}
 img, svg, canvas {{
     max-width: 100% !important;
     height: auto !important;
 }}
 table {{
     max-width: 100% !important;
+    table-layout: auto !important;
 }}
 </style>
 """
