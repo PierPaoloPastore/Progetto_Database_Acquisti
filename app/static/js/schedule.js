@@ -366,10 +366,10 @@ document.addEventListener("DOMContentLoaded", () => {
         const row = target.closest("[data-schedule-row]");
         if (!row) return;
         if (target.closest("a, button, input, label, select, textarea")) return;
-        const href = row.getAttribute("data-row-href");
-        if (href) {
-            window.location.href = href;
-        }
+        const checkbox = row.querySelector(".schedule-select");
+        if (!checkbox || checkbox.disabled) return;
+        checkbox.checked = !checkbox.checked;
+        checkbox.dispatchEvent(new Event("change", { bubbles: true }));
     };
 
     document.addEventListener("click", handleRowClick);
