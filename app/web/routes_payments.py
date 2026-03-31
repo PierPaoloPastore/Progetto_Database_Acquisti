@@ -11,7 +11,7 @@ from sqlalchemy.orm import joinedload
 
 from app.models import Document
 from app.services import payment_service, ocr_service, settings_service, list_all_bank_accounts
-from app.services.document_service import mark_documents_as_programmed
+from app.services.document_service import mark_documents_as_programmed, unmark_documents_as_programmed
 from app.services.pdf_service import render_pdf_from_html
 from app.services.settings_service import get_setting
 from app.services.ocr_mapping_service import parse_payment_fields
@@ -251,9 +251,12 @@ def schedule_view():
 
 @payments_bp.route("/schedule/print", methods=["POST"], endpoint="schedule_print")
 def schedule_print():
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     raw_ids = (request.form.get("document_ids") or "").strip()
     ids = [int(value) for value in raw_ids.split(",") if value.strip().isdigit()]
     if not ids:
+        if is_ajax:
+            return jsonify({"ok": False, "message": "Seleziona almeno un documento."}), 400
         flash("Seleziona almeno un documento.", "warning")
         return redirect(request.referrer or url_for("payments.schedule_view"))
 
@@ -280,6 +283,8 @@ def schedule_print():
         )
 
     if not documents:
+        if is_ajax:
+            return jsonify({"ok": False, "message": "Nessun documento valido da stampare."}), 400
         flash("Nessun documento valido da stampare.", "warning")
         return redirect(request.referrer or url_for("payments.schedule_view"))
 
@@ -313,6 +318,8 @@ def schedule_print():
         orientation="Landscape",
     )
     if not pdf_bytes:
+        if is_ajax:
+            return jsonify({"ok": False, "message": "Stampa PDF non disponibile: installa wkhtmltopdf o WeasyPrint."}), 501
         flash("Stampa PDF non disponibile: installa wkhtmltopdf o WeasyPrint.", "warning")
         return redirect(request.referrer or url_for("payments.schedule_view"))
 
@@ -323,8 +330,25 @@ def schedule_print():
     return send_file(
         io.BytesIO(pdf_bytes),
         mimetype="application/pdf",
-        as_attachment=False,
+        as_attachment=True,
         download_name=download_name,
+    )
+
+
+@payments_bp.route("/schedule/unprogram", methods=["POST"], endpoint="schedule_unprogram")
+def schedule_unprogram():
+    raw_ids = (request.form.get("document_ids") or "").strip()
+    ids = [int(value) for value in raw_ids.split(",") if value.strip().isdigit()]
+    if not ids:
+        return jsonify({"ok": False, "message": "Seleziona almeno un documento."}), 400
+
+    updated = unmark_documents_as_programmed(ids)
+    return jsonify(
+        {
+            "ok": True,
+            "message": f"Flag 'Programmata' rimosso da {updated} documenti.",
+            "updated_count": updated,
+        }
     )
 
 @payments_bp.route("/add/<int:document_id>", methods=["POST"])

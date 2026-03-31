@@ -230,6 +230,7 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
         legal_entity_id: Optional[int] = None,
         doc_status: str = "pending_physical_copy",
         exclude_id: Optional[int] = None,
+        exclude_ids: Optional[List[int]] = None,
     ) -> Optional[Document]:
         """Recupera il prossimo documento da revisionare."""
         query = self.session.query(Document).filter(Document.doc_status == doc_status)
@@ -237,11 +238,17 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
             query = query.filter(Document.document_type == document_type)
         if legal_entity_id is not None:
             query = query.filter(Document.legal_entity_id == legal_entity_id)
+        excluded_ids: List[int] = []
+        if exclude_ids:
+            excluded_ids.extend(int(doc_id) for doc_id in exclude_ids)
         if exclude_id is not None:
-            query = query.filter(Document.id != exclude_id)
-            
+            excluded_ids.append(int(exclude_id))
+        if excluded_ids:
+            query = query.filter(~Document.id.in_(set(excluded_ids)))
+
         sort_order = Document.document_date.asc() if order == "asc" else Document.document_date.desc()
-        return query.order_by(sort_order).first()
+        tie_breaker = Document.id.asc() if order == "asc" else Document.id.desc()
+        return query.order_by(sort_order, tie_breaker).first()
 
     def list_accounting_years(self) -> List[int]:
         """Restituisce tutti gli anni fiscali presenti."""

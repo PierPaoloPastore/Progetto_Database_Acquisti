@@ -10,7 +10,7 @@ from pathlib import Path
 from datetime import datetime, date, timedelta
 from typing import Optional
 from flask import (
-    Blueprint, render_template, render_template_string, request, redirect, url_for, flash, abort, send_file, current_app, jsonify
+    Blueprint, render_template, render_template_string, request, redirect, url_for, flash, abort, send_file, current_app, jsonify, session
 )
 
 from app.models import Document
@@ -57,6 +57,7 @@ documents_bp = Blueprint("documents", __name__)
 
 ALLOWED_PHYSICAL_COPY_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "tif", "tiff"}
 _HIGHLIGHT_TRUE_VALUES = {"1", "true", "yes", "on"}
+_REVIEW_SKIPPED_SESSION_KEY = "review_skipped_document_ids"
 _LIST_QUERY_KEYS = {
     "q",
     "line_q",
@@ -85,6 +86,41 @@ _LIST_QUERY_KEYS = {
 
 def _extract_list_query_args(args) -> dict:
     return {key: value for key, value in args.items() if key in _LIST_QUERY_KEYS and value not in (None, "")}
+
+
+def _get_review_skipped_ids() -> list[int]:
+    raw_ids = session.get(_REVIEW_SKIPPED_SESSION_KEY, [])
+    if not isinstance(raw_ids, list):
+        return []
+    skipped_ids: list[int] = []
+    for raw_id in raw_ids:
+        try:
+            skipped_ids.append(int(raw_id))
+        except (TypeError, ValueError):
+            continue
+    return skipped_ids
+
+
+def _set_review_skipped_ids(document_ids: list[int]) -> None:
+    normalized_ids = sorted({int(document_id) for document_id in document_ids})
+    if normalized_ids:
+        session[_REVIEW_SKIPPED_SESSION_KEY] = normalized_ids
+    else:
+        session.pop(_REVIEW_SKIPPED_SESSION_KEY, None)
+
+
+def _add_review_skipped_id(document_id: int) -> None:
+    skipped_ids = _get_review_skipped_ids()
+    skipped_ids.append(document_id)
+    _set_review_skipped_ids(skipped_ids)
+
+
+def _remove_review_skipped_id(document_id: int) -> None:
+    _set_review_skipped_ids([doc_id for doc_id in _get_review_skipped_ids() if doc_id != document_id])
+
+
+def _clear_review_skipped_ids() -> None:
+    session.pop(_REVIEW_SKIPPED_SESSION_KEY, None)
 
 
 def _build_document_filter_context(
@@ -698,10 +734,20 @@ def review_loop_redirect_view():
             skip_id = int(raw_skip_id)
         except ValueError:
             skip_id = None
+    if skip_id is not None:
+        _add_review_skipped_id(skip_id)
+    skipped_ids = _get_review_skipped_ids()
     next_doc = doc_service.get_next_document_to_review(
         document_type=None,
-        exclude_id=skip_id,
+        exclude_ids=skipped_ids or None,
     )
+    if not next_doc and skipped_ids:
+        _clear_review_skipped_ids()
+        fallback_exclude_ids = [skip_id] if skip_id is not None else None
+        next_doc = doc_service.get_next_document_to_review(
+            document_type=None,
+            exclude_ids=fallback_exclude_ids,
+        )
     if next_doc:
         return redirect(url_for("documents.review_loop_invoice_view", document_id=next_doc.id))
     flash("Tutti i documenti importati sono stati gestiti.", "success")
@@ -721,6 +767,7 @@ def review_loop_invoice_view(document_id: int):
                 if message == "Documento non trovato": abort(404)
                 flash(message, "danger")
             else:
+                _remove_review_skipped_id(document_id)
                 if _as_bool(request.form.get("instant_payment")):
                     context = _get_payment_method_context(document_id)
                     if not context["instant_allowed"]:

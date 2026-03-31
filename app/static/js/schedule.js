@@ -427,7 +427,83 @@ document.addEventListener("DOMContentLoaded", () => {
                 return;
             }
             input.value = ids.join(",");
-            form.submit();
+
+            const formData = new FormData(form);
+            fetch(form.action, {
+                method: "POST",
+                headers: {
+                    "X-Requested-With": "XMLHttpRequest",
+                    "Accept": "application/pdf, application/json",
+                },
+                credentials: "same-origin",
+                body: formData,
+            })
+                .then(async (response) => {
+                    const contentType = response.headers.get("content-type") || "";
+                    if (!response.ok) {
+                        if (contentType.includes("application/json")) {
+                            const data = await response.json().catch(() => null);
+                            throw new Error(data?.message || "Errore durante la generazione del PDF.");
+                        }
+                        throw new Error("Errore durante la generazione del PDF.");
+                    }
+
+                    if (!contentType.includes("application/pdf")) {
+                        throw new Error("Risposta PDF non valida.");
+                    }
+
+                    const blob = await response.blob();
+                    const disposition = response.headers.get("content-disposition") || "";
+                    const match = disposition.match(/filename="?([^"]+)"?/i);
+                    const filename = match?.[1] || "scadenziario.pdf";
+
+                    const url = window.URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = filename;
+                    document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+                    window.URL.revokeObjectURL(url);
+
+                    window.location.reload();
+                })
+                .catch((error) => {
+                    alert(error?.message || "Errore durante la generazione del PDF.");
+                });
+            return;
+        }
+
+        if (action === "unprogram") {
+            const ids = selectedRows.map((row) => row.getAttribute("data-doc-id")).filter(Boolean);
+            const targetUrl = target.getAttribute("data-unprogram-url");
+            if (!targetUrl) {
+                alert("Azione non disponibile.");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.set("document_ids", ids.join(","));
+
+            fetch(targetUrl, {
+                method: "POST",
+                headers: {
+                    "X-Requested-With": "XMLHttpRequest",
+                    "Accept": "application/json",
+                },
+                credentials: "same-origin",
+                body: formData,
+            })
+                .then(async (response) => {
+                    const data = await response.json().catch(() => null);
+                    if (!response.ok || !data?.ok) {
+                        throw new Error(data?.message || "Errore durante la rimozione del flag.");
+                    }
+                    window.location.reload();
+                })
+                .catch((error) => {
+                    alert(error?.message || "Errore durante la rimozione del flag.");
+                });
             return;
         }
 
