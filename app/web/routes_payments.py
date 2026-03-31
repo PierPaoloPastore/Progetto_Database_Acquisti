@@ -306,7 +306,12 @@ def schedule_print():
         soon_days=soon_days,
     )
     base_dir = os.path.abspath(os.path.join(current_app.root_path, os.pardir))
-    pdf_bytes = render_pdf_from_html(html_content, base_dir, current_app.logger)
+    pdf_bytes = render_pdf_from_html(
+        html_content,
+        base_dir,
+        current_app.logger,
+        orientation="Landscape",
+    )
     if not pdf_bytes:
         flash("Stampa PDF non disponibile: installa wkhtmltopdf o WeasyPrint.", "warning")
         return redirect(request.referrer or url_for("payments.schedule_view"))

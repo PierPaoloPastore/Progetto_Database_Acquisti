@@ -1027,7 +1027,12 @@ def download_pdf(document_id: int):
     except Exception as exc:
         return f"<h1>Errore generazione HTML</h1><p>{str(exc)}</p>", 500
 
-    pdf_bytes = render_pdf_from_html(html_content, base_dir, current_app.logger)
+    pdf_bytes = render_pdf_from_html(
+        html_content,
+        base_dir,
+        current_app.logger,
+        orientation="Portrait",
+    )
     if not pdf_bytes:
         return (
             "<h1>PDF non disponibile</h1>"
