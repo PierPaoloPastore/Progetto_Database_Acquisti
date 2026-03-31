@@ -369,6 +369,13 @@
     gap: 0.75rem;
 }
 
+.payment-confirm-item-header-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.15rem;
+}
+
 .payment-confirm-item-title {
     font-weight: 700;
     color: #111827;
@@ -383,6 +390,64 @@
     font-weight: 700;
     white-space: nowrap;
     color: #0f172a;
+}
+
+.payment-confirm-group {
+    padding: 0;
+    overflow: hidden;
+}
+
+.payment-confirm-toggle {
+    list-style: none;
+    cursor: pointer;
+    padding: 0.7rem 0.8rem;
+    margin: 0;
+}
+
+.payment-confirm-toggle::-webkit-details-marker {
+    display: none;
+}
+
+.payment-confirm-toggle-hint {
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+.payment-confirm-group[open] .payment-confirm-toggle {
+    border-bottom: 1px solid #e5e7eb;
+    background: #f8fbff;
+}
+
+.payment-confirm-subitems {
+    padding: 0.35rem 0.8rem 0.6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.payment-confirm-subitem {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.3rem 0;
+    border-bottom: 1px dashed #e5e7eb;
+}
+
+.payment-confirm-subitem:last-child {
+    border-bottom: none;
+}
+
+.payment-confirm-subitem-label {
+    color: #334155;
+    font-size: 0.84rem;
+}
+
+.payment-confirm-subitem-amount {
+    white-space: nowrap;
+    font-weight: 600;
+    color: #0f172a;
+    font-size: 0.84rem;
 }
 
 /* --- Scadenziario --- */

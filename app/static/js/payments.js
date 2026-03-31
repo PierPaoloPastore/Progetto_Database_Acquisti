@@ -271,7 +271,6 @@ function setupPaymentSelectionUX() {
     const confirmCount = document.getElementById("payment-confirm-count");
     const confirmSupplierCount = document.getElementById("payment-confirm-supplier-count");
     const confirmTotal = document.getElementById("payment-confirm-total");
-    const confirmLines = document.getElementById("payment-confirm-lines");
     const confirmGroups = document.getElementById("payment-confirm-groups");
 
     if (!form || !invoiceBody || !rows.length) return;
@@ -365,17 +364,20 @@ function setupPaymentSelectionUX() {
         const groupedBySupplier = new Map();
 
         items.forEach((item) => {
-            const key = item.supplierName || "Fornitore non disponibile";
+            const key = `${item.supplierName || "Fornitore non disponibile"}|${item.legalEntityName || ""}`;
             if (!groupedBySupplier.has(key)) {
                 groupedBySupplier.set(key, {
-                    supplierName: key,
+                    supplierName: item.supplierName || "Fornitore non disponibile",
+                    legalEntityName: item.legalEntityName || "",
                     total: 0,
                     count: 0,
+                    items: [],
                 });
             }
             const group = groupedBySupplier.get(key);
             group.total += item.amount;
             group.count += 1;
+            group.items.push(item);
         });
 
         const total = items.reduce((sum, item) => sum + item.amount, 0);
@@ -384,32 +386,29 @@ function setupPaymentSelectionUX() {
         if (confirmSupplierCount) confirmSupplierCount.textContent = groupedBySupplier.size.toString();
         if (confirmTotal) confirmTotal.innerHTML = `${formatCurrency(total)}`;
 
-        if (confirmLines) {
-            confirmLines.innerHTML = items.map((item) => `
-                <div class="payment-confirm-item">
-                    <div class="payment-confirm-item-header">
-                        <div>
-                            <div class="payment-confirm-item-title">${escapeHtml(item.documentLabel)}</div>
-                            <div class="payment-confirm-item-meta">${escapeHtml(item.supplierName)}</div>
-                            <div class="payment-confirm-item-meta">${escapeHtml(item.legalEntityName || "Intestatario non indicato")}</div>
-                        </div>
-                        <div class="payment-confirm-item-amount">${escapeHtml(formatCurrency(item.amount))}</div>
-                    </div>
-                </div>
-            `).join("");
-        }
-
         if (confirmGroups) {
             confirmGroups.innerHTML = Array.from(groupedBySupplier.values()).map((group) => `
-                <div class="payment-confirm-item">
-                    <div class="payment-confirm-item-header">
+                <details class="payment-confirm-item payment-confirm-group">
+                    <summary class="payment-confirm-item-header payment-confirm-toggle">
                         <div>
                             <div class="payment-confirm-item-title">${escapeHtml(group.supplierName)}</div>
+                            <div class="payment-confirm-item-meta">${escapeHtml(group.legalEntityName || "Intestatario non indicato")}</div>
                             <div class="payment-confirm-item-meta">${escapeHtml(`${group.count} documenti`)}</div>
                         </div>
-                        <div class="payment-confirm-item-amount">${escapeHtml(formatCurrency(group.total))}</div>
+                        <div class="payment-confirm-item-header-right">
+                            <div class="payment-confirm-item-amount">${escapeHtml(formatCurrency(group.total))}</div>
+                            <div class="payment-confirm-toggle-hint">Dettaglio</div>
+                        </div>
+                    </summary>
+                    <div class="payment-confirm-subitems">
+                        ${group.items.map((item) => `
+                            <div class="payment-confirm-subitem">
+                                <span class="payment-confirm-subitem-label">${escapeHtml(item.documentLabel)}</span>
+                                <span class="payment-confirm-subitem-amount">${escapeHtml(formatCurrency(item.amount))}</span>
+                            </div>
+                        `).join("")}
                     </div>
-                </div>
+                </details>
             `).join("");
         }
     };
