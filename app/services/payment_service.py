@@ -27,6 +27,27 @@ from app.services.unit_of_work import UnitOfWork
 
 logger = logging.getLogger(__name__)
 
+
+def _create_placeholder_payment(
+    uow: UnitOfWork,
+    document: Document,
+    *,
+    method_code: Optional[str] = None,
+) -> Payment:
+    expected = Decimal(document.total_gross_amount or 0)
+    fallback_due = document.due_date or document.document_date or date.today()
+    payment = Payment(
+        document_id=document.id,
+        due_date=fallback_due,
+        expected_amount=expected,
+        status="unpaid",
+        payment_method=method_code,
+    )
+    uow.payments.add(payment)
+    uow.session.flush()
+    return payment
+
+
 def list_payments_by_document(document_id: int) -> List[Payment]:
     """Restituisce i pagamenti di una specifica fattura."""
     with UnitOfWork() as uow:
@@ -595,17 +616,9 @@ def register_instant_payment_for_document(
 
         payments = uow.payments.get_by_document_id(document_id)
         if not payments:
-            expected = Decimal(document.total_gross_amount or 0)
-            fallback_due = document.due_date or paid_date or document.document_date or date.today()
-            payment = Payment(
-                document_id=document_id,
-                due_date=fallback_due,
-                expected_amount=expected,
-                status="unpaid",
-                payment_method=None,
-            )
-            uow.payments.add(payment)
-            uow.session.flush()
+            if paid_date and document.due_date is None:
+                document.due_date = paid_date
+            payment = _create_placeholder_payment(uow, document)
             payments = [payment]
 
         effective_date = paid_date or document.document_date or document.due_date or date.today()
@@ -678,7 +691,8 @@ def update_payment_method_for_document(
 
         payments = uow.payments.get_by_document_id(document_id)
         if not payments:
-            return False, "Nessuna scadenza collegata al documento."
+            payment = _create_placeholder_payment(uow, document, method_code=normalized)
+            payments = [payment]
 
         for payment in payments:
             payment.payment_method = normalized

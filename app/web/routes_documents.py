@@ -268,9 +268,9 @@ def _parse_highlight_flag(raw_value: Optional[str]) -> bool:
 
 def _get_payment_method_context(document_id: int) -> dict:
     with UnitOfWork() as uow:
+        document = uow.session.get(Document, document_id)
         payments = uow.payments.get_by_document_id(document_id)
 
-    has_payments = bool(payments)
     codes = [
         normalize_payment_method_code(p.payment_method)
         for p in payments
@@ -302,7 +302,7 @@ def _get_payment_method_context(document_id: int) -> dict:
     return {
         "codes": known_codes,
         "labels": labels,
-        "visible": has_payments,
+        "visible": bool(document and document.is_invoice),
         "instant_allowed": instant_allowed,
         "instant_reason": reason,
         "requires_copy": requires_copy,
