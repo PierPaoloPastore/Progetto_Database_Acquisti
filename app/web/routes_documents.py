@@ -270,6 +270,7 @@ def _get_payment_method_context(document_id: int) -> dict:
     with UnitOfWork() as uow:
         payments = uow.payments.get_by_document_id(document_id)
 
+    has_payments = bool(payments)
     codes = [
         normalize_payment_method_code(p.payment_method)
         for p in payments
@@ -301,7 +302,7 @@ def _get_payment_method_context(document_id: int) -> dict:
     return {
         "codes": known_codes,
         "labels": labels,
-        "visible": bool(known_codes),
+        "visible": has_payments,
         "instant_allowed": instant_allowed,
         "instant_reason": reason,
         "requires_copy": requires_copy,

@@ -409,7 +409,11 @@
                 </button>
                 <div id="review-payment-method" class="collapse review-collapse-body">
                     <div class="small text-muted mb-2" data-payment-label>
-                        Metodo rilevato: {{ payment_method_labels|join(', ') if payment_method_labels else '-' }}
+                        {% if payment_method_labels %}
+                            Metodo attuale: {{ payment_method_labels|join(', ') }}
+                        {% else %}
+                            Nessun metodo rilevato nel file XML. Selezionalo manualmente.
+                        {% endif %}
                     </div>
                     <form method="POST"
                           action="{{ url_for('documents.review_loop_invoice_view', document_id=invoice.id) }}"

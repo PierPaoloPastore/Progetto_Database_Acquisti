@@ -595,10 +595,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 if (labelEl) {
                     if (Array.isArray(data.labels) && data.labels.length) {
-                        labelEl.textContent = `Metodo rilevato: ${data.labels.join(", ")}`;
+                        labelEl.textContent = `Metodo attuale: ${data.labels.join(", ")}`;
                     } else {
                         const selectedText = select.options[select.selectedIndex]?.textContent?.trim() || "-";
-                        labelEl.textContent = `Metodo selezionato: ${selectedText}`;
+                        labelEl.textContent = `Metodo attuale: ${selectedText}`;
                     }
                 }
 
