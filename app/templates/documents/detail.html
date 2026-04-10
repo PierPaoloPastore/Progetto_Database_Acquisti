@@ -302,8 +302,11 @@
                                 <thead>
                                 <tr>
                                     <th>Scadenza</th>
+                                    <th>Metodo</th>
                                     <th class="text-right">Previsto</th>
                                     <th class="text-right">Pagato</th>
+                                    <th>Data pagamento</th>
+                                    <th>PDF</th>
                                     <th>Stato</th>
                                 </tr>
                                 </thead>
@@ -311,10 +314,26 @@
                                 {% for p in payments %}
                                   <tr>
                                       <td>{{ p.due_date.strftime('%d/%m/%Y') if p.due_date else '-' }}</td>
+                                      <td>{{ p.method_label }}</td>
                                       <td class="text-right">&euro; {{ (p.expected_amount or 0)|format_amount }}</td>
                                       <td class="text-right">&euro; {{ (p.paid_amount or 0)|format_amount }}</td>
+                                      <td>{{ p.display_paid_date.strftime('%d/%m/%Y') if p.display_paid_date else '-' }}</td>
                                       <td>
-                                          <span class="status-badge status-{{ p.status }}">{{ p.status }}</span>
+                                          {% if p.has_payment_file %}
+                                              <a href="{{ p.payment_file_url }}"
+                                                 class="btn btn-sm btn-outline-primary"
+                                                 target="_blank"
+                                                 rel="noopener">
+                                                  <i class="bi bi-file-earmark-pdf"></i> PDF
+                                              </a>
+                                          {% elif p.payment_document_id %}
+                                              <span class="text-muted small">Registrato senza PDF</span>
+                                          {% else %}
+                                              <span class="text-muted small">Nessun PDF</span>
+                                          {% endif %}
+                                      </td>
+                                      <td>
+                                          <span class="status-badge status-{{ p.status }}">{{ p.status_label }}</span>
                                       </td>
                                   </tr>
                                 {% endfor %}

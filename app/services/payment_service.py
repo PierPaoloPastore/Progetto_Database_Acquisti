@@ -10,8 +10,6 @@ from decimal import Decimal
 from typing import List, Optional, Sequence
 
 from sqlalchemy.orm import joinedload
-from sqlalchemy import func
-
 from werkzeug.utils import secure_filename
 
 from app.models import Document, Payment, PaymentDocument
@@ -186,7 +184,7 @@ def list_paid_payments() -> List[Payment]:
 
 
 def attach_payment_amounts(documents: Sequence[Document]) -> None:
-    """Aggiunge campi runtime paid_amount e remaining_amount ai documenti."""
+    """Aggiunge campi runtime paid_amount, remaining_amount e payment_overview_status."""
     doc_ids = [doc.id for doc in documents if doc and doc.id]
     if not doc_ids:
         return
@@ -195,25 +193,52 @@ def attach_payment_amounts(documents: Sequence[Document]) -> None:
         rows = (
             uow.session.query(
                 Payment.document_id,
-                func.coalesce(func.sum(Payment.paid_amount), 0),
+                Payment.status,
+                Payment.paid_amount,
             )
             .filter(Payment.document_id.in_(doc_ids))
-            .group_by(Payment.document_id)
             .all()
         )
 
-    totals = {doc_id: float(total or 0) for doc_id, total in rows}
+    payments_by_document: dict[int, list[tuple[str, float]]] = {}
+    for document_id, status, paid_amount in rows:
+        payments_by_document.setdefault(document_id, []).append(
+            (
+                (status or "").strip().lower(),
+                float(paid_amount or 0),
+            )
+        )
 
     for doc in documents:
         if not doc:
             continue
-        paid = totals.get(doc.id, 0.0)
+        payment_rows = payments_by_document.get(doc.id, [])
+        paid = sum(amount for _, amount in payment_rows)
         gross = float(doc.total_gross_amount or 0)
+        if not payment_rows and getattr(doc, "is_paid", False):
+            paid = gross
         remaining = gross - paid
         if remaining < 0:
             remaining = 0.0
+
+        if payment_rows:
+            statuses = [status for status, _ in payment_rows]
+            has_paid_signal = any(
+                status in {"paid", "partial"} or amount > 0
+                for status, amount in payment_rows
+            )
+            if statuses and all(status == "paid" for status in statuses):
+                overview_status = "paid"
+            elif has_paid_signal:
+                overview_status = "partial"
+            else:
+                overview_status = "unpaid"
+        else:
+            overview_status = "paid" if getattr(doc, "is_paid", False) else "unpaid"
+
         doc.paid_amount = paid
         doc.remaining_amount = remaining
+        doc.payment_overview_status = overview_status
 
 
 def get_payment_event_detail(payment_id: int) -> Optional[dict]:

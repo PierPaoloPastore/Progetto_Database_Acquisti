@@ -11,6 +11,7 @@
 {% endblock %}
 
 {% block content %}
+{% set payment_labels = {'paid': 'Pagato', 'partial': 'Parziale', 'unpaid': 'Non pagato'} %}
 <div class="container-fluid">
     <div class="card mb-3">
         <div class="card-body">
@@ -163,15 +164,23 @@
                               {{ (doc.total_gross_amount or 0)|format_amount }} €
                           </td>
                           <td class="text-center">
-                              {% if doc.doc_status == 'verified' %}
-                                <span class="badge badge-tone badge-tone-success">Verificato</span>
-                              {% elif doc.doc_status == 'pending_physical_copy' %}
-                                <span class="badge badge-tone badge-tone-warning">Da rivedere</span>
-                              {% elif doc.doc_status == 'archived' %}
-                                <span class="badge badge-tone badge-tone-neutral">Archiviato</span>
-                              {% else %}
-                                <span class="badge badge-tone badge-tone-neutral">{{ doc.doc_status }}</span>
-                              {% endif %}
+                              <div class="documents-status-stack">
+                                  {% if doc.doc_status == 'verified' %}
+                                    <span class="badge badge-tone badge-tone-success">Verificato</span>
+                                  {% elif doc.doc_status == 'pending_physical_copy' %}
+                                    <span class="badge badge-tone badge-tone-warning">Da rivedere</span>
+                                  {% elif doc.doc_status == 'archived' %}
+                                    <span class="badge badge-tone badge-tone-neutral">Archiviato</span>
+                                  {% else %}
+                                    <span class="badge badge-tone badge-tone-neutral">{{ doc.doc_status }}</span>
+                                  {% endif %}
+
+                                  {% set payment_status = doc.payment_overview_status if doc.payment_overview_status is defined else ('paid' if doc.is_paid else 'unpaid') %}
+                                  {% set payment_badge_class = 'badge-tone-success' if payment_status == 'paid' else ('badge-tone-warning' if payment_status == 'partial' else 'badge-tone-neutral') %}
+                                  <span class="badge badge-tone {{ payment_badge_class }}" title="Stato pagamento">
+                                      {{ payment_labels.get(payment_status, payment_status) }}
+                                  </span>
+                              </div>
                           </td>
                           <td class="text-end">
                               <a href="{{ url_for('documents.detail_view', document_id=doc.id, **detail_query_args) }}" 

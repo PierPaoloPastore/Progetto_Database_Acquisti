@@ -30,6 +30,7 @@ from app.services.ocr_mapping_service import parse_manual_document_fields
 from app.services.formatting_service import format_amount
 from app.services.dto import DocumentSearchFilters
 from app.services.payment_method_catalog import (
+    get_payment_method_label,
     is_instant_payment,
     is_known_payment_method,
     is_physical_copy_required,
@@ -38,6 +39,7 @@ from app.services.payment_method_catalog import (
     summarize_payment_methods,
 )
 from app.services.payment_service import (
+    attach_payment_amounts,
     register_instant_payment_for_document,
     update_payment_method_for_document,
 )
@@ -81,6 +83,14 @@ _LIST_QUERY_KEYS = {
     "max_total",
     "sort",
     "dir",
+}
+_PAYMENT_STATUS_LABELS = {
+    "unpaid": "Non pagato",
+    "partial": "Parziale",
+    "paid": "Pagato",
+    "planned": "Pianificato",
+    "pending": "In attesa",
+    "overdue": "Scaduto",
 }
 
 
@@ -309,6 +319,32 @@ def _get_payment_method_context(document_id: int) -> dict:
     }
 
 
+def _decorate_detail_payments(payments: list) -> None:
+    if not payments:
+        return
+
+    base_path = settings_service.get_payment_files_storage_path()
+    for payment in payments:
+        normalized_method = normalize_payment_method_code(payment.payment_method)
+        payment.method_label = get_payment_method_label(normalized_method) or payment.payment_method or "-"
+
+        payment_date = payment.paid_date
+        if not payment_date and payment.payment_document and payment.payment_document.parsed_payment_date:
+            payment_date = payment.payment_document.parsed_payment_date
+        payment.display_paid_date = payment_date
+
+        status_key = (payment.status or "").strip().lower()
+        payment.status_label = _PAYMENT_STATUS_LABELS.get(status_key, payment.status or "-")
+
+        payment.has_payment_file = False
+        payment.payment_file_url = None
+        if payment.payment_document and payment.payment_document.file_path:
+            full_path = settings_service.resolve_storage_path(base_path, payment.payment_document.file_path)
+            if os.path.exists(full_path):
+                payment.has_payment_file = True
+                payment.payment_file_url = url_for("payments.payment_file_view", payment_id=payment.id)
+
+
 def _build_preview_highlights(document: Document) -> list[str]:
     highlights: list[str] = []
 
@@ -452,6 +488,7 @@ def list_view():
     documents = []
     if has_query_args:
         documents = doc_service.search_documents(filters=filters, limit=300, document_type=None)
+        attach_payment_amounts(documents)
         if sort_field in {"date", "number", "amount"}:
             reverse = (sort_dir == "desc")
             if sort_field == "date":
@@ -1151,6 +1188,7 @@ def detail_view(document_id: int):
     )
     detail["linked_delivery_notes"] = list_delivery_notes_by_document(document_id)
     payments = detail.get("payments") or []
+    _decorate_detail_payments(payments)
     paid_total = sum(float(p.paid_amount or 0) for p in payments)
     gross_total = float(detail["invoice"].total_gross_amount or 0)
     remaining_amount = gross_total - paid_total
