@@ -11,12 +11,17 @@ from sqlalchemy.orm import joinedload
 
 from app.models import Document, LegalEntity, Payment, PaymentDocument, Supplier
 from app.repositories.base import SqlAlchemyRepository
-from app.services.bank_account_service import normalize_iban
 from app.services.payment_method_catalog import (
     PAYMENT_METHOD_LABELS,
     map_payment_method_to_document_type,
     normalize_payment_method_code,
 )
+
+
+def _normalize_iban(raw: str | None) -> str:
+    if not raw:
+        return ""
+    return "".join(str(raw).split()).upper()
 
 
 class PaymentRepository(SqlAlchemyRepository[Payment]):
@@ -70,7 +75,7 @@ class PaymentRepository(SqlAlchemyRepository[Payment]):
     def _apply_history_search(self, query, search_text: str):
         like_value = f"%{search_text}%"
         normalized_code = normalize_payment_method_code(search_text)
-        normalized_iban = normalize_iban(search_text)
+        normalized_iban = _normalize_iban(search_text)
         lowered = search_text.lower()
         parsed_id = int(search_text) if search_text.isdigit() else None
         parsed_date = self._parse_search_date(search_text)
