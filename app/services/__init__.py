@@ -52,7 +52,7 @@ from .category_service import (
 from .payment_service import (
     list_overdue_payments_for_ui,
     list_payments_by_document,
-    list_paid_payments,
+    list_paid_payments_page,
     get_payment_event_detail,
     add_payment,
     delete_payment,
@@ -114,7 +114,7 @@ __all__ = [
     # Payments
     "list_overdue_payments_for_ui",
     "list_payments_by_document",
-    "list_paid_payments",
+    "list_paid_payments_page",
     "get_payment_event_detail",
     "add_payment",
     "delete_payment",

@@ -261,6 +261,42 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
         )
         return [row[0] for row in rows]
 
+    def list_unpaid_invoices_page(
+        self,
+        *,
+        page: int = 1,
+        page_size: int = 100,
+    ) -> tuple[List[Document], int, int]:
+        """Restituisce una pagina di fatture non pagate per la schermata pagamenti."""
+        if page < 1:
+            page = 1
+        if page_size < 1:
+            page_size = 100
+
+        query = (
+            self.session.query(Document)
+            .options(joinedload(Document.supplier), joinedload(Document.legal_entity))
+            .filter(
+                Document.document_type == "invoice",
+                Document.is_paid == False,
+            )
+        )
+
+        total = query.order_by(None).count()
+        if total:
+            max_page = (total - 1) // page_size + 1
+            page = min(page, max_page)
+        else:
+            page = 1
+
+        items = (
+            query.order_by(Document.due_date.asc(), Document.id.asc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+            .all()
+        )
+        return items, total, page
+
     def get_supplier_account_balance(self, supplier_id: int, legal_entity_id: Optional[int] = None) -> Dict:
         """Calcola estratto conto fornitore."""
         query = (

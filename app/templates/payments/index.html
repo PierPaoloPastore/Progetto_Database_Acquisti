@@ -186,6 +186,28 @@
                                 {% endfor %}
                             </div>
                         </div>
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <div class="text-muted small">
+                                {{ invoice_pagination.start_item }}-{{ invoice_pagination.end_item }} di {{ unpaid_invoices_total|format_int }} fatture aperte
+                            </div>
+                            {% if invoice_pagination.total_pages > 1 %}
+                                <nav aria-label="Paginazione fatture aperte">
+                                    <ul class="pagination pagination-sm mb-0">
+                                        <li class="page-item {% if not invoice_pagination.has_prev %}disabled{% endif %}">
+                                            <a class="page-link" href="{{ invoice_pagination.prev_url or '#' }}" tabindex="{% if not invoice_pagination.has_prev %}-1{% endif %}">Prec</a>
+                                        </li>
+                                        {% for page in invoice_pagination.pages %}
+                                            <li class="page-item {% if page.active %}active{% endif %}">
+                                                <a class="page-link" href="{{ page.url }}">{{ page.number }}</a>
+                                            </li>
+                                        {% endfor %}
+                                        <li class="page-item {% if not invoice_pagination.has_next %}disabled{% endif %}">
+                                            <a class="page-link" href="{{ invoice_pagination.next_url or '#' }}" tabindex="{% if not invoice_pagination.has_next %}-1{% endif %}">Succ</a>
+                                        </li>
+                                    </ul>
+                                </nav>
+                            {% endif %}
+                        </div>
                     </form>
                 </div>
             </div>
@@ -293,7 +315,10 @@
                         </div>
                     </div>
                     <div class="d-flex align-items-center gap-2 flex-wrap">
-                        <span class="badge bg-light text-dark">{{ payment_history|length|format_int }} movimenti</span>
+                        <span class="badge bg-light text-dark">{{ payment_history_total|format_int }} movimenti</span>
+                        <span class="text-muted small">
+                            {{ payment_history_pagination.start_item }}-{{ payment_history_pagination.end_item }} visualizzati
+                        </span>
                         {% if has_payment_history_filters %}
                             <span class="text-muted small">Filtri attivi sulla cronologia pagamenti</span>
                         {% endif %}
@@ -379,6 +404,28 @@
                     </table>
                 </div>
             </div>
+            {% if payment_history_pagination.total_pages > 1 %}
+                <div class="card-footer bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div class="text-muted small">
+                        Pagina {{ payment_history_pagination.page }} di {{ payment_history_pagination.total_pages }}
+                    </div>
+                    <nav aria-label="Paginazione cronologia pagamenti">
+                        <ul class="pagination pagination-sm mb-0">
+                            <li class="page-item {% if not payment_history_pagination.has_prev %}disabled{% endif %}">
+                                <a class="page-link" href="{{ payment_history_pagination.prev_url or '#' }}" tabindex="{% if not payment_history_pagination.has_prev %}-1{% endif %}">Prec</a>
+                            </li>
+                            {% for page in payment_history_pagination.pages %}
+                                <li class="page-item {% if page.active %}active{% endif %}">
+                                    <a class="page-link" href="{{ page.url }}">{{ page.number }}</a>
+                                </li>
+                            {% endfor %}
+                            <li class="page-item {% if not payment_history_pagination.has_next %}disabled{% endif %}">
+                                <a class="page-link" href="{{ payment_history_pagination.next_url or '#' }}" tabindex="{% if not payment_history_pagination.has_next %}-1{% endif %}">Succ</a>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            {% endif %}
         </div>
     </section>
 

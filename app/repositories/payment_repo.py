@@ -1,18 +1,23 @@
-"""
-Repository specifico per Payment.
-Eredita le funzioni base (add, get, list) da SqlAlchemyRepository.
-"""
-from typing import List
-from sqlalchemy import String, cast, func, or_
+"""Repository specifico per Payment."""
+
+from __future__ import annotations
+
+from datetime import date, datetime
+from decimal import Decimal, InvalidOperation
+from typing import List, Optional
+
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import joinedload
 
 from app.models import Document, LegalEntity, Payment, PaymentDocument, Supplier
+from app.repositories.base import SqlAlchemyRepository
+from app.services.bank_account_service import normalize_iban
 from app.services.payment_method_catalog import (
     PAYMENT_METHOD_LABELS,
     map_payment_method_to_document_type,
     normalize_payment_method_code,
 )
-from app.repositories.base import SqlAlchemyRepository
+
 
 class PaymentRepository(SqlAlchemyRepository[Payment]):
     def __init__(self, session):
@@ -26,40 +31,101 @@ class PaymentRepository(SqlAlchemyRepository[Payment]):
             .order_by(Payment.due_date.asc())
             .all()
         )
-    
-    def list_all_ordered(self) -> List[Payment]:
-        """Restituisce tutti i pagamenti ordinati per data decrescente."""
-        return (
-            self.session.query(Payment)
-            .order_by(Payment.due_date.desc())
-            .all()
-        )
 
     def get_unpaid_by_document_ids(self, document_ids: List[int]) -> List[Payment]:
-        """
-        Fetch all unpaid/partial Payment records for given Document IDs.
-
-        Args:
-            document_ids: List of Document IDs to query
-
-        Returns:
-            List of Payment objects with status IN ('unpaid', 'partial')
-
-        Example:
-            >>> repo.get_unpaid_by_document_ids([123, 124, 125])
-            [Payment(id=456, document_id=123, status='unpaid'), ...]
-        """
+        """Restituisce i pagamenti unpaid/partial per i documenti richiesti."""
         return (
             self.session.query(Payment)
             .filter(
                 Payment.document_id.in_(document_ids),
-                Payment.status.in_(['unpaid', 'partial'])
+                Payment.status.in_(["unpaid", "partial"]),
             )
             .order_by(Payment.document_id.asc(), Payment.due_date.asc())
             .all()
         )
 
-    def search_paid_history(
+    @staticmethod
+    def _parse_search_date(value: str) -> Optional[date]:
+        for pattern in ("%d/%m/%Y", "%Y-%m-%d"):
+            try:
+                return datetime.strptime(value, pattern).date()
+            except ValueError:
+                continue
+        return None
+
+    @staticmethod
+    def _parse_search_decimal(value: str) -> Optional[Decimal]:
+        cleaned = (value or "").strip().replace(" ", "")
+        if not cleaned:
+            return None
+        if "," in cleaned and "." in cleaned:
+            cleaned = cleaned.replace(".", "").replace(",", ".")
+        else:
+            cleaned = cleaned.replace(",", ".")
+        try:
+            return Decimal(cleaned)
+        except (InvalidOperation, ValueError):
+            return None
+
+    def _apply_history_search(self, query, search_text: str):
+        like_value = f"%{search_text}%"
+        normalized_code = normalize_payment_method_code(search_text)
+        normalized_iban = normalize_iban(search_text)
+        lowered = search_text.lower()
+        parsed_id = int(search_text) if search_text.isdigit() else None
+        parsed_date = self._parse_search_date(search_text)
+        parsed_amount = self._parse_search_decimal(search_text)
+        matching_method_codes = [
+            code
+            for code, label in PAYMENT_METHOD_LABELS.items()
+            if lowered in code.lower() or lowered in label.lower()
+        ]
+
+        search_filters = [
+            Document.document_number.ilike(like_value),
+            Supplier.name.ilike(like_value),
+            LegalEntity.name.ilike(like_value),
+            Payment.notes.ilike(like_value),
+            Payment.status.ilike(like_value),
+            Payment.payment_method.ilike(like_value),
+            PaymentDocument.file_name.ilike(like_value),
+            PaymentDocument.payment_type.ilike(like_value),
+        ]
+
+        if normalized_iban and len(normalized_iban) >= 4:
+            search_filters.append(PaymentDocument.bank_account_iban.ilike(f"%{normalized_iban}%"))
+
+        if parsed_id is not None:
+            search_filters.extend(
+                [
+                    Payment.id == parsed_id,
+                    Document.id == parsed_id,
+                    Payment.payment_document_id == parsed_id,
+                ]
+            )
+
+        if parsed_date is not None:
+            search_filters.append(Payment.paid_date == parsed_date)
+
+        if parsed_amount is not None:
+            search_filters.extend(
+                [
+                    Payment.paid_amount == parsed_amount,
+                    and_(
+                        Payment.paid_amount.is_(None),
+                        Payment.expected_amount == parsed_amount,
+                    ),
+                ]
+            )
+
+        if normalized_code:
+            search_filters.append(Payment.payment_method == normalized_code)
+        if matching_method_codes:
+            search_filters.append(Payment.payment_method.in_(matching_method_codes))
+
+        return query.filter(or_(*search_filters))
+
+    def search_paid_history_page(
         self,
         *,
         q: str | None = None,
@@ -67,8 +133,15 @@ class PaymentRepository(SqlAlchemyRepository[Payment]):
         date_to=None,
         bank_account_iban: str | None = None,
         payment_method: str | None = None,
-    ) -> List[Payment]:
-        """Restituisce la cronologia pagamenti con filtri avanzati."""
+        page: int = 1,
+        page_size: int = 50,
+    ) -> tuple[List[Payment], int, int]:
+        """Restituisce una pagina della cronologia pagamenti con filtri avanzati."""
+        if page < 1:
+            page = 1
+        if page_size < 1:
+            page_size = 50
+
         query = (
             self.session.query(Payment)
             .join(Document, Payment.document_id == Document.id)
@@ -103,39 +176,19 @@ class PaymentRepository(SqlAlchemyRepository[Payment]):
 
         search_text = (q or "").strip()
         if search_text:
-            like_value = f"%{search_text}%"
-            normalized_code = normalize_payment_method_code(search_text)
-            lowered = search_text.lower()
-            matching_method_codes = [
-                code
-                for code, label in PAYMENT_METHOD_LABELS.items()
-                if lowered in code.lower() or lowered in label.lower()
-            ]
+            query = self._apply_history_search(query, search_text)
 
-            search_filters = [
-                cast(Payment.id, String).ilike(like_value),
-                cast(Document.id, String).ilike(like_value),
-                Document.document_number.ilike(like_value),
-                Supplier.name.ilike(like_value),
-                LegalEntity.name.ilike(like_value),
-                Payment.notes.ilike(like_value),
-                Payment.status.ilike(like_value),
-                Payment.payment_method.ilike(like_value),
-                cast(Payment.payment_document_id, String).ilike(like_value),
-                PaymentDocument.file_name.ilike(like_value),
-                PaymentDocument.payment_type.ilike(like_value),
-                PaymentDocument.bank_account_iban.ilike(like_value),
-                cast(Payment.paid_amount, String).ilike(like_value),
-                cast(Payment.expected_amount, String).ilike(like_value),
-                func.date_format(Payment.paid_date, "%d/%m/%Y").ilike(like_value),
-                func.date_format(Payment.paid_date, "%Y-%m-%d").ilike(like_value),
-                func.date_format(Payment.updated_at, "%d/%m/%Y").ilike(like_value),
-                func.date_format(Payment.updated_at, "%Y-%m-%d").ilike(like_value),
-            ]
-            if normalized_code:
-                search_filters.append(Payment.payment_method == normalized_code)
-            if matching_method_codes:
-                search_filters.append(Payment.payment_method.in_(matching_method_codes))
-            query = query.filter(or_(*search_filters))
+        total = query.order_by(None).count()
+        if total:
+            max_page = (total - 1) // page_size + 1
+            page = min(page, max_page)
+        else:
+            page = 1
 
-        return query.order_by(Payment.paid_date.desc(), Payment.updated_at.desc(), Payment.id.desc()).all()
+        items = (
+            query.order_by(Payment.paid_date.desc(), Payment.updated_at.desc(), Payment.id.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+            .all()
+        )
+        return items, total, page

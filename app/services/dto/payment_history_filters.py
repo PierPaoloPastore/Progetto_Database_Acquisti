@@ -60,3 +60,17 @@ class PaymentHistoryFilters:
     @property
     def has_filters(self) -> bool:
         return bool(self.q) or self.has_advanced_filters
+
+    def to_query_params(self) -> dict[str, str]:
+        params: dict[str, str] = {}
+        if self.q:
+            params["q"] = self.q
+        if self.date_from:
+            params["date_from"] = self.date_from.isoformat()
+        if self.date_to:
+            params["date_to"] = self.date_to.isoformat()
+        if self.bank_account_iban:
+            params["bank_account_iban"] = self.bank_account_iban
+        if self.payment_method:
+            params["payment_method"] = self.payment_method
+        return params

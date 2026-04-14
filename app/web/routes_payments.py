@@ -4,6 +4,7 @@ Route per la gestione dei Pagamenti.
 from __future__ import annotations
 from datetime import date, datetime, timedelta
 import io
+from math import ceil
 import os
 from pathlib import Path
 from flask import Blueprint, request, redirect, url_for, flash, render_template, jsonify, current_app, send_file
@@ -23,12 +24,10 @@ from app.services.payment_method_catalog import (
 from app.services.dto import PaymentHistoryFilters
 from app.services.payment_service import (
     add_payment,
-    create_batch_payment,
     delete_payment,
     attach_payment_document_file,
     get_payment_event_detail,
-    list_paid_payments,
-    list_payments_by_document,
+    list_paid_payments_page,
     update_payment,
 )
 from app.services.unit_of_work import UnitOfWork
@@ -36,11 +35,57 @@ from app.services.unit_of_work import UnitOfWork
 payments_bp = Blueprint("payments", __name__)
 
 _ALLOWED_PAYMENT_EXTENSIONS = {".pdf"}
+_PAYMENT_HISTORY_PAGE_SIZE = 50
+_UNPAID_INVOICES_PAGE_SIZE = 100
 
 
 def _is_allowed_payment_file(filename: str) -> bool:
     suffix = Path(filename).suffix.lower()
     return suffix in _ALLOWED_PAYMENT_EXTENSIONS
+
+
+def _parse_positive_int(value: str | None, default: int = 1) -> int:
+    try:
+        parsed = int(value or "")
+    except (TypeError, ValueError):
+        return default
+    return parsed if parsed > 0 else default
+
+
+def _build_pagination(
+    *,
+    total: int,
+    page: int,
+    page_size: int,
+    make_url,
+) -> dict:
+    total_pages = max(1, ceil(total / page_size)) if total else 1
+    current_page = min(max(page, 1), total_pages)
+    start_item = ((current_page - 1) * page_size + 1) if total else 0
+    end_item = min(current_page * page_size, total) if total else 0
+    window_start = max(1, current_page - 2)
+    window_end = min(total_pages, current_page + 2)
+    pages = [
+        {
+            "number": page_number,
+            "url": make_url(page_number),
+            "active": page_number == current_page,
+        }
+        for page_number in range(window_start, window_end + 1)
+    ]
+    return {
+        "page": current_page,
+        "page_size": page_size,
+        "total": total,
+        "total_pages": total_pages,
+        "start_item": start_item,
+        "end_item": end_item,
+        "has_prev": current_page > 1,
+        "has_next": current_page < total_pages,
+        "prev_url": make_url(current_page - 1) if current_page > 1 else None,
+        "next_url": make_url(current_page + 1) if current_page < total_pages else None,
+        "pages": pages,
+    }
 
 def _resolve_due_status(due_date: date | None, today: date, soon_limit: date) -> tuple[str, str, str]:
     if due_date is None:
@@ -115,26 +160,58 @@ def payment_index():
     Mostra la dashboard dei pagamenti.
     """
     payment_history_filters = PaymentHistoryFilters.from_query_args(request.args)
-    payment_history = list_paid_payments(filters=payment_history_filters)
+    history_page = _parse_positive_int(request.args.get("history_page"), default=1)
+    invoice_page = _parse_positive_int(request.args.get("invoice_page"), default=1)
+    payment_history, payment_history_total, history_page = list_paid_payments_page(
+        filters=payment_history_filters,
+        page=history_page,
+        page_size=_PAYMENT_HISTORY_PAGE_SIZE,
+    )
     payment_method_choices = list_payment_method_choices()
     payment_method_labels = {
         code: get_payment_method_label(code) or code for code, _ in payment_method_choices
     }
 
     with UnitOfWork() as uow:
-        all_unpaid_invoices = (
-            uow.session.query(Document)
-            .options(joinedload(Document.supplier), joinedload(Document.legal_entity))
-            .filter(
-                Document.document_type == "invoice",
-                Document.is_paid == False,
+        all_unpaid_invoices, unpaid_invoices_total, invoice_page = (
+            uow.documents.list_unpaid_invoices_page(
+                page=invoice_page,
+                page_size=_UNPAID_INVOICES_PAGE_SIZE,
             )
-            .order_by(Document.due_date.asc())
-            .all()
         )
 
     payment_service.attach_payment_amounts(all_unpaid_invoices)
     bank_accounts = list_all_bank_accounts()
+    history_base_params = {
+        **payment_history_filters.to_query_params(),
+        "tab": "tab-history",
+        "invoice_page": invoice_page,
+    }
+    invoice_base_params = {
+        **payment_history_filters.to_query_params(),
+        "tab": "tab-new",
+        "history_page": history_page,
+    }
+    history_pagination = _build_pagination(
+        total=payment_history_total,
+        page=history_page,
+        page_size=_PAYMENT_HISTORY_PAGE_SIZE,
+        make_url=lambda page_number: url_for(
+            "payments.payment_index",
+            **history_base_params,
+            history_page=page_number,
+        ),
+    )
+    invoice_pagination = _build_pagination(
+        total=unpaid_invoices_total,
+        page=invoice_page,
+        page_size=_UNPAID_INVOICES_PAGE_SIZE,
+        make_url=lambda page_number: url_for(
+            "payments.payment_index",
+            **invoice_base_params,
+            invoice_page=page_number,
+        ),
+    )
 
     return render_template(
         "payments/index.html",
@@ -146,6 +223,10 @@ def payment_index():
         payment_history_filters=payment_history_filters,
         has_payment_history_advanced_filters=payment_history_filters.has_advanced_filters,
         has_payment_history_filters=payment_history_filters.has_filters,
+        payment_history_total=payment_history_total,
+        payment_history_pagination=history_pagination,
+        unpaid_invoices_total=unpaid_invoices_total,
+        invoice_pagination=invoice_pagination,
     )
 
 

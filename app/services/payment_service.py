@@ -166,18 +166,25 @@ def update_payment(
         return True, "Pagamento aggiornato."
 
 
-def list_paid_payments(filters: Optional[PaymentHistoryFilters] = None) -> List[Payment]:
+def list_paid_payments_page(
+    *,
+    filters: Optional[PaymentHistoryFilters] = None,
+    page: int = 1,
+    page_size: int = 50,
+) -> tuple[List[Payment], int, int]:
     """
-    Elenca i pagamenti eseguiti (stato paid/partial) ordinati per data di pagamento.
+    Restituisce una pagina dei pagamenti eseguiti (stato paid/partial).
     """
     active_filters = filters or PaymentHistoryFilters()
     with UnitOfWork() as uow:
-        return uow.payments.search_paid_history(
+        return uow.payments.search_paid_history_page(
             q=active_filters.q,
             date_from=active_filters.date_from,
             date_to=active_filters.date_to,
             bank_account_iban=active_filters.bank_account_iban,
             payment_method=active_filters.payment_method,
+            page=page,
+            page_size=page_size,
         )
 
 
@@ -336,7 +343,7 @@ def attach_payment_document_file(payment_id: int, file) -> PaymentDocument:
         return payment_document
 
 
-def create_batch_payment(
+def _create_batch_payment_legacy(
     file,
     allocations: Sequence[dict],
     method: Optional[str],
@@ -540,7 +547,7 @@ def create_batch_payment_from_documents(
                 # Get or create Payment record
                 if doc_id not in payment_map or len(payment_map[doc_id]) == 0:
                     # Auto-create Payment record (edge case handling)
-                    document = uow.session.query(Document).get(doc_id)
+                    document = uow.session.get(Document, doc_id)
                     if not document:
                         results.append({
                             "document_id": doc_id,
@@ -597,7 +604,7 @@ def create_batch_payment_from_documents(
 
         # Step 5: Update Document.is_paid flags
         for document_id in touched_documents:
-            document = uow.session.query(Document).get(document_id)
+            document = uow.session.get(Document, document_id)
             if document:
                 related_payments = uow.payments.get_by_document_id(document_id)
                 document.is_paid = all(p.status == 'paid' for p in related_payments)

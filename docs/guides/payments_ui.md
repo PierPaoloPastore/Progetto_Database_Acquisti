@@ -13,7 +13,7 @@ Modifiche introdotte nella vista Pagamenti (tab “Nuovo Pagamento”) per gesti
 - Conti bancari: selezione IBAN filtrata dall’intestatario scelto (chip automatico).
 
 ## File toccati
-- `app/templates/payments/inbox.html`: struttura lista e colonna “Dovuto”.
+- `app/templates/payments/index.html`: struttura lista e colonna “Dovuto”.
 - `app/static/css/payments.css`: griglia lista, overflow verticale, ellissi, proporzioni split view, riduzione font/padding nel form.
 - `app/static/js/payments.js`: filtro combinato testo+data e chip intestatario/IBAN.
 

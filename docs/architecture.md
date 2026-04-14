@@ -90,9 +90,6 @@ Last updated: 2026-02-16
     PDF dei movimenti bancari (bonifici, MAV, assegni, ecc.).  
     **Novità:** ora ha `supplier_id` per facilitare riconciliazione.
     **Novità:** può memorizzare `bank_account_iban` (conto di uscita).
-  
-  - `PaymentDocumentLink`  
-    Tabella ponte M:N tra `Payment` e `PaymentDocument` per allocare un bonifico a più scadenze.
 
 - **DDT / Bolle**
   - `DeliveryNote`  
@@ -120,9 +117,7 @@ Last updated: 2026-02-16
 - `supplier_repo`, `legal_entity_repo`  
   - gestione anagrafiche, lookup P.IVA/CF, creazione se mancante.
 - `payment_repo`  
-  - gestione `Payment` (scadenze), lettura/aggiornamento stato, ricerca scadenze aperte/scadute.
-- `payment_document_repo` (separato o integrato in `payment_repo`)  
-  - gestione `PaymentDocument` (inbox PDF pagamenti).
+  - gestione `Payment` (scadenze), lettura/aggiornamento stato, cronologia pagamenti e supporto ai `PaymentDocument`.
 - `delivery_note_repo`  
   - gestione `DeliveryNote` (DDT attesi da XML e reali da PDF, matching).
 - `category_repo`, `invoice_line_repo`, `vat_summary_repo`, `notes_repo`, `import_log_repo`  
@@ -143,7 +138,7 @@ I repository incapsulano le query SQLAlchemy e centralizzano la logica di access
   - scrittura `ImportLog` e logging strutturato,
   - commit/rollback per file.
 
-- `invoice_service`
+- `document_service`
   - ricerca fatture per la UI (filtri complessi),
   - caricamento dettaglio fattura con relazioni (righe, IVA, pagamenti, DDT, note),
   - aggiornamento `doc_status`, `due_date`, `physical_copy_status`,
@@ -157,7 +152,7 @@ I repository incapsulano le query SQLAlchemy e centralizzano la logica di access
     - aggiornamento importi pagati,
     - aggiornamento `status` (`planned`, `pending`, `partial`, `paid`, ecc.),
   - import e gestione `PaymentDocument` (PDF di pagamenti reali),
-  - matching tra `Payment` e `PaymentDocument` (via `PaymentDocumentLink` quando usato).
+  - matching tra `Payment` e `PaymentDocument` tramite relazione diretta sul pagamento o documento condiviso di batch.
   - **pagamenti istantanei**: registrazione “già pagato” senza PDF quando il metodo MP non richiede copia fisica,
   - **normalizzazione metodi**: mapping legacy (`bonifico`, `assegno`, `contanti`) → MP01–MP22.
   - **revisione**: metodo pagamento mostrato e modificabile solo se presente nel file XML (sezione stile DDT).
@@ -221,7 +216,7 @@ Il layer di parsing è isolato dal resto del dominio: legge XML FatturaPA e non 
 - `app/web/*`
   - blueprint per:
     - `routes_main.py` (dashboard),
-    - `routes_invoices.py` (liste, dettaglio, revisione, copie fisiche),
+    - `routes_documents.py` (liste, dettaglio, revisione, copie fisiche),
     - `routes_suppliers.py` (fornitori + estratti conto),
     - `routes_categories.py` (categorie e assegnazioni),
     - `routes_import.py` (import XML),
