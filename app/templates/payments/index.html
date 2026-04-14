@@ -213,14 +213,92 @@
 
     <section id="tab-history" class="tab-section">
         <div class="card shadow-sm">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2 py-2">
-                <div class="d-flex align-items-center gap-2 flex-wrap">
-                    <div class="input-group input-group-sm payment-history-search">
-                        <span class="input-group-text"><i class="bi bi-search"></i></span>
-                        <input type="search" id="payment-history-search" class="form-control" placeholder="Cerca nei pagamenti">
+            <div class="card-header bg-white py-2">
+                <form method="GET" action="{{ url_for('payments.payment_index') }}" class="payment-history-filters d-flex flex-column gap-2">
+                    <input type="hidden" name="tab" value="tab-history">
+                    <div class="d-flex justify-content-between align-items-end flex-wrap gap-2">
+                        <div class="flex-grow-1" style="min-width: 280px;">
+                            <label for="payment-history-search" class="form-label fw-bold small mb-1">Cerca</label>
+                            <div class="input-group input-group-sm payment-history-search">
+                                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                <input
+                                    type="search"
+                                    id="payment-history-search"
+                                    name="q"
+                                    class="form-control"
+                                    value="{{ payment_history_filters.q or '' }}"
+                                    placeholder="Documento, fornitore, intestatario, IBAN, file, importo, note"
+                                >
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <button type="submit" class="btn btn-sm btn-primary">Filtra</button>
+                            <button
+                                type="button"
+                                class="btn btn-sm btn-outline-secondary"
+                                data-bs-toggle="collapse"
+                                data-bs-target="#paymentHistoryAdvancedFilters"
+                                aria-expanded="{{ 'true' if has_payment_history_advanced_filters else 'false' }}"
+                                aria-controls="paymentHistoryAdvancedFilters"
+                            >
+                                Avanzati
+                            </button>
+                            <a href="{{ url_for('payments.payment_index', tab='tab-history') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
+                        </div>
                     </div>
-                    <span class="badge bg-light text-dark">{{ payment_history|length|format_int }} movimenti</span>
-                </div>
+                    <div class="collapse {% if has_payment_history_advanced_filters %}show{% endif %}" id="paymentHistoryAdvancedFilters">
+                        <div class="row g-2">
+                            <div class="col-sm-6 col-lg-3">
+                                <label for="payment-history-date-from" class="form-label fw-bold small mb-1">Data da</label>
+                                <input
+                                    type="date"
+                                    id="payment-history-date-from"
+                                    name="date_from"
+                                    class="form-control form-control-sm"
+                                    value="{{ payment_history_filters.date_from.isoformat() if payment_history_filters.date_from else '' }}"
+                                >
+                            </div>
+                            <div class="col-sm-6 col-lg-3">
+                                <label for="payment-history-date-to" class="form-label fw-bold small mb-1">Data a</label>
+                                <input
+                                    type="date"
+                                    id="payment-history-date-to"
+                                    name="date_to"
+                                    class="form-control form-control-sm"
+                                    value="{{ payment_history_filters.date_to.isoformat() if payment_history_filters.date_to else '' }}"
+                                >
+                            </div>
+                            <div class="col-sm-6 col-lg-3">
+                                <label for="payment-history-iban" class="form-label fw-bold small mb-1">IBAN</label>
+                                <select id="payment-history-iban" name="bank_account_iban" class="form-select form-select-sm">
+                                    <option value="">Tutti gli IBAN</option>
+                                    {% for account in bank_accounts %}
+                                        <option value="{{ account.iban }}" {% if payment_history_filters.bank_account_iban == account.iban %}selected{% endif %}>
+                                            {{ account.name }} - {{ account.iban }} - {{ account.legal_entity.name if account.legal_entity else 'N/D' }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-sm-6 col-lg-3">
+                                <label for="payment-history-method" class="form-label fw-bold small mb-1">Tipologia pagamento</label>
+                                <select id="payment-history-method" name="payment_method" class="form-select form-select-sm">
+                                    <option value="">Tutte le tipologie</option>
+                                    {% for code, label in payment_method_choices %}
+                                        <option value="{{ code }}" {% if payment_history_filters.payment_method == code %}selected{% endif %}>
+                                            {{ code }} - {{ label }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <span class="badge bg-light text-dark">{{ payment_history|length|format_int }} movimenti</span>
+                        {% if has_payment_history_filters %}
+                            <span class="text-muted small">Filtri attivi sulla cronologia pagamenti</span>
+                        {% endif %}
+                    </div>
+                </form>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive scrollable-list scrollable-list-flush">
@@ -232,6 +310,7 @@
                                 <th>Fornitore</th>
                                 <th class="text-end">Importo pagato</th>
                                 <th>Metodo</th>
+                                <th>IBAN</th>
                                 <th>Stato</th>
                                 <th class="text-end">Azioni</th>
                             </tr>
@@ -239,13 +318,17 @@
                         <tbody>
                                 {% for payment in payment_history %}
                                 {% set invoice = payment.document %}
+                                {% set payment_document = payment.payment_document %}
                                 {% set raw_method = payment.payment_method or '' %}
                                 {% set method_label = payment_method_labels.get(raw_method) or raw_method or (payment.payment_document.payment_type if payment.payment_document else '') %}
-                                <tr data-payment-search="{{ payment.id }} {{ invoice.document_number if invoice else '' }} {{ invoice.id if invoice else '' }} {{ invoice.supplier.name if invoice and invoice.supplier else '' }} {{ payment.paid_date.strftime('%d/%m/%Y') if payment.paid_date else '' }} {{ payment.updated_at.strftime('%d/%m/%Y') if payment.updated_at else '' }} {{ raw_method }} {{ method_label }} {{ payment.status }} {{ payment.payment_document_id or '' }} {{ payment.payment_document.file_name if payment.payment_document else '' }} {{ payment.paid_amount or payment.expected_amount or '' }} {{ (payment.paid_amount or payment.expected_amount or 0)|format_amount }} {{ payment.notes or '' }}">
+                                <tr>
                                     <td>{{ payment.paid_date.strftime('%d/%m/%Y') if payment.paid_date else (payment.updated_at.strftime('%d/%m/%Y') if payment.updated_at else '-') }}</td>
                                     <td>
                                         {% if invoice %}
                                             <div class="fw-bold">{{ invoice.document_number or ('Documento #' ~ invoice.id) }}</div>
+                                            {% if invoice.id %}
+                                                <div class="text-muted small">ID {{ invoice.id }}</div>
+                                            {% endif %}
                                         {% else %}
                                             <span class="text-muted">Documento non disponibile</span>
                                         {% endif %}
@@ -255,12 +338,22 @@
                                             <a href="{{ url_for('suppliers.detail_view', supplier_id=invoice.supplier_id) }}" class="text-decoration-none fw-bold">
                                                 {{ invoice.supplier.name }}
                                             </a>
+                                            {% if invoice.legal_entity %}
+                                                <div class="text-muted small">{{ invoice.legal_entity.name }}</div>
+                                            {% endif %}
                                         {% else %}
                                             <span class="text-muted">-</span>
                                         {% endif %}
                                     </td>
                                     <td class="text-end">{{ (payment.paid_amount or payment.expected_amount or 0)|format_amount }} &euro;</td>
                                     <td>{{ method_label or 'N/D' }}</td>
+                                    <td>
+                                        {% if payment_document and payment_document.bank_account_iban %}
+                                            <span class="font-monospace small">{{ payment_document.bank_account_iban }}</span>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
                                     <td>
                                         <span class="status-badge status-{{ payment.status }}">{{ payment.status }}</span>
                                     </td>
@@ -272,9 +365,13 @@
                                 </tr>
                             {% else %}
                                 <tr>
-                                    <td colspan="7" class="text-center py-5 text-muted">
+                                    <td colspan="8" class="text-center py-5 text-muted">
                                         <i class="bi bi-journal-check fs-1 d-block mb-3 text-success"></i>
-                                        Nessun pagamento registrato finora.
+                                        {% if has_payment_history_filters %}
+                                            Nessun pagamento trovato con i filtri correnti.
+                                        {% else %}
+                                            Nessun pagamento registrato finora.
+                                        {% endif %}
                                     </td>
                                 </tr>
                             {% endfor %}

@@ -15,6 +15,7 @@ from werkzeug.utils import secure_filename
 from app.models import Document, Payment, PaymentDocument
 from app.services import scan_service, settings_service
 from app.services.bank_account_service import normalize_iban
+from app.services.dto import PaymentHistoryFilters
 from app.services.payment_method_catalog import (
     is_known_payment_method,
     is_physical_copy_required,
@@ -165,22 +166,19 @@ def update_payment(
         return True, "Pagamento aggiornato."
 
 
-def list_paid_payments() -> List[Payment]:
+def list_paid_payments(filters: Optional[PaymentHistoryFilters] = None) -> List[Payment]:
     """
     Elenca i pagamenti eseguiti (stato paid/partial) ordinati per data di pagamento.
     """
+    active_filters = filters or PaymentHistoryFilters()
     with UnitOfWork() as uow:
-        payments = (
-            uow.session.query(Payment)
-            .options(
-                joinedload(Payment.document).joinedload(Document.supplier),
-                joinedload(Payment.payment_document),
-            )
-            .filter(Payment.status.in_(["paid", "partial"]))
-            .order_by(Payment.paid_date.desc(), Payment.updated_at.desc())
-            .all()
+        return uow.payments.search_paid_history(
+            q=active_filters.q,
+            date_from=active_filters.date_from,
+            date_to=active_filters.date_to,
+            bank_account_iban=active_filters.bank_account_iban,
+            payment_method=active_filters.payment_method,
         )
-        return payments
 
 
 def attach_payment_amounts(documents: Sequence[Document]) -> None:

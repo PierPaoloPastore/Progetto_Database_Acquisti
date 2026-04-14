@@ -20,6 +20,7 @@ from app.services.payment_method_catalog import (
     list_payment_method_choices,
     normalize_payment_method_code,
 )
+from app.services.dto import PaymentHistoryFilters
 from app.services.payment_service import (
     add_payment,
     create_batch_payment,
@@ -113,7 +114,8 @@ def payment_index():
     """
     Mostra la dashboard dei pagamenti.
     """
-    payment_history = list_paid_payments()
+    payment_history_filters = PaymentHistoryFilters.from_query_args(request.args)
+    payment_history = list_paid_payments(filters=payment_history_filters)
     payment_method_choices = list_payment_method_choices()
     payment_method_labels = {
         code: get_payment_method_label(code) or code for code, _ in payment_method_choices
@@ -141,6 +143,9 @@ def payment_index():
         bank_accounts=bank_accounts,
         payment_method_choices=payment_method_choices,
         payment_method_labels=payment_method_labels,
+        payment_history_filters=payment_history_filters,
+        has_payment_history_advanced_filters=payment_history_filters.has_advanced_filters,
+        has_payment_history_filters=payment_history_filters.has_filters,
     )
 
 
