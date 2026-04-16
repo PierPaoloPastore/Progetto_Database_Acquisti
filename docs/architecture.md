@@ -90,6 +90,9 @@ Last updated: 2026-02-16
     PDF dei movimenti bancari (bonifici, MAV, assegni, ecc.).  
     **Novità:** ora ha `supplier_id` per facilitare riconciliazione.
     **Novità:** può memorizzare `bank_account_iban` (conto di uscita).
+  - `PaymentDocumentLink`
+    Tabella ponte M:N presente nello schema DB per allocazioni tra movimento bancario e più scadenze.
+    Nota: il flusso web corrente usa soprattutto `payments.payment_document_id` e il documento condiviso di batch; la tabella resta comunque parte dello schema supportato.
 
 - **DDT / Bolle**
   - `DeliveryNote`  
@@ -152,7 +155,7 @@ I repository incapsulano le query SQLAlchemy e centralizzano la logica di access
     - aggiornamento importi pagati,
     - aggiornamento `status` (`planned`, `pending`, `partial`, `paid`, ecc.),
   - import e gestione `PaymentDocument` (PDF di pagamenti reali),
-  - matching tra `Payment` e `PaymentDocument` tramite relazione diretta sul pagamento o documento condiviso di batch.
+  - matching tra `Payment` e `PaymentDocument` tramite relazione diretta sul pagamento, documento condiviso di batch o `PaymentDocumentLink` dove necessario.
   - **pagamenti istantanei**: registrazione “già pagato” senza PDF quando il metodo MP non richiede copia fisica,
   - **normalizzazione metodi**: mapping legacy (`bonifico`, `assegno`, `contanti`) → MP01–MP22.
   - **revisione**: metodo pagamento mostrato e modificabile solo se presente nel file XML (sezione stile DDT).

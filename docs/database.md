@@ -1,1128 +1,684 @@
-Last updated: 2026-02-16
+Last updated: 2026-04-14
 
-# DB_ARCHITECTURE.md
+# Architettura Database
 
-Architettura del database – Gestionale Acquisti  
-Versione: v4 (supertipo documents + Single Table Inheritance)  
-Ultimo aggiornamento: 16 Febbraio 2026
+Schema reale corrente del database del Gestionale Acquisti, allineato al DDL MySQL fornito dal repository operativo.
 
----
-
-## 1. Obiettivi di design
-
-Il database modella l'intero flusso del ciclo passivo per **tutti i tipi di documento economico**:
-
-1. **Ingresso documenti** (XML FatturaPA, PDF F24, PDF assicurazioni, ecc. → Documents).
-2. **Revisione e conferma** (stato documento, intestazione, categorie).
-3. **Gestione copia fisica** (scanner, file system).
-4. **Pianificazione e registrazione pagamenti** (scadenze + collegamento ai PDF bancari).
-5. **Gestione DDT / bolle** (PDF DDT + riferimenti su fatture differite).
-6. **Logging e configurazione applicativa** (import, impostazioni, note).
-
-Principi:
-
-- **Fonte unica della verità** dove possibile.
-- **Supertipo unificato** (`documents`) per tutti i documenti economici.
-- **Single Table Inheritance** per evitare UNION massive.
-- **Relazioni esplicite**: niente colonne "magiche", chiavi esterne chiare.
-- **Estendibilità** per nuovi tipi di documento senza refactor strutturale.
+Versione logica: `documents` come supertipo unico, con tabelle di dettaglio per righe, IVA, pagamenti, DDT, note e audit.
 
 ---
 
-## 2. Architettura Generale: Single Table Inheritance
+## 1. Obiettivi del modello
 
-### Pattern Scelto
-```
-documents (supertipo)
-  ├─ Colonne comuni a TUTTI i documenti
-  ├─ document_type ENUM per discriminare il tipo
-  └─ Colonne nullable specifiche per ogni tipo
-  
-Tabelle specializzate (dettagli):
-  ├─ invoice_lines (righe fatture)
-  ├─ vat_summaries (riepiloghi IVA fatture)
-  └─ rent_contracts (contratti affitto)
-```
+Il database copre l'intero ciclo passivo:
 
-**Vantaggi:**
-- Query cross-document semplici: `SELECT * FROM documents WHERE supplier_id = X`
-- FK unificati: `payments.document_id` → qualsiasi tipo documento
-- Estensione immediata: aggiungi nuovo `document_type` + colonne specifiche
-- Nessun UNION per report aggregati
+1. import documenti di acquisto;
+2. revisione e conferma dei documenti;
+3. classificazione per categorie;
+4. gestione copie fisiche e allegati;
+5. pianificazione e registrazione pagamenti;
+6. gestione DDT e matching;
+7. logging applicativo e audit.
 
-**Trade-off accettati:**
-- Molte colonne NULL (colonne specifiche di un tipo sono NULL per altri tipi)
-- Tabella "larga" (~45 colonne), ma gestibile per < 20 tipi documento
+Principi strutturali:
+
+- `documents` è il supertipo centrale;
+- le anagrafiche (`suppliers`, `legal_entities`, `bank_accounts`) sono separate;
+- i pagamenti usano `payments` per scadenze/stati e `payment_documents` per i PDF bancari;
+- le FK sono esplicite e i `CHECK` proteggono i campi enumerativi.
 
 ---
 
-## 3. Entità principali e relazioni
+## 2. Panoramica delle tabelle
 
-### 3.1. Anagrafiche: Fornitori e Intestatari
+### Anagrafiche
 
-#### `suppliers`
-Rappresenta il fornitore (controparte esterna).
+- `suppliers`
+- `legal_entities`
+- `bank_accounts`
+- `users`
 
-Campi principali:
+### Documenti e dettagli
 
-```sql
-CREATE TABLE suppliers (
-  id INT PRIMARY KEY AUTO_INCREMENT,
-  name VARCHAR(255) NOT NULL,
-  vat_number VARCHAR(32),
-  fiscal_code VARCHAR(32),
-  sdi_code VARCHAR(16),
-  pec_email VARCHAR(255),
-  email VARCHAR(255),
-  phone VARCHAR(64),
-  address VARCHAR(255),
-  postal_code VARCHAR(16),
-  city VARCHAR(128),
-  province VARCHAR(64),
-  country VARCHAR(64),
-  typical_due_rule VARCHAR(32) NULL,   -- regola scadenza tipica (es. end_of_month, net_30, net_60, immediate)
-  typical_due_days INT NULL,           -- alternativa numerica (giorni di differimento)
-  is_active TINYINT(1) NOT NULL DEFAULT 1,
-  created_at DATETIME NOT NULL,
-  updated_at DATETIME NOT NULL
-);
-```
+- `documents`
+- `invoice_lines`
+- `vat_summaries`
+- `rent_contracts`
 
-**Indici:**
-- `uq_suppliers_vat_cf` (UNIQUE su vat_number, fiscal_code)
-- `idx_suppliers_name` (su name)
-- `idx_suppliers_created_at` (su created_at)
+### Pagamenti
 
-**Uso:**
-- Relazionato a `documents.supplier_id`
-- Relazionato a `payment_documents.supplier_id`
-- Relazionato a `delivery_notes.supplier_id`
-- Relazionato a `rent_contracts.supplier_id`
-- `typical_due_rule` / `typical_due_days` vengono usati come fallback per calcolare la scadenza delle fatture quando `due_date` manca o coincide con la data documento. Default operativo: `end_of_month`.
-- La P.IVA **non è più univoca** da sola: l’identità è definita da **(vat_number, fiscal_code)** per gestire varianti dello stesso fornitore.
+- `payments`
+- `payment_documents`
+- `payment_document_links`
 
-#### `legal_entities`
-Rappresenta l'intestatario "interno" (le varie società / partite IVA dell'azienda).
+### Logistica e supporto
 
-Campi principali:
+- `delivery_notes`
+- `delivery_note_lines`
+- `notes`
+- `categories`
 
-```sql
-CREATE TABLE legal_entities (
-  id INT PRIMARY KEY AUTO_INCREMENT,
-  name VARCHAR(255) NOT NULL,
-  vat_number VARCHAR(32) UNIQUE,
-  fiscal_code VARCHAR(32),
-  sdi_code VARCHAR(16),
-  address VARCHAR(255),
-  postal_code VARCHAR(16),
-  city VARCHAR(128),
-  province VARCHAR(64),
-  country VARCHAR(64),
-  is_active TINYINT(1) NOT NULL DEFAULT 1,
-  created_at DATETIME NOT NULL,
-  updated_at DATETIME NOT NULL
-);
-```
+### Logging e configurazione
 
-**Indici:**
-- `idx_legal_entities_vat_unique` (UNIQUE su vat_number)
-- `idx_legal_entities_name` (su name)
-
-**Uso:**
-- Relazionato a `documents.legal_entity_id`
-- Relazionato a `delivery_notes.legal_entity_id`
-- Relazionato a `rent_contracts.legal_entity_id`
-
-#### `bank_accounts`
-Conti bancari associati alle intestazioni (1:N).
-
-Campi principali:
-
-```sql
-CREATE TABLE bank_accounts (
-  iban VARCHAR(34) PRIMARY KEY,
-  legal_entity_id INT NOT NULL,
-  name VARCHAR(128) NOT NULL,
-  notes VARCHAR(255),
-  created_at DATETIME NOT NULL,
-  updated_at DATETIME NOT NULL,
-  
-  FOREIGN KEY (legal_entity_id) REFERENCES legal_entities(id)
-);
-```
-
-**Indici:**
-- `PRIMARY` (iban)
-- `idx_bank_accounts_legal_entity` (legal_entity_id)
-
-**Uso:**
-- Relazionato a `payment_documents.bank_account_iban` (FK con `ON DELETE SET NULL`)
-- Usato per registrare il conto di uscita nei pagamenti istantanei e nei batch
+- `import_logs`
+- `document_audit_logs`
+- `app_settings`
 
 ---
 
-### 3.2. Documenti (SUPERTIPO)
+## 3. Anagrafiche
 
-#### `documents`
+### `suppliers`
 
-**Tabella centrale del sistema.** Rappresenta TUTTI i documenti economici di acquisto.
+Anagrafica fornitori.
 
-##### Schema Completo
+Campi rilevanti:
 
-```sql
-CREATE TABLE documents (
-  -- Identificazione
-  id INT PRIMARY KEY AUTO_INCREMENT,
-  document_type VARCHAR(32) NOT NULL,
-  
-  -- Anagrafiche
-  supplier_id INT NOT NULL,
-  legal_entity_id INT NOT NULL,
-  
-  -- Dati Documento
-  document_number VARCHAR(64),
-  document_date DATE,
-  due_date DATE,
-  registration_date DATE,
-  
-  -- Importi
-  total_taxable_amount DECIMAL(15,2),
-  total_vat_amount DECIMAL(15,2),
-  total_gross_amount DECIMAL(15,2) NOT NULL,
-  
-  -- Stato
-  doc_status VARCHAR(32) NOT NULL DEFAULT 'pending_physical_copy',
-  
-  -- Import
-  import_source VARCHAR(255),
-  file_name VARCHAR(255),
-  file_path VARCHAR(255),
-  imported_at DATETIME,
-  
-  -- Copia Fisica
-  physical_copy_status VARCHAR(32) NOT NULL DEFAULT 'missing',
-  physical_copy_requested_at DATETIME,
-  physical_copy_received_at DATETIME,
-  
-  -- COLONNE SPECIFICHE PER TIPO: FATTURE
-  invoice_type VARCHAR(16),
-  
-  -- COLONNE SPECIFICHE PER TIPO: F24
-  f24_period_from DATE,
-  f24_period_to DATE,
-  f24_tax_type VARCHAR(64),
-  f24_payment_code VARCHAR(64),
-  
-  -- COLONNE SPECIFICHE PER TIPO: ASSICURAZIONI
-  insurance_policy_number VARCHAR(64),
-  insurance_coverage_start DATE,
-  insurance_coverage_end DATE,
-  insurance_type VARCHAR(64),
-  insurance_asset_description TEXT,
-  
-  -- COLONNE SPECIFICHE PER TIPO: AFFITTI
-  rent_contract_id INT,
-  rent_period_month INT,
-  rent_period_year INT,
-  rent_property_description VARCHAR(255),
-  
-  -- COLONNE SPECIFICHE PER TIPO: MAV/CBILL
-  payment_code VARCHAR(64),
-  creditor_entity VARCHAR(255),
-  
-  -- COLONNE SPECIFICHE PER TIPO: SCONTRINI
-  receipt_merchant VARCHAR(255),
-  receipt_category VARCHAR(64),
-  
-  -- COLONNE SPECIFICHE PER TIPO: TRIBUTI/TASSE
-  tax_type VARCHAR(64),
-  tax_period_year INT,
-  tax_period_description VARCHAR(128),
-  
-  -- Audit
-  created_at DATETIME NOT NULL,
-  updated_at DATETIME NOT NULL,
-  
-  -- Foreign Keys
-  FOREIGN KEY (supplier_id) REFERENCES suppliers(id),
-  FOREIGN KEY (legal_entity_id) REFERENCES legal_entities(id),
-  FOREIGN KEY (rent_contract_id) REFERENCES rent_contracts(id),
-  
-  -- Check Constraints
-  CONSTRAINT chk_documents_type 
-    CHECK (document_type IN ('invoice', 'credit_note', 'f24', 'insurance', 'mav', 
-                             'cbill', 'receipt', 'rent', 'tax', 'other')),
-  
-  CONSTRAINT chk_documents_status 
-    CHECK (doc_status IN ('pending_physical_copy', 'verified', 'archived')),
-  
-  CONSTRAINT chk_documents_physical_copy 
-    CHECK (physical_copy_status IN ('missing', 'requested', 'received', 
-                                    'not_required')),
-  
-  CONSTRAINT chk_documents_invoice_type 
-    CHECK ((document_type IN ('invoice', 'credit_note') AND invoice_type IN ('immediate', 'deferred'))
-           OR (document_type NOT IN ('invoice', 'credit_note') AND invoice_type IS NULL)),
-  
-  CONSTRAINT chk_documents_f24_code 
-    CHECK ((document_type = 'f24' AND f24_payment_code IS NOT NULL)
-           OR (document_type != 'f24' AND f24_payment_code IS NULL)),
-  
-  CONSTRAINT chk_documents_insurance_policy 
-    CHECK ((document_type = 'insurance' AND insurance_policy_number IS NOT NULL)
-           OR (document_type != 'insurance' AND insurance_policy_number IS NULL)),
-  
-  CONSTRAINT chk_documents_rent_contract 
-    CHECK ((document_type = 'rent' AND rent_contract_id IS NOT NULL)
-           OR (document_type != 'rent' AND rent_contract_id IS NULL))
-);
-```
+- `id` PK auto increment
+- `name` obbligatorio
+- `vat_number`, `fiscal_code`
+- `sdi_code`, `pec_email`, `iban`, contatti e indirizzi
+- `typical_due_rule`, `typical_due_days`
+- `is_active`
 
-**Indici Implementati:**
+Vincoli e indici:
 
-```sql
--- Indici principali per lookup e JOIN
-idx_documents_supplier (supplier_id)
-idx_documents_legal_entity (legal_entity_id)
-idx_documents_document_date (document_date)
+- `PRIMARY KEY (id)`
+- `UNIQUE uq_suppliers_vat_cf (vat_number, fiscal_code)`
+- `idx_suppliers_name`
+- `idx_suppliers_created_at`
 
--- Indici compound per query complesse
-idx_documents_supplier_date (supplier_id, document_date DESC)
-idx_documents_legal_entity_date (legal_entity_id, document_date DESC)
-idx_documents_status_date (doc_status, document_date DESC)
-idx_documents_type_date (document_type, document_date DESC)
+Nota:
+- la coppia `(vat_number, fiscal_code)` identifica il fornitore nel DB reale; la sola P.IVA non è unica.
 
--- Indici per filtri specifici
-idx_documents_physical_copy (physical_copy_status)
-idx_documents_created_at (created_at)
-```
+### `legal_entities`
 
-##### Descrizione Campi Principali
+Intestazioni aziendali interne.
 
-**Colonne Comuni (tutti i document_type):**
+Campi rilevanti:
 
-- `document_type` VARCHAR(32) NOT NULL
-  - Valori: `'invoice'`, `'credit_note'`, `'f24'`, `'insurance'`, `'mav'`, `'cbill'`, `'receipt'`, `'rent'`, `'tax'`, `'other'`
-  - Discriminatore del tipo di documento
+- `id` PK auto increment
+- `name` obbligatorio
+- `vat_number` unico
+- `fiscal_code`
+- `address`, `city`, `country`
+- `is_active`
 
-- `doc_status` VARCHAR(32) NOT NULL DEFAULT 'pending_physical_copy'
-  - Valori: `'pending_physical_copy'`, `'verified'`, `'archived'`
-  - Stato del documento nel workflow di revisione
+Vincoli e indici:
 
-- `physical_copy_status` VARCHAR(32) NOT NULL DEFAULT 'missing'
-  - Valori: `'missing'`, `'requested'`, `'received'`, `'not_required'`
-  - Stato della copia fisica cartacea (con `not_required` per pagamenti senza copia)
+- `PRIMARY KEY (id)`
+- `UNIQUE idx_legal_entities_vat_unique (vat_number)`
+- `idx_legal_entities_name`
+- `idx_legal_entities_created_at`
 
-**Colonne Specifiche per Tipo:**
+### `bank_accounts`
 
-- **FATTURE** (`document_type = 'invoice'`):
-  - `invoice_type` VARCHAR(16) - `'immediate'` | `'deferred'`
+Conti bancari associati alle intestazioni.
 
-- **NOTE DI CREDITO** (`document_type = 'credit_note'`):
-  - `invoice_type` VARCHAR(16) - `'immediate'` | `'deferred'`
+Campi rilevanti:
 
-- **F24** (`document_type = 'f24'`):
-  - `f24_period_from`, `f24_period_to` DATE
-  - `f24_tax_type` VARCHAR(64) – tipo tributo
-  - `f24_payment_code` VARCHAR(64) – codice tributo (OBBLIGATORIO)
+- `iban` PK
+- `legal_entity_id` FK obbligatoria
+- `name`
+- `notes`
 
-- **ASSICURAZIONI** (`document_type = 'insurance'`):
-  - `insurance_policy_number` VARCHAR(64) (OBBLIGATORIO)
-  - `insurance_coverage_start`, `insurance_coverage_end` DATE
-  - `insurance_type` VARCHAR(64) – `'vehicle'`, `'property'`, `'crop'`, `'liability'`
-  - `insurance_asset_description` TEXT
+Vincoli e indici:
 
-- **AFFITTI** (`document_type = 'rent'`):
-  - `rent_contract_id` INT (FK → rent_contracts, OBBLIGATORIO)
-  - `rent_period_month` INT (1-12)
-  - `rent_period_year` INT
-  - `rent_property_description` VARCHAR(255)
-
-- **MAV/CBILL** (`document_type = 'mav'` | `'cbill'`):
-  - `payment_code` VARCHAR(64) – codice avviso
-  - `creditor_entity` VARCHAR(255) – ente creditore
-
-- **SCONTRINI** (`document_type = 'receipt'`):
-  - `receipt_merchant` VARCHAR(255)
-  - `receipt_category` VARCHAR(64)
-
-- **TRIBUTI/TASSE** (`document_type = 'tax'`):
-  - `tax_type` VARCHAR(64) – `'imu'`, `'tari'`, `'tasi'`, `'canone'`
-  - `tax_period_year` INT
-  - `tax_period_description` VARCHAR(128)
-
-##### Relazioni
-
-- 1:N con `invoice_lines` (solo per document_type='invoice')
-- 1:N con `vat_summaries` (solo per document_type='invoice')
-- 1:N con `payments` (scadenze, per TUTTI i tipi)
-- 1:N con `delivery_notes` (DDT, solo per fatture differite)
-- 1:N con `notes` (note, per TUTTI i tipi)
-- 1:N con `import_logs` (log, per TUTTI i tipi)
-- N:1 con `rent_contracts` (solo per document_type='rent')
+- `PRIMARY KEY (iban)`
+- `UNIQUE uq_bank_accounts_iban (iban)`
+- `idx_bank_accounts_legal_entity_id`
+- FK `legal_entity_id -> legal_entities.id ON DELETE CASCADE`
 
 ---
 
-### 3.3. Dettagli Documenti (Tabelle Specializzate)
+## 4. Supertipo documenti: `documents`
 
-#### `invoice_lines`
+Tabella centrale del dominio.
 
-Righe di dettaglio delle **fatture**.
+### Campi comuni principali
 
-```sql
-CREATE TABLE invoice_lines (
-  id INT PRIMARY KEY AUTO_INCREMENT,
-  document_id INT NOT NULL COMMENT 'FK a documents (document_type=invoice)',
-  category_id INT COMMENT 'FK a categories',
-  line_number INT NOT NULL,
-  description TEXT,
-  quantity DECIMAL(15,4),
-  unit_of_measure VARCHAR(16),
-  unit_price DECIMAL(15,4),
-  discount_percentage DECIMAL(5,2),
-  discount_amount DECIMAL(15,2),
-  taxable_amount DECIMAL(15,2),
-  vat_rate DECIMAL(5,2),
-  vat_amount DECIMAL(15,2),
-  total_line_amount DECIMAL(15,2),
-  sku_code VARCHAR(64),
-  internal_code VARCHAR(64),
-  notes TEXT,
-  created_at DATETIME NOT NULL,
-  updated_at DATETIME NOT NULL,
-  
-  FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,
-  FOREIGN KEY (category_id) REFERENCES categories(id)
-);
-```
+- `id`
+- `document_type`
+- `supplier_id`
+- `legal_entity_id`
+- `document_number`
+- `document_date`
+- `due_date`
+- `registration_date`
+- `total_taxable_amount`
+- `total_vat_amount`
+- `total_gross_amount`
+- `doc_status`
+- `print_status`
+- `import_source`
+- `file_name`, `file_path`
+- `imported_at`
+- `physical_copy_status`
+- `physical_copy_file_path`
+- `physical_copy_requested_at`, `physical_copy_received_at`
+- `note`
+- `is_paid`
+- `created_at`, `updated_at`
 
-**Indici:**
-- `ix_invoice_lines_document_id` (document_id)
-- `ix_invoice_lines_category_id` (category_id)
-- `ix_invoice_lines_created_at` (created_at)
+### Colonne specifiche per tipo
 
-#### `vat_summaries`
+- fatture / note di credito: `invoice_type`
+- F24: `f24_period_from`, `f24_period_to`, `f24_tax_type`, `f24_payment_code`
+- assicurazioni: `insurance_policy_number`, `insurance_coverage_*`, `insurance_type`, `insurance_asset_description`
+- affitti: `rent_contract_id`, `rent_period_month`, `rent_period_year`, `rent_property_description`
+- MAV / CBILL: `payment_code`, `creditor_entity`
+- scontrini: `receipt_merchant`, `receipt_category`
+- tributi: `tax_type`, `tax_period_year`, `tax_period_description`
 
-Riepiloghi IVA per **fatture**.
+### Vincoli
 
-```sql
-CREATE TABLE vat_summaries (
-  id INT PRIMARY KEY AUTO_INCREMENT,
-  document_id INT NOT NULL COMMENT 'FK a documents (document_type=invoice)',
-  vat_rate DECIMAL(5,2),
-  taxable_amount DECIMAL(15,2),
-  vat_amount DECIMAL(15,2),
-  vat_nature VARCHAR(8) COMMENT 'N1, N2, N3, N4, N5, N6, N7',
-  created_at DATETIME NOT NULL,
-  updated_at DATETIME NOT NULL,
-  
-  FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
-);
-```
+- FK verso `suppliers`, `legal_entities`, `rent_contracts`
+- `chk_documents_type`
+- `chk_documents_status`
+- `chk_documents_physical_copy_status`
+- `chk_documents_invoice_type`
+- `chk_documents_f24_code`
+- `chk_documents_insurance_policy`
 
-**Indici:**
-- `ix_vat_summaries_document_id` (document_id)
-- `ix_vat_summaries_created_at` (created_at)
+### Valori applicativi importanti
 
-#### `rent_contracts`
+`document_type`:
 
-Contratti di **affitto** (generano documenti mensili in `documents` con document_type='rent').
+- `invoice`
+- `credit_note`
+- `f24`
+- `insurance`
+- `mav`
+- `cbill`
+- `receipt`
+- `rent`
+- `tax`
+- `other`
 
-```sql
-CREATE TABLE rent_contracts (
-  id INT PRIMARY KEY AUTO_INCREMENT,
-  contract_number VARCHAR(64) NOT NULL UNIQUE,
-  supplier_id INT NOT NULL COMMENT 'Proprietario',
-  legal_entity_id INT NOT NULL COMMENT 'Conduttore',
-  property_description TEXT,
-  property_address VARCHAR(255),
-  monthly_amount DECIMAL(15,2) NOT NULL,
-  start_date DATE NOT NULL,
-  end_date DATE,
-  payment_day INT DEFAULT 1 COMMENT 'Giorno del mese (1-31) per pagamento rata',
-  is_active TINYINT(1) NOT NULL DEFAULT 1,
-  notes TEXT,
-  created_at DATETIME NOT NULL,
-  updated_at DATETIME NOT NULL,
-  
-  FOREIGN KEY (supplier_id) REFERENCES suppliers(id),
-  FOREIGN KEY (legal_entity_id) REFERENCES legal_entities(id)
-);
-```
+`doc_status`:
 
-**Indici:**
-- `idx_rent_contracts_number` (UNIQUE su contract_number)
-- `idx_rent_contracts_supplier` (supplier_id)
-- `idx_rent_contracts_legal_entity` (legal_entity_id)
-- `idx_rent_contracts_active` (is_active, start_date)
+- `pending_physical_copy`
+- `verified`
+- `archived`
+
+`physical_copy_status`:
+
+- `missing`
+- `requested`
+- `received`
+- `uploaded`
+- `not_required`
+
+### Indici reali presenti
+
+- `idx_documents_type (document_type)`
+- `idx_documents_supplier_date (supplier_id, document_date DESC)`
+- `idx_documents_legal_entity_date (legal_entity_id, document_date DESC)`
+- `idx_documents_status_created (doc_status, created_at DESC)`
+- `idx_documents_document_date (document_date)`
+- `idx_documents_supplier_type (supplier_id, document_type)`
+- `idx_documents_print_status (print_status)`
+
+Nota operativa:
+- nel DB reale `supplier_id` e `legal_entity_id` sono `NOT NULL`.
 
 ---
 
-### 3.4. Scadenze e Pagamenti
+## 5. Tabelle di dettaglio documento
 
-Questo è il "cuore" del sistema di gestione finanziaria.
+### `invoice_lines`
 
-#### `payments`
+Righe di fattura / documento con dettaglio articoli.
 
-Tabella delle **scadenze** e dello **stato di pagamento** per **TUTTI i documenti**.
+Campi rilevanti:
 
-```sql
-CREATE TABLE payments (
-  id INT PRIMARY KEY AUTO_INCREMENT,
-  document_id INT NOT NULL COMMENT 'FK a documents (qualsiasi tipo)',
-  payment_document_id INT COMMENT 'FK a payment_documents (se riconciliato)',
-  due_date DATE,
-  expected_amount DECIMAL(15,2),
-  payment_terms VARCHAR(128) COMMENT 'Condizioni pagamento (es. 30gg DFFM)',
-  payment_method VARCHAR(64) COMMENT 'Metodo previsto (codice FatturaPA MP01-MP22)',
-  paid_date DATE,
-  paid_amount DECIMAL(15,2),
-  status VARCHAR(32) NOT NULL DEFAULT 'unpaid',
-  notes TEXT,
-  created_at DATETIME NOT NULL,
-  updated_at DATETIME NOT NULL,
-  
-  FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,
-  FOREIGN KEY (payment_document_id) REFERENCES payment_documents(id),
-  
-  CONSTRAINT chk_payments_status 
-    CHECK (status IN ('unpaid', 'planned', 'pending', 'partial', 
-                      'paid', 'cancelled', 'overdue'))
-);
-```
+- `document_id` FK obbligatoria
+- `category_id` FK opzionale
+- `line_number`
+- `description`
+- `quantity`
+- `unit_of_measure`
+- `unit_price`
+- `discount_amount`
+- `discount_percent`
+- `taxable_amount`
+- `vat_rate`
+- `vat_amount`
+- `total_line_amount`
+- `sku_code`
+- `internal_code`
 
-**Indici:**
-- `ix_payments_document_id` (document_id)
-- `ix_payments_due_status` (status, due_date)
-- `ix_payments_due_date` (due_date)
-- `ix_payments_paid_date` (paid_date)
-- `ix_payments_created_at` (created_at)
-- `fk_payments_payment_document` (payment_document_id)
+Indici:
 
-**Semantica:**
+- `ix_invoice_lines_document_id`
+- `ix_invoice_lines_category_id`
+- `ix_invoice_lines_created_at`
 
-- **Fonte unica delle scadenze**: tutto lo scadenziario legge solo da questa tabella
-- `documents.due_date` è solo metadata di riferimento
-- `status` VALUES:
-  - `'unpaid'` – scadenza non pagata
-  - `'planned'` – pagamento pianificato
-  - `'pending'` – pagamento in corso
-  - `'partial'` – pagamento parziale (paid_amount < expected_amount)
-  - `'paid'` – completamente pagato
-  - `'cancelled'` – annullato
-  - `'overdue'` – scaduto
+### `vat_summaries`
 
-#### Metodi di pagamento (MP01–MP22)
+Riepiloghi IVA per documento.
 
-Nel sistema applicativo `payments.payment_method` utilizza i codici **FatturaPA** `MP01`–`MP22`.
+Campi rilevanti:
 
-**Regola copia fisica:**
-- **Copia fisica obbligatoria**: `MP02`, `MP03`, `MP05`, `MP06`, `MP07`, `MP13`, `MP14`, `MP18`
-- **Senza copia fisica**: tutti gli altri metodi (lo stato diventa `not_required`)
+- `document_id`
+- `vat_rate`
+- `taxable_amount`
+- `vat_amount`
+- `vat_nature`
 
-**Note operative:**
-- I metodi legacy (es. `bonifico`, `assegno`, `contanti`) vengono normalizzati ai codici MP.
-- I pagamenti istantanei (“già pagati”) sono consentiti solo sui metodi **senza copia fisica**.
+Indici:
 
-#### `payment_documents`
+- `ix_vat_summaries_document_id`
+- `ix_vat_summaries_created_at`
 
-PDF di **movimenti bancari/pagamenti reali** (estratti conto, ricevute).
+### `rent_contracts`
 
-```sql
-CREATE TABLE payment_documents (
-  id INT PRIMARY KEY AUTO_INCREMENT,
-  supplier_id INT COMMENT 'Fornitore relativo al pagamento (opzionale)',
-  file_name VARCHAR(255) NOT NULL,
-  file_path VARCHAR(500) NOT NULL,
-  payment_type VARCHAR(32) NOT NULL DEFAULT 'sconosciuto',
-  status VARCHAR(32) NOT NULL DEFAULT 'pending_review',
-  uploaded_at DATETIME NOT NULL,
-  bank_account_iban VARCHAR(34),
-  parsed_amount DECIMAL(12,2),
-  parsed_payment_date DATE,
-  parsed_document_number VARCHAR(100) COMMENT 'Numero documento pagato (da OCR)',
-  parse_error_message TEXT,
-  created_at DATETIME NOT NULL,
-  updated_at DATETIME NOT NULL,
-  
-  FOREIGN KEY (supplier_id) REFERENCES suppliers(id),
-  FOREIGN KEY (bank_account_iban) REFERENCES bank_accounts(iban),
-  
-  CONSTRAINT chk_payment_documents_payment_type 
-    CHECK (payment_type IN ('sconosciuto', 'bonifico', 'rid', 'mav', 
-                            'assegno', 'contanti', 'carta', 'f24')),
-  
-  CONSTRAINT chk_payment_documents_status 
-    CHECK (status IN ('pending_review', 'imported', 'reconciled', 
-                      'partial', 'ignored'))
-);
-```
+Contratti affitto che possono generare documenti `rent`.
 
-**Indici:**
-- `idx_payment_documents_supplier` (supplier_id)
-- `idx_payment_documents_supplier_date` (supplier_id, parsed_payment_date DESC)
-- `idx_payment_documents_status` (status)
-- `idx_payment_documents_date` (parsed_payment_date)
-- `idx_payment_documents_bank_account` (bank_account_iban)
+Campi rilevanti:
 
-**Semantica:**
+- `contract_number` unico
+- `supplier_id`
+- `legal_entity_id`
+- `monthly_amount`
+- `start_date`, `end_date`
+- `payment_day`
+- `is_active`
 
-- `payment_type` indica il metodo di pagamento rilevato dal PDF
-- `bank_account_iban` è il conto di uscita collegato al pagamento (se noto)
-- `status` indica lo stato di riconciliazione con le scadenze:
-  - `'pending_review'` – caricato, da verificare
-  - `'imported'` – importato, pronto per riconciliazione
-  - `'reconciled'` – completamente riconciliato
-  - `'partial'` – parzialmente riconciliato
-  - `'ignored'` – ignorato (non da riconciliare)
+Indici:
 
-#### `payment_document_links`
-
-Mapping **M:N** tra movimenti bancari e scadenze (quando un singolo bonifico copre più scadenze).
-
-```sql
-CREATE TABLE payment_document_links (
-  id INT PRIMARY KEY AUTO_INCREMENT,
-  payment_id INT NOT NULL COMMENT 'FK a payments',
-  payment_document_id INT NOT NULL COMMENT 'FK a payment_documents',
-  linked_amount DECIMAL(15,2) NOT NULL COMMENT 'Importo di questa scadenza coperto da questo movimento',
-  linked_at DATETIME NOT NULL,
-  notes TEXT,
-  created_at DATETIME NOT NULL,
-  updated_at DATETIME NOT NULL,
-  
-  FOREIGN KEY (payment_id) REFERENCES payments(id) ON DELETE CASCADE,
-  FOREIGN KEY (payment_document_id) REFERENCES payment_documents(id) ON DELETE CASCADE,
-  
-  UNIQUE KEY idx_unique_payment_link (payment_id, payment_document_id)
-);
-```
-
-**Indici:**
-- `idx_unique_payment_link` (UNIQUE su payment_id, payment_document_id)
-- `idx_payment_document_links_payment` (payment_id)
-- `idx_payment_document_links_document` (payment_document_id)
-- `idx_payment_document_links_linked_at` (linked_at)
+- `idx_rent_contracts_number`
+- `idx_rent_contracts_supplier`
+- `idx_rent_contracts_legal_entity`
+- `idx_rent_contracts_active (is_active, start_date)`
 
 ---
 
-### 3.5. DDT e Bolle
+## 6. Pagamenti
 
-#### `delivery_notes`
+### `payments`
 
-Tabella per gestire i **DDT** (Documenti di Trasporto) e bolle di consegna.
+Fonte dati delle scadenze e dello stato di pagamento.
 
-```sql
-CREATE TABLE delivery_notes (
-  id INT PRIMARY KEY AUTO_INCREMENT,
-  document_id INT COMMENT 'FK a documents se è una fattura differita',
-  supplier_id INT NOT NULL,
-  legal_entity_id INT NOT NULL,
-  ddt_number VARCHAR(64) NOT NULL,
-  ddt_date DATE NOT NULL,
-  goods_description TEXT,
-  status VARCHAR(32) NOT NULL DEFAULT 'unmatched',
-  source VARCHAR(32) NOT NULL DEFAULT 'manual',
-  file_name VARCHAR(255),
-  file_path VARCHAR(500),
-  notes TEXT,
-  created_at DATETIME NOT NULL,
-  updated_at DATETIME NOT NULL,
-  
-  FOREIGN KEY (document_id) REFERENCES documents(id),
-  FOREIGN KEY (supplier_id) REFERENCES suppliers(id),
-  FOREIGN KEY (legal_entity_id) REFERENCES legal_entities(id),
-  
-  CONSTRAINT chk_delivery_notes_status 
-    CHECK (status IN ('unmatched', 'matched', 'missing', 'ignored')),
-  
-  CONSTRAINT chk_delivery_notes_source 
-    CHECK (source IN ('xml_expected', 'pdf_import', 'manual'))
-);
-```
+Campi rilevanti:
 
-**Indici:**
-- `idx_delivery_notes_document` (document_id)
-- `idx_delivery_notes_supplier` (supplier_id)
-- `idx_delivery_notes_legal_entity` (legal_entity_id)
-- `idx_delivery_notes_status` (status)
-- `idx_delivery_notes_ddt_number` (ddt_number, ddt_date)
+- `document_id` FK obbligatoria
+- `payment_document_id` FK opzionale
+- `due_date`
+- `expected_amount`
+- `payment_terms`
+- `payment_method`
+- `paid_date`
+- `paid_amount`
+- `status`
+- `notes`
+- `created_at`, `updated_at`
 
-**Semantica:**
+Vincoli:
 
-- `source` indica l'origine del DDT:
-  - `'xml_expected'` – citato nel XML di fattura differita (atteso)
-  - `'pdf_import'` – importato da PDF scansionato (reale)
-  - `'manual'` – inserito manualmente
-  
-- `status` indica lo stato di matching:
-  - `'unmatched'` – non ancora abbinato
-  - `'matched'` – abbinato con documento
-  - `'missing'` – atteso ma non trovato
-  - `'ignored'` – ignorato
+- FK `document_id -> documents.id ON DELETE CASCADE`
+- FK `payment_document_id -> payment_documents.id`
+- `chk_payments_status`
 
-**Workflow:**
+Valori ammessi in `status`:
 
-1. All'import della fattura differita: per ogni DDT citato nel XML → si crea riga con `source='xml_expected'`, `status='unmatched'`
-2. All'import PDF delle bolle: si crea riga con `source='pdf_import'`, `status='unmatched'`
-3. Matching automatico/manuale: se atteso trova reale → `status='matched'`, `document_id` impostato
+- `unpaid`
+- `planned`
+- `pending`
+- `partial`
+- `paid`
+- `cancelled`
+- `overdue`
 
----
+Indici reali:
 
-### 3.6. Classificazione
+- `ix_payments_document_id`
+- `ix_payments_due_status (status, due_date)`
+- `ix_payments_due_date`
+- `ix_payments_paid_date`
+- `ix_payments_created_at`
+- `fk_payments_payment_document` su `payment_document_id`
 
-#### `categories`
+Nota:
+- `payment_method` è una `VARCHAR(64)` non indicizzata nel DB attuale.
+- applicativamente vengono usati i codici FatturaPA `MP01`-`MP22`.
 
-Categorie di spesa per classificare le righe fattura.
+### `payment_documents`
 
-```sql
-CREATE TABLE categories (
-  id INT PRIMARY KEY AUTO_INCREMENT,
-  name VARCHAR(128) NOT NULL UNIQUE,
-  description TEXT,
-  is_active TINYINT(1) NOT NULL DEFAULT 1,
-  created_at DATETIME NOT NULL,
-  updated_at DATETIME NOT NULL
-);
-```
+PDF e metadati del movimento bancario reale.
 
-**Indici:**
-- `idx_categories_name` (UNIQUE su name)
-- `idx_categories_active` (is_active)
+Campi rilevanti:
 
-**Relazione:**
-- 1:N con `invoice_lines.category_id`
+- `supplier_id`
+- `file_name`
+- `file_path`
+- `payment_type`
+- `status`
+- `uploaded_at`
+- `parsed_amount`
+- `parsed_payment_date`
+- `parsed_document_number`
+- `parse_error_message`
+- `bank_account_iban`
 
-#### `notes`
+Vincoli:
 
-Note operative e commenti sui **documenti** (qualsiasi tipo).
+- FK verso `suppliers`
+- FK `bank_account_iban -> bank_accounts.iban ON DELETE SET NULL`
+- `chk_payment_documents_payment_type`
+- `chk_payment_documents_status`
 
-```sql
-CREATE TABLE notes (
-  id INT PRIMARY KEY AUTO_INCREMENT,
-  document_id INT NOT NULL COMMENT 'FK a documents (qualsiasi tipo)',
-  user_id INT COMMENT 'FK a users',
-  content TEXT NOT NULL,
-  created_at DATETIME NOT NULL,
-  
-  FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,
-  FOREIGN KEY (user_id) REFERENCES users(id)
-);
-```
+Valori ammessi in `payment_type`:
 
-**Indici:**
-- `idx_notes_document` (document_id)
-- `idx_notes_user` (user_id)
-- `idx_notes_created_at` (created_at)
+- `sconosciuto`
+- `bonifico`
+- `rid`
+- `mav`
+- `cbill`
+- `assegno`
+- `contanti`
+- `carta`
+- `f24`
 
----
+Valori ammessi in `status`:
 
-### 3.7. Logging e Impostazioni Applicative
+- `pending_review`
+- `imported`
+- `reconciled`
+- `partial`
+- `ignored`
 
-#### `import_logs`
+Indici reali:
 
-Log dei file XML/PDF importati.
+- `idx_payment_documents_supplier`
+- `idx_payment_documents_supplier_date (supplier_id, parsed_payment_date DESC)`
+- `idx_payment_documents_status`
+- `idx_payment_documents_date`
+- indice FK su `bank_account_iban`
 
-```sql
-CREATE TABLE import_logs (
-  id INT PRIMARY KEY AUTO_INCREMENT,
-  document_id INT COMMENT 'FK a documents (se import ha generato un documento)',
-  file_name VARCHAR(255) NOT NULL,
-  file_hash VARCHAR(64),
-  import_source VARCHAR(128),
-  status VARCHAR(32) NOT NULL,
-  message TEXT,
-  created_at DATETIME NOT NULL,
-  
-  FOREIGN KEY (document_id) REFERENCES documents(id),
-  
-  CONSTRAINT chk_import_logs_status 
-    CHECK (status IN ('success', 'error', 'warning', 'duplicate'))
-);
-```
+### `payment_document_links`
 
-**Indici:**
-- `idx_import_logs_document` (document_id)
-- `idx_import_logs_file_hash` (file_hash)
-- `idx_import_logs_status` (status)
-- `idx_import_logs_created_at` (created_at)
+Tabella ponte M:N tra `payment_documents` e `payments`.
 
-**Uso:**
-- Audit trail degli import
-- Diagnostica errori di parsing o duplicati
-- Prevenzione re-import dello stesso file (via file_hash)
+Campi reali:
 
-#### `document_audit_logs`
+- `id`
+- `payment_document_id`
+- `payment_id`
+- `allocated_amount`
+- `created_at`
 
-Storico modifiche ed eliminazioni sui documenti.
+Indici reali:
 
-```sql
-CREATE TABLE document_audit_logs (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  document_id INT,
-  action VARCHAR(16) NOT NULL,
-  payload LONGTEXT,
-  created_at DATETIME NOT NULL,
+- `ix_payment_document_links_payment_document`
+- `ix_payment_document_links_payment`
 
-  FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE SET NULL
-);
-```
-
-**Indici:**
-- `idx_document_audit_document_id` (document_id)
-- `idx_document_audit_created_at` (created_at)
-- `idx_document_audit_action` (action)
-
-**Uso:**
-- Traccia chi/che cosa ha modificato o eliminato un documento.
-- `payload` contiene snapshot `before/after` in JSON (campi principali documento).
-
-#### `app_settings`
-
-Configurazioni globali modificabili a runtime.
-
-```sql
-CREATE TABLE app_settings (
-  id INT PRIMARY KEY AUTO_INCREMENT,
-  setting_key VARCHAR(191) NOT NULL UNIQUE,
-  value TEXT,
-  description VARCHAR(255),
-  created_at DATETIME NOT NULL,
-  updated_at DATETIME NOT NULL
-);
-```
-
-**Indici:**
-- `idx_app_settings_key` (UNIQUE su setting_key)
-
-#### `users`
-
-Utenti dell'applicazione.
-
-```sql
-CREATE TABLE users (
-  id INT PRIMARY KEY AUTO_INCREMENT,
-  username VARCHAR(64) NOT NULL UNIQUE,
-  full_name VARCHAR(128),
-  email VARCHAR(255) UNIQUE,
-  role VARCHAR(32) NOT NULL DEFAULT 'user',
-  is_active TINYINT(1) NOT NULL DEFAULT 1,
-  created_at DATETIME NOT NULL,
-  updated_at DATETIME NOT NULL,
-  
-  CONSTRAINT chk_users_role 
-    CHECK (role IN ('admin', 'user', 'readonly'))
-);
-```
-
-**Indici:**
-- `ix_users_username` (UNIQUE su username)
-- `email` (UNIQUE su email)
-- `ix_users_created_at` (created_at)
-
-**Relazioni:**
-- 1:N con `notes` (autore delle note)
+Nota importante:
+- la tabella esiste nello schema reale;
+- l'applicazione corrente usa soprattutto `payments.payment_document_id` e il documento condiviso di batch;
+- `payment_document_links` va quindi considerata parte dello schema supportato, ma non il percorso principale oggi usato dalle route web correnti.
 
 ---
 
-## 4. Convenzioni e Principi di Design
+## 7. DDT e logistica
 
-### 4.1. Naming Unificato
+### `delivery_notes`
 
-Tutte le colonne comuni usano nomi **generici** per facilitare estensioni future:
+DDT attesi da XML o importati da PDF/manualmente.
 
-- `document_date` (non `invoice_date`)
-- `document_number` (non `invoice_number`)
-- `doc_status` (comune a tutti i tipi)
-- `total_gross_amount` (comune)
+Campi rilevanti:
 
-### 4.2. CHECK Constraints su Enum
+- `document_id`
+- `supplier_id`
+- `legal_entity_id`
+- `ddt_number`
+- `ddt_date`
+- `total_amount`
+- `file_path`, `file_name`
+- `source`
+- `import_source`
+- `imported_at`
+- `status`
 
-Tutti i campi enum sono protetti da CHECK constraints per evitare typo:
+Vincoli:
 
-- `documents.document_type`
-- `documents.doc_status`
-- `documents.physical_copy_status`
-- `documents.invoice_type` (con vincolo condizionale)
-- `documents.insurance_type` (con vincolo condizionale)
-- `documents.rent_contract_id` (con vincolo condizionale)
-- `payments.status`
-- `delivery_notes.status` e `delivery_notes.source`
-- `payment_documents.status` e `payment_documents.payment_type`
-- `import_logs.status`
-- `users.role`
+- FK verso `documents`, `suppliers`, `legal_entities`
+- `chk_delivery_notes_source`
+- `chk_delivery_notes_status`
 
-### 4.3. UNIQUE Constraints
+Valori `source`:
 
-- `suppliers.(vat_number, fiscal_code)` → UNIQUE (identità fornitore)
-- `bank_accounts.iban` → UNIQUE/PK
-- `legal_entities.vat_number` → UNIQUE (no duplicati P.IVA intestatari)
-- `rent_contracts.contract_number` → UNIQUE
-- `categories.name` → UNIQUE
-- `users.username`, `users.email` → UNIQUE
-- `app_settings.setting_key` → UNIQUE
-- `payment_document_links.(payment_id, payment_document_id)` → UNIQUE
+- `xml_expected`
+- `pdf_import`
+- `manual`
 
-### 4.4. Fonte di Verità
+Valori `status`:
 
-#### Scadenze
-- **Fonte unica:** `payments` table
-- `documents.due_date` è solo **metadata di riferimento**
-- Lo scadenziario legge **solo** da `payments`
+- `unmatched`
+- `matched`
+- `missing`
+- `linked`
+- `ignored`
 
-#### Pagamenti Reali
-- **Fonte unica:** `payment_documents` table
-- Mapping M:N via `payment_document_links` quando un movimento copre più scadenze
+Indici reali:
 
-#### Totali Fattura
-- **Ridondanza accettata:** `documents.total_*` vs somma `invoice_lines` + `vat_summaries`
-- Mantenuta per performance (filtri rapidi senza JOIN)
-- Consistenza garantita dal livello applicativo
+- `ix_delivery_notes_supplier`
+- `ix_delivery_notes_supplier_date_number (supplier_id, ddt_date, ddt_number)`
+- `ix_delivery_notes_document`
+- `ix_delivery_notes_status`
+- indice FK su `legal_entity_id`
 
-### 4.5. Indici Strategici
+### `delivery_note_lines`
 
-Il database implementa una strategia di indicizzazione multi-livello:
+Dettaglio righe DDT.
 
-**Indici Singoli:**
-- Su tutte le foreign keys per JOIN veloci
-- Su campi usati frequentemente in WHERE (status, date)
-- Su campi UNIQUE per integrità
+Campi rilevanti:
 
-**Indici Compound:**
-- `(entity_id, date DESC)` per listing cronologici paginati
-- `(status, date)` per dashboard filtrate per stato
-- `(type, date)` per report per tipo documento
+- `delivery_note_id`
+- `line_number`
+- `description`
+- `item_code`
+- `quantity`
+- `uom`
+- `amount`
+- `notes`
 
-**Indici Specializzati:**
-- `file_hash` in import_logs per prevenzione duplicati
-- `(ddt_number, ddt_date)` per ricerca DDT veloce
+Vincoli e indici:
+
+- FK `delivery_note_id -> delivery_notes.id ON DELETE CASCADE`
+- `UNIQUE uq_dnl_note_line (delivery_note_id, line_number)`
+- `idx_dnl_delivery_note`
+- `idx_dnl_item_code`
 
 ---
 
-## 5. Estensione Futura: Aggiungere Nuovo Tipo Documento
+## 8. Classificazione, note e audit
 
-Per aggiungere un nuovo tipo (es. "contratti di manutenzione"):
+### `categories`
 
-### Step 1: Aggiorna CHECK constraint
-```sql
-ALTER TABLE documents DROP CONSTRAINT chk_documents_type;
-ALTER TABLE documents ADD CONSTRAINT chk_documents_type
-  CHECK (document_type IN (
-    'invoice', 'f24', 'insurance', 'mav', 'cbill', 
-    'receipt', 'rent', 'tax', 
-    'maintenance_contract',  -- NUOVO
-    'other'
-  ));
-```
+Categorie di spesa.
 
-### Step 2: Aggiungi colonne specifiche (se necessario)
-```sql
-ALTER TABLE documents 
-  ADD COLUMN maintenance_contract_number VARCHAR(64) DEFAULT NULL,
-  ADD COLUMN maintenance_start_date DATE DEFAULT NULL,
-  ADD COLUMN maintenance_end_date DATE DEFAULT NULL,
-  ADD COLUMN maintenance_frequency VARCHAR(32) DEFAULT NULL;
-```
+Campi rilevanti:
 
-### Step 3: Aggiungi CHECK constraint condizionale
-```sql
-ALTER TABLE documents ADD CONSTRAINT chk_documents_maintenance
-  CHECK (
-    (document_type = 'maintenance_contract' AND maintenance_contract_number IS NOT NULL)
-    OR (document_type != 'maintenance_contract' AND maintenance_contract_number IS NULL)
-  );
-```
+- `name` unico
+- `description`
+- `vat_rate`
+- `is_active`
 
-### Step 4: (Opzionale) Aggiungi tabella specializzata
-```sql
-CREATE TABLE maintenance_contract_details (
-  id INT PRIMARY KEY AUTO_INCREMENT,
-  document_id INT NOT NULL,
-  service_description TEXT,
-  technician_name VARCHAR(128),
-  next_service_date DATE,
-  ...
-  FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
-);
-```
+Indici:
 
-**Nessun refactor di `payments`, `notes`, `import_logs`, ecc. → Tutto funziona automaticamente!**
+- `ix_categories_name`
+- `ix_categories_created_at`
+
+### `notes`
+
+Note operative sui documenti.
+
+Campi rilevanti:
+
+- `document_id`
+- `user_id`
+- `content`
+- `created_at`
+
+Indici:
+
+- `ix_notes_document_id`
+- `ix_notes_user_id`
+- `ix_notes_created_at`
+
+### `document_audit_logs`
+
+Storico modifiche documento.
+
+Campi rilevanti:
+
+- `document_id`
+- `action`
+- `payload`
+- `created_at`
+
+Indici:
+
+- `idx_document_audit_document_id`
+- `idx_document_audit_created_at`
+- `idx_document_audit_action`
 
 ---
 
-## 6. Query Comuni
+## 9. Logging e configurazione
 
-### Dashboard: Documenti in Scadenza
-```sql
-SELECT 
-  d.document_type,
-  d.document_number,
-  d.document_date,
-  d.total_gross_amount,
-  p.due_date,
-  p.expected_amount,
-  s.name AS supplier_name
-FROM documents d
-JOIN payments p ON p.document_id = d.id
-JOIN suppliers s ON s.id = d.supplier_id
-WHERE p.status IN ('unpaid', 'pending', 'partial')
-  AND p.due_date <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)
-ORDER BY p.due_date;
-```
+### `import_logs`
 
-### Estratto Conto Fornitore (Tutti i Documenti)
-```sql
-SELECT 
-  document_type,
-  document_number,
-  document_date,
-  total_gross_amount,
-  doc_status
-FROM documents
-WHERE supplier_id = :supplier_id
-ORDER BY document_date DESC;
-```
+Log import documenti.
 
-### Scadenziario Mensile
-```sql
-SELECT 
-  d.document_type,
-  d.document_number,
-  p.due_date,
-  p.expected_amount,
-  p.paid_amount,
-  p.status
-FROM payments p
-JOIN documents d ON d.id = p.document_id
-WHERE MONTH(p.due_date) = MONTH(CURDATE())
-  AND YEAR(p.due_date) = YEAR(CURDATE())
-  AND p.status != 'paid'
-ORDER BY p.due_date;
-```
+Campi rilevanti:
 
-### Report per Tipo Documento
-```sql
-SELECT 
-  document_type,
-  COUNT(*) AS num_documents,
-  SUM(total_gross_amount) AS total_amount
-FROM documents
-WHERE YEAR(document_date) = YEAR(CURDATE())
-GROUP BY document_type
-ORDER BY total_amount DESC;
-```
+- `document_id`
+- `file_name`
+- `file_hash`
+- `import_source`
+- `status`
+- `message`
+- `created_at`
 
-### Fatture con DDT Mancanti
-```sql
-SELECT 
-  d.id,
-  d.document_number,
-  d.document_date,
-  dn.ddt_number,
-  dn.ddt_date
-FROM documents d
-JOIN delivery_notes dn ON dn.document_id = d.id
-WHERE d.document_type = 'invoice'
-  AND d.invoice_type = 'deferred'
-  AND dn.source = 'xml_expected'
-  AND dn.status = 'missing';
-```
+Valori `status`:
 
-### Pagamenti da Riconciliare
-```sql
-SELECT 
-  pd.id,
-  pd.file_name,
-  pd.parsed_amount,
-  pd.parsed_payment_date,
-  s.name AS supplier_name
-FROM payment_documents pd
-JOIN suppliers s ON s.id = pd.supplier_id
-WHERE pd.status IN ('pending_review', 'imported')
-ORDER BY pd.parsed_payment_date DESC;
+- `success`
+- `error`
+- `warning`
+- `duplicate`
+
+Indici:
+
+- `ix_import_logs_document_id`
+- `ix_import_logs_file_hash`
+- `ix_import_logs_status`
+- `ix_import_logs_file_name`
+- `ix_import_logs_created_at`
+
+### `app_settings`
+
+Configurazioni runtime applicative.
+
+Campi rilevanti:
+
+- `setting_key` unico
+- `value`
+- `description`
+- `created_at`, `updated_at`
+
+### `users`
+
+Utenti applicativi.
+
+Campi rilevanti:
+
+- `username` unico
+- `email` unica
+- `role`
+- `is_active`
+
+Valori `role`:
+
+- `admin`
+- `user`
+- `readonly`
+
+---
+
+## 10. Relazioni principali
+
+Schema logico sintetico:
+
+```text
+suppliers (1) -> (N) documents
+legal_entities (1) -> (N) documents
+legal_entities (1) -> (N) bank_accounts
+
+documents (1) -> (N) invoice_lines
+documents (1) -> (N) vat_summaries
+documents (1) -> (N) payments
+documents (1) -> (N) delivery_notes
+documents (1) -> (N) notes
+documents (1) -> (N) import_logs
+documents (1) -> (N) document_audit_logs
+
+payments (N) -> (1) payment_documents   [opzionale]
+payment_documents (1) -> (N) payment_document_links
+payments (1) -> (N) payment_document_links
+
+delivery_notes (1) -> (N) delivery_note_lines
+categories (1) -> (N) invoice_lines
+users (1) -> (N) notes
+rent_contracts (1) -> (N) documents
 ```
 
 ---
 
-## 7. Diagramma Logico (Testuale)
+## 11. Note operative sullo schema reale
 
-```
-suppliers (1) ──────< (N) documents
-legal_entities (1) ──< (N) documents
-legal_entities (1) ──< (N) bank_accounts
+### Stato documentazione vs runtime
 
-documents (1) ──────< (N) invoice_lines (solo invoice)
-documents (1) ──────< (N) vat_summaries (solo invoice)
-documents (1) ──────< (N) payments (TUTTI i tipi)
-documents (1) ──────< (N) delivery_notes (solo invoice deferred)
-documents (1) ──────< (N) notes (TUTTI i tipi)
-documents (1) ──────< (N) import_logs (TUTTI i tipi)
+- il DB contiene `payment_document_links`, ma il flusso web corrente non lo usa come percorso principale;
+- `documents.is_paid` esiste nello schema reale ed è usato come flag rapido applicativo;
+- `documents.print_status` è parte dello schema reale e supporta la gestione documenti programmati/stampati;
+- `physical_copy_status` nel DB include anche `uploaded`, oltre ai valori storici più vecchi.
 
-payments (N) ──────> (1) payment_documents (opzionale)
-payment_documents (1) ──< (N) payment_document_links >──< (N) payments
-bank_accounts (1) ──< (N) payment_documents
+### Indici già presenti
 
-suppliers (1) ──────< (N) payment_documents
-suppliers (1) ──────< (N) delivery_notes
-suppliers (1) ──────< (N) rent_contracts
+Per il volume dati attuale, il DB è già discretamente indicizzato su:
 
-legal_entities (1) ──< (N) delivery_notes
-legal_entities (1) ──< (N) rent_contracts
+- foreign key principali;
+- date operative;
+- alcuni filtri di stato;
+- combinazioni fornitore/data o intestazione/data.
 
-categories (1) ──────< (N) invoice_lines
-
-users (1) ───────< (N) notes
-
-rent_contracts (1) ──< (N) documents (solo rent)
-```
+Eventuali futuri indici aggiuntivi vanno valutati separatamente e non fanno parte dello stato documentale corrente.
 
 ---
 
-## 8. Statistiche Database (dal dump SQL)
+## 12. Fonte di verità di questo documento
 
-**Engine:** InnoDB (tutte le tabelle)  
-**Charset:** utf8mb4  
-**Collation:** utf8mb4_unicode_ci  
+Questa pagina descrive lo schema effettivamente risultante dal DDL MySQL corrente fornito per:
 
-**Tabelle Principali (con AUTO_INCREMENT):**
-- `documents`: AUTO_INCREMENT=30
-- `invoice_lines`: AUTO_INCREMENT=55
-- `vat_summaries`: AUTO_INCREMENT=23
-- `payments`: AUTO_INCREMENT=23
-- `payment_documents`: AUTO_INCREMENT=2
-- `suppliers`: AUTO_INCREMENT=20
-- `categories`: AUTO_INCREMENT non definito
-- `legal_entities`: AUTO_INCREMENT=4
+- `app_settings`
+- `bank_accounts`
+- `categories`
+- `delivery_notes`
+- `delivery_note_lines`
+- `document_audit_logs`
+- `documents`
+- `import_logs`
+- `invoice_lines`
+- `legal_entities`
+- `notes`
+- `payment_documents`
+- `payment_document_links`
+- `payments`
+- `rent_contracts`
+- `suppliers`
+- `users`
+- `vat_summaries`
 
-**Caratteristiche Tecniche:**
-- Foreign Keys con ON DELETE CASCADE dove appropriato (dettagli dipendenti)
-- Foreign Keys senza cascade per anagrafiche (preservazione dati)
-- CHECK constraints estensivi per garantire integrità dei dati
-- Indici compound ottimizzati per query più frequenti
-
----
-
-## 9. Note Finali
-
-- Questo schema è **production-ready** per gestire fatture, F24, assicurazioni, MAV, CBILL, scontrini, affitti, tributi.
-- L'estensione a nuovi tipi è **immediata** (aggiungi `document_type` + colonne nullable).
-- La consistenza dei dati è garantita da **CHECK constraints** e **FK**.
-- Le performance sono ottimizzate con **indici compound** sui path di query più frequenti.
-- Il modello è **futureproof**: può evolvere senza refactor massivi.
-- **Separazione netta** tra documenti economici (`documents`) e movimenti bancari (`payment_documents`).
-- **Riconciliazione flessibile** via `payment_document_links` per gestire casistiche complesse.
-- **Tracciabilità completa** via `import_logs` e `notes`.
-
----
-
-## 10. Riferimenti Implementativi
-
-**File SQL di riferimento:** `databaseAcquistiv3.sql`  
-**Data dump:** 11 Dicembre 2025, ore 15:41  
-**Versione MySQL:** 8.0.44
-
-**Note sulla migrazione:**
-- Il dump include anche database `world` e `sys` (demo/system), non pertinenti al gestionale
-- Il database applicativo effettivo è `databaseacquisti`
-- Tutti gli AUTO_INCREMENT values riflettono lo stato di sviluppo/test attuale
-Last updated: 2026-02-16
+Quando cambia lo schema reale, questa è la documentazione da aggiornare per prima.
