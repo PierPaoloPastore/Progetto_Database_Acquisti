@@ -177,6 +177,7 @@ def payment_index():
     """
     Mostra la dashboard dei pagamenti.
     """
+    is_invoice_partial_request = request.args.get("partial") == "invoice-list"
     payment_history_filters = PaymentHistoryFilters.from_query_args(request.args)
     invoice_search_query = (request.args.get("invoice_q") or "").strip()
     history_page = _parse_positive_int(request.args.get("history_page"), default=1)
@@ -189,16 +190,6 @@ def payment_index():
     preset_amounts: dict[int, str] = {}
     if preset_document_ids and preset_amount_raw:
         preset_amounts[preset_document_ids[0]] = preset_amount_raw
-
-    payment_history, payment_history_total, history_page = list_paid_payments_page(
-        filters=payment_history_filters,
-        page=history_page,
-        page_size=_PAYMENT_HISTORY_PAGE_SIZE,
-    )
-    payment_method_choices = list_payment_method_choices()
-    payment_method_labels = {
-        code: get_payment_method_label(code) or code for code, _ in payment_method_choices
-    }
 
     with UnitOfWork() as uow:
         all_unpaid_invoices, unpaid_invoices_total, invoice_page = (
@@ -230,12 +221,6 @@ def payment_index():
                 all_unpaid_invoices = missing_preset_documents + all_unpaid_invoices
 
     payment_service.attach_payment_amounts(all_unpaid_invoices)
-    bank_accounts = list_all_bank_accounts()
-    history_base_params = {
-        **payment_history_filters.to_query_params(),
-        "tab": "tab-history",
-        "invoice_page": invoice_page,
-    }
     invoice_base_params = {
         **payment_history_filters.to_query_params(),
         "tab": "tab-new",
@@ -243,16 +228,6 @@ def payment_index():
     }
     if invoice_search_query:
         invoice_base_params["invoice_q"] = invoice_search_query
-    history_pagination = _build_pagination(
-        total=payment_history_total,
-        page=history_page,
-        page_size=_PAYMENT_HISTORY_PAGE_SIZE,
-        make_url=lambda page_number: url_for(
-            "payments.payment_index",
-            **history_base_params,
-            history_page=page_number,
-        ),
-    )
     invoice_pagination = _build_pagination(
         total=unpaid_invoices_total,
         page=invoice_page,
@@ -263,10 +238,46 @@ def payment_index():
             invoice_page=page_number,
         ),
     )
+    invoice_template_context = {
+        "all_unpaid_invoices": all_unpaid_invoices,
+        "unpaid_invoices_total": unpaid_invoices_total,
+        "invoice_pagination": invoice_pagination,
+        "invoice_search_query": invoice_search_query,
+        "preset_document_ids": preset_document_ids,
+        "preset_amounts": preset_amounts,
+    }
+    if is_invoice_partial_request:
+        return render_template("payments/_invoice_list.html", **invoice_template_context)
+
+    payment_history, payment_history_total, history_page = list_paid_payments_page(
+        filters=payment_history_filters,
+        page=history_page,
+        page_size=_PAYMENT_HISTORY_PAGE_SIZE,
+    )
+    payment_method_choices = list_payment_method_choices()
+    payment_method_labels = {
+        code: get_payment_method_label(code) or code for code, _ in payment_method_choices
+    }
+    bank_accounts = list_all_bank_accounts()
+    history_base_params = {
+        **payment_history_filters.to_query_params(),
+        "tab": "tab-history",
+        "invoice_page": invoice_page,
+    }
+    history_pagination = _build_pagination(
+        total=payment_history_total,
+        page=history_page,
+        page_size=_PAYMENT_HISTORY_PAGE_SIZE,
+        make_url=lambda page_number: url_for(
+            "payments.payment_index",
+            **history_base_params,
+            history_page=page_number,
+        ),
+    )
 
     return render_template(
         "payments/index.html",
-        all_unpaid_invoices=all_unpaid_invoices,
+        **invoice_template_context,
         payment_history=payment_history,
         bank_accounts=bank_accounts,
         payment_method_choices=payment_method_choices,
@@ -276,17 +287,12 @@ def payment_index():
         has_payment_history_filters=payment_history_filters.has_filters,
         payment_history_total=payment_history_total,
         payment_history_pagination=history_pagination,
-        unpaid_invoices_total=unpaid_invoices_total,
-        invoice_pagination=invoice_pagination,
-        invoice_search_query=invoice_search_query,
         invoice_search_reset_url=url_for(
             "payments.payment_index",
             **payment_history_filters.to_query_params(),
             tab="tab-new",
             history_page=history_page,
         ),
-        preset_document_ids=preset_document_ids,
-        preset_amounts=preset_amounts,
     )
 
 

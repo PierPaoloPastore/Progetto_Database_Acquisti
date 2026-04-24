@@ -1,13 +1,21 @@
+const paymentUiState = {
+    selections: new Map(),
+    selectionSequence: 0,
+    activeEntityId: null,
+    activeEntityName: "",
+    bypassConfirmation: false,
+    confirmModal: null,
+    invoiceFetchController: null,
+    invoiceLoading: false,
+};
+
 document.addEventListener("DOMContentLoaded", () => {
     setupTabSwitching();
-    setupInvoiceFilter();
-    setupPaymentAmountAutofill();
-    setupPaymentSelectionUX();
+    setupPaymentsWorkspace();
     setupPdfPreview();
     setupPaymentsSplitter();
     setupPaymentOcr();
     setupPaymentDateDefault();
-    applyPresetPayment();
 });
 
 const refreshSelect2 = (select) => {
@@ -17,6 +25,19 @@ const refreshSelect2 = (select) => {
         $el.trigger("change.select2");
     }
 };
+
+const formatCurrency = (value) => {
+    const amount = Number(value || 0);
+    if (Number.isNaN(amount)) return `0,00 \u20ac`;
+    return `${amount.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} \u20ac`;
+};
+
+const escapeHtml = (value) => String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 
 function setupTabSwitching() {
     const tabButtons = document.querySelectorAll("[data-tab-target]");
@@ -52,9 +73,7 @@ function setupTabSwitching() {
     tabButtons.forEach((btn) => {
         btn.addEventListener("click", (event) => {
             event.preventDefault();
-            const target = btn.getAttribute("data-tab-target");
-
-            activateTab(target);
+            activateTab(btn.getAttribute("data-tab-target"));
         });
     });
 
@@ -78,425 +97,621 @@ function setupTabSwitching() {
     });
 }
 
-function applyPresetPayment() {
-    const params = new URLSearchParams(window.location.search);
-    const docId = params.get("document_id");
-    const docIdsRaw = params.get("document_ids");
-    const docIds = docIdsRaw ? docIdsRaw.split(",").map((value) => value.trim()).filter(Boolean) : [];
-    if (!docId && docIds.length === 0) return;
+function setupPaymentsWorkspace() {
+    const form = document.querySelector('#tab-new form[action]');
+    if (!form) return;
 
-    const selectDoc = (targetDocId, withAmount) => {
-        const checkbox = document.querySelector(`input[name="payment_id"][value="${targetDocId}"]`);
-        const amountInput = document.querySelector(`input[name="amount_${targetDocId}"]`);
+    const modalEl = document.getElementById("payment-confirm-modal");
+    paymentUiState.confirmModal = modalEl && window.bootstrap?.Modal
+        ? new window.bootstrap.Modal(modalEl)
+        : null;
 
-        if (checkbox) {
-            checkbox.checked = true;
-            checkbox.dispatchEvent(new Event("change", { bubbles: true }));
-            const row = checkbox.closest(".invoice-row");
-            if (row) {
-                row.classList.add("border", "border-primary", "rounded");
-                if (withAmount) {
-                    row.scrollIntoView({ behavior: "smooth", block: "center" });
-                }
-            }
-        }
-
-        if (amountInput && withAmount) {
-            amountInput.value = withAmount;
-            amountInput.dispatchEvent(new Event("input", { bubbles: true }));
-            amountInput.dispatchEvent(new Event("change", { bubbles: true }));
-        }
-    };
-
-    const amount = params.get("amount");
-    if (docId) {
-        selectDoc(docId, amount);
-    }
-
-    if (docIds.length) {
-        docIds.forEach((targetDocId, index) => {
-            selectDoc(targetDocId, index === 0 ? null : null);
-        });
-        const firstRow = document.querySelector(`input[name="payment_id"][value="${docIds[0]}"]`)?.closest(".invoice-row");
-        if (firstRow) {
-            firstRow.scrollIntoView({ behavior: "smooth", block: "center" });
-        }
-    }
+    bindInvoiceWorkspaceEvents();
+    bindPaymentFormSubmission(form);
+    initializeVisibleRows();
+    captureSelectionsFromVisibleRows();
+    initializeEntityFilterFromSelections();
+    applyPresetPayment();
+    refreshInvoiceWorkspace();
 }
 
-function setupInvoiceFilter() {
+function bindInvoiceWorkspaceEvents() {
+    const invoiceListContainer = document.getElementById("invoice-list-container");
     const searchInput = document.getElementById("invoice-search");
     const searchSubmit = document.getElementById("invoice-search-submit");
+    const searchReset = document.getElementById("invoice-search-reset");
     const dateInput = document.getElementById("invoice-date");
-    const rows = document.querySelectorAll(".invoice-row");
-    const chip = document.getElementById("invoice-entity-chip");
-    const chipLabel = document.getElementById("invoice-entity-chip-label");
     const chipRemove = document.getElementById("invoice-entity-chip-remove");
-    const ibanSelect = document.getElementById("bank-account-iban");
-    const ibanEmptyOption = document.getElementById("bank-account-empty");
-    let activeEntityId = null;
+    const confirmSubmitButton = document.getElementById("payment-confirm-submit");
 
-    if (!searchInput && !dateInput) return;
-
-    const submitServerSearch = () => {
-        if (!searchInput) return;
-        const params = new URLSearchParams(window.location.search);
-        const query = (searchInput.value || "").trim();
-        const searchUrl = searchInput.getAttribute("data-search-url") || window.location.pathname;
-
-        if (query) {
-            params.set("invoice_q", query);
-        } else {
-            params.delete("invoice_q");
-        }
-        params.set("tab", "tab-new");
-        params.set("invoice_page", "1");
-
-        window.location.assign(`${searchUrl}?${params.toString()}#tab-new`);
-    };
-
-    const applyFilter = () => {
-        const dateValue = (dateInput?.value || "").trim();
-
-        rows.forEach((row) => {
-            const rowDate = row.getAttribute("data-date") || "";
-            const matchDate = !dateValue || rowDate === dateValue;
-            const rowEntity = row.getAttribute("data-legal-entity-id") || "";
-            const matchEntity = !activeEntityId || rowEntity === activeEntityId;
-
-            row.classList.toggle("d-none", !(matchDate && matchEntity));
-        });
-    };
-
-    const updateBankAccounts = (entityId) => {
-        if (!ibanSelect) return;
-        const options = Array.from(ibanSelect.querySelectorAll("option")).filter(
-            (option) => option.value
-        );
-        let visibleCount = 0;
-        options.forEach((option) => {
-            const optionEntityId = option.getAttribute("data-legal-entity-id") || "";
-            const shouldShow = !entityId || optionEntityId === entityId;
-            option.hidden = !shouldShow;
-            option.disabled = !shouldShow;
-            if (shouldShow) {
-                visibleCount += 1;
+    invoiceListContainer?.addEventListener("click", (event) => {
+        const paginationLink = event.target.closest(".invoice-pagination a.page-link");
+        if (paginationLink) {
+            const pageItem = paginationLink.closest(".page-item");
+            if (pageItem?.classList.contains("disabled") || paginationLink.getAttribute("href") === "#") {
+                event.preventDefault();
+                return;
             }
-        });
-
-        if (ibanEmptyOption) {
-            const showEmpty = entityId && visibleCount === 0;
-            ibanEmptyOption.hidden = !showEmpty;
-            ibanEmptyOption.disabled = !showEmpty;
+            event.preventDefault();
+            loadInvoiceList(paginationLink.href);
+            return;
         }
 
-        if (ibanSelect.value) {
-            const selected = options.find((option) => option.value === ibanSelect.value);
-            if (selected && selected.classList.contains("d-none")) {
-                ibanSelect.value = "";
-            }
-        }
-        refreshSelect2(ibanSelect);
-    };
+        const row = event.target.closest(".invoice-row");
+        if (!row || !invoiceListContainer.contains(row)) return;
+        if (event.target.closest("a, button, input, label, select, textarea")) return;
 
-    const setEntityFilter = (entityId, entityName) => {
-        if (!entityId) return;
-        activeEntityId = String(entityId);
-        if (chip && chipLabel) {
-            chipLabel.textContent = entityName ? `Intestatario: ${entityName}` : "Intestatario";
-            chip.classList.remove("d-none");
-        }
-        updateBankAccounts(activeEntityId);
-        applyFilter();
-    };
+        const checkbox = getRowCheckbox(row);
+        if (!checkbox || checkbox.disabled) return;
+        checkbox.checked = !checkbox.checked;
+        checkbox.dispatchEvent(new Event("change", { bubbles: true }));
+    });
 
-    const clearEntityFilter = () => {
-        activeEntityId = null;
-        if (chip) {
-            chip.classList.add("d-none");
+    invoiceListContainer?.addEventListener("change", (event) => {
+        const checkbox = event.target.closest('input[name="payment_id"]');
+        if (checkbox) {
+            handleRowCheckboxChange(checkbox);
+            return;
         }
-        updateBankAccounts(null);
-        applyFilter();
-    };
+
+        if (isAmountInput(event.target)) {
+            handleRowAmountChange(event.target);
+        }
+    });
+
+    invoiceListContainer?.addEventListener("input", (event) => {
+        if (isAmountInput(event.target)) {
+            handleRowAmountChange(event.target, { realtime: true });
+        }
+    });
+
+    searchSubmit?.addEventListener("click", () => {
+        submitInvoiceSearch();
+    });
+
+    searchInput?.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        submitInvoiceSearch();
+    });
+
+    searchReset?.addEventListener("click", (event) => {
+        event.preventDefault();
+        resetInvoiceSearch();
+    });
 
     chipRemove?.addEventListener("click", (event) => {
         event.preventDefault();
         clearEntityFilter();
     });
 
-    rows.forEach((row) => {
-        const checkbox = row.querySelector('input[name="payment_id"]');
-        if (!checkbox) return;
-        checkbox.addEventListener("change", () => {
-            if (!checkbox.checked || activeEntityId) return;
-            const entityId = row.getAttribute("data-legal-entity-id") || "";
-            const entityName = row.getAttribute("data-legal-entity-name") || "";
-            setEntityFilter(entityId, entityName);
-        });
+    dateInput?.addEventListener("change", () => {
+        applyVisibleFilters();
+    });
+    dateInput?.addEventListener("input", () => {
+        applyVisibleFilters();
     });
 
-    const preselected = document.querySelector('input[name="payment_id"]:checked');
-    if (preselected) {
-        const row = preselected.closest(".invoice-row");
-        if (row) {
-            const entityId = row.getAttribute("data-legal-entity-id") || "";
-            const entityName = row.getAttribute("data-legal-entity-name") || "";
-            setEntityFilter(entityId, entityName);
+    confirmSubmitButton?.addEventListener("click", () => {
+        const form = document.querySelector('#tab-new form[action]');
+        if (!form) return;
+        paymentUiState.bypassConfirmation = true;
+        paymentUiState.confirmModal?.hide();
+        form.requestSubmit();
+    });
+}
+
+function bindPaymentFormSubmission(form) {
+    form.addEventListener("submit", (event) => {
+        if (paymentUiState.bypassConfirmation) {
+            paymentUiState.bypassConfirmation = false;
+            prepareHiddenSelectionInputs(form);
+            return;
+        }
+
+        if (!paymentUiState.selections.size) {
+            return;
+        }
+
+        if (!paymentUiState.confirmModal) {
+            prepareHiddenSelectionInputs(form);
+            return;
+        }
+
+        event.preventDefault();
+        renderConfirmationModal();
+        paymentUiState.confirmModal.show();
+    });
+}
+
+function submitInvoiceSearch() {
+    const searchInput = document.getElementById("invoice-search");
+    if (!searchInput) return;
+
+    const url = new URL(window.location.href);
+    const query = (searchInput.value || "").trim();
+    if (query) {
+        url.searchParams.set("invoice_q", query);
+    } else {
+        url.searchParams.delete("invoice_q");
+    }
+    url.searchParams.set("invoice_page", "1");
+    url.searchParams.set("tab", "tab-new");
+    loadInvoiceList(url);
+}
+
+function resetInvoiceSearch() {
+    const resetLink = document.getElementById("invoice-search-reset");
+    const fallbackUrl = resetLink?.getAttribute("href") || window.location.href;
+    loadInvoiceList(fallbackUrl);
+}
+
+async function loadInvoiceList(targetUrl) {
+    const invoiceListContainer = document.getElementById("invoice-list-container");
+    const searchInput = document.getElementById("invoice-search");
+    const searchSubmit = document.getElementById("invoice-search-submit");
+    const searchReset = document.getElementById("invoice-search-reset");
+    if (!invoiceListContainer) return;
+
+    const baseUrl = new URL(String(targetUrl), window.location.origin);
+    baseUrl.hash = "tab-new";
+    baseUrl.searchParams.delete("document_id");
+    baseUrl.searchParams.delete("document_ids");
+    baseUrl.searchParams.delete("amount");
+    baseUrl.searchParams.delete("partial");
+    baseUrl.searchParams.set("tab", "tab-new");
+
+    const fetchUrl = new URL(baseUrl.toString());
+    fetchUrl.searchParams.set(
+        invoiceListContainer.getAttribute("data-partial-query-param") || "partial",
+        invoiceListContainer.getAttribute("data-partial-query-value") || "invoice-list",
+    );
+
+    if (paymentUiState.invoiceFetchController) {
+        paymentUiState.invoiceFetchController.abort();
+    }
+    paymentUiState.invoiceFetchController = new AbortController();
+
+    paymentUiState.invoiceLoading = true;
+    invoiceListContainer.setAttribute("aria-busy", "true");
+    invoiceListContainer.style.opacity = "0.55";
+    if (searchInput) searchInput.disabled = true;
+    if (searchSubmit) searchSubmit.disabled = true;
+    if (searchReset) searchReset.classList.add("disabled");
+
+    try {
+        const response = await fetch(fetchUrl.toString(), {
+            headers: {
+                "X-Requested-With": "XMLHttpRequest",
+            },
+            signal: paymentUiState.invoiceFetchController.signal,
+        });
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        invoiceListContainer.innerHTML = await response.text();
+        initializeVisibleRows();
+        applySelectionStateToVisibleRows();
+        applyVisibleFilters();
+        reorderVisibleRows();
+        updateSelectionSummary();
+        updateSearchControls(baseUrl);
+
+        history.replaceState(null, "", `${baseUrl.pathname}${baseUrl.search}${baseUrl.hash}`);
+    } catch (error) {
+        if (error.name !== "AbortError") {
+            window.location.assign(baseUrl.toString());
+        }
+    } finally {
+        paymentUiState.invoiceLoading = false;
+        paymentUiState.invoiceFetchController = null;
+        invoiceListContainer.removeAttribute("aria-busy");
+        invoiceListContainer.style.opacity = "";
+        if (searchInput) searchInput.disabled = false;
+        if (searchSubmit) searchSubmit.disabled = false;
+        if (searchReset) searchReset.classList.remove("disabled");
+    }
+}
+
+function updateSearchControls(currentUrl) {
+    const searchInput = document.getElementById("invoice-search");
+    const searchReset = document.getElementById("invoice-search-reset");
+    const currentQuery = currentUrl.searchParams.get("invoice_q") || "";
+    if (searchInput) {
+        searchInput.value = currentQuery;
+    }
+    if (searchReset) {
+        const resetUrl = new URL(currentUrl.toString());
+        resetUrl.searchParams.delete("invoice_q");
+        resetUrl.searchParams.delete("invoice_page");
+        resetUrl.searchParams.set("tab", "tab-new");
+        searchReset.setAttribute("href", `${resetUrl.pathname}${resetUrl.search}#tab-new`);
+        searchReset.classList.toggle("d-none", !currentQuery);
+    }
+}
+
+function getInvoiceRows() {
+    return Array.from(document.querySelectorAll(".invoice-row"));
+}
+
+function getRowCheckbox(row) {
+    return row?.querySelector('input[name="payment_id"]') || null;
+}
+
+function getRowAmountInput(row) {
+    const checkbox = getRowCheckbox(row);
+    if (!row || !checkbox) return null;
+    return row.querySelector(`input[name="amount_${checkbox.value}"]`);
+}
+
+function isAmountInput(element) {
+    return Boolean(element?.name && /^amount_\d+$/.test(element.name));
+}
+
+function getRowDocumentId(row) {
+    return String(row?.getAttribute("data-document-id") || "").trim();
+}
+
+function initializeVisibleRows() {
+    getInvoiceRows().forEach((row, index) => {
+        row.dataset.originalOrder = String(index);
+    });
+}
+
+function captureSelectionsFromVisibleRows() {
+    getInvoiceRows().forEach((row) => {
+        const checkbox = getRowCheckbox(row);
+        if (!checkbox?.checked) return;
+        upsertSelectionFromRow(row, { preserveOrder: false });
+    });
+}
+
+function initializeEntityFilterFromSelections() {
+    if (paymentUiState.activeEntityId || !paymentUiState.selections.size) {
+        return;
+    }
+    const firstSelection = getSelectionItems().sort((left, right) => left.selectedOrder - right.selectedOrder)[0];
+    if (!firstSelection?.legalEntityId) return;
+    paymentUiState.activeEntityId = firstSelection.legalEntityId;
+    paymentUiState.activeEntityName = firstSelection.legalEntityName || "";
+}
+
+function upsertSelectionFromRow(row, options = {}) {
+    const documentId = getRowDocumentId(row);
+    if (!documentId) return null;
+
+    const checkbox = getRowCheckbox(row);
+    const amountInput = getRowAmountInput(row);
+    const existing = paymentUiState.selections.get(documentId);
+    const shouldPreserveOrder = options.preserveOrder !== false;
+    let amountValue = (amountInput?.value || "").trim();
+
+    if (!amountValue) {
+        amountValue = existing?.amount || row.getAttribute("data-due") || "";
+        if (amountInput && amountValue) {
+            amountInput.value = amountValue;
         }
     }
-    updateBankAccounts(activeEntityId);
 
-    searchSubmit?.addEventListener("click", submitServerSearch);
-    searchInput?.addEventListener("keydown", (event) => {
-        if (event.key !== "Enter") return;
-        event.preventDefault();
-        submitServerSearch();
-    });
-    dateInput?.addEventListener("change", applyFilter);
-    dateInput?.addEventListener("keyup", applyFilter);
+    const selection = {
+        documentId,
+        documentLabel: row.getAttribute("data-document-label") || `Documento #${documentId}`,
+        supplierName: row.getAttribute("data-supplier-name") || "Fornitore non disponibile",
+        legalEntityId: row.getAttribute("data-legal-entity-id") || "",
+        legalEntityName: row.getAttribute("data-legal-entity-name") || "",
+        amount: amountValue,
+        selectedOrder: shouldPreserveOrder && existing
+            ? existing.selectedOrder
+            : ++paymentUiState.selectionSequence,
+    };
+
+    if (checkbox) {
+        checkbox.checked = true;
+    }
+    paymentUiState.selections.set(documentId, selection);
+    return selection;
 }
 
-function setupPaymentAmountAutofill() {
-    const checkboxes = document.querySelectorAll('input[name="payment_id"]');
-    if (!checkboxes.length) return;
+function removeSelection(documentId) {
+    paymentUiState.selections.delete(String(documentId));
+}
 
-    checkboxes.forEach((checkbox) => {
-        checkbox.addEventListener("change", () => {
-            if (!checkbox.checked) return;
-            const row = checkbox.closest(".invoice-row");
-            if (!row) return;
-            const due = row.getAttribute("data-due");
-            if (!due) return;
+function handleRowCheckboxChange(checkbox) {
+    const row = checkbox.closest(".invoice-row");
+    if (!row) return;
 
-            const amountInput =
-                row.querySelector(`input[name="amount_${checkbox.value}"]`) ||
-                row.querySelector('input[name^="amount_"]');
-            if (!amountInput) return;
+    if (checkbox.checked) {
+        upsertSelectionFromRow(row, { preserveOrder: false });
+        if (!paymentUiState.activeEntityId) {
+            const entityId = row.getAttribute("data-legal-entity-id") || "";
+            const entityName = row.getAttribute("data-legal-entity-name") || "";
+            if (entityId) {
+                paymentUiState.activeEntityId = entityId;
+                paymentUiState.activeEntityName = entityName;
+            }
+        }
+    } else {
+        removeSelection(getRowDocumentId(row));
+    }
 
-            amountInput.value = due;
-        });
+    refreshInvoiceWorkspace();
+}
+
+function handleRowAmountChange(input, options = {}) {
+    const row = input.closest(".invoice-row");
+    if (!row) return;
+
+    const checkbox = getRowCheckbox(row);
+    if (checkbox?.checked) {
+        upsertSelectionFromRow(row, { preserveOrder: true });
+    }
+
+    if (options.realtime) {
+        updateSelectionSummary();
+        return;
+    }
+    refreshInvoiceWorkspace();
+}
+
+function applySelectionStateToVisibleRows() {
+    getInvoiceRows().forEach((row) => {
+        const documentId = getRowDocumentId(row);
+        const checkbox = getRowCheckbox(row);
+        const amountInput = getRowAmountInput(row);
+        const selection = paymentUiState.selections.get(documentId);
+
+        if (checkbox) {
+            checkbox.checked = Boolean(selection);
+        }
+        if (amountInput) {
+            if (selection?.amount) {
+                amountInput.value = selection.amount;
+            } else if (!selection && amountInput.defaultValue) {
+                amountInput.value = amountInput.defaultValue;
+            }
+        }
+
+        row.dataset.selectedOrder = selection ? String(selection.selectedOrder) : "0";
+        row.classList.toggle("invoice-row-selected", Boolean(selection));
     });
 }
 
-function setupPaymentSelectionUX() {
-    const form = document.querySelector('#tab-new form[action]');
+function reorderVisibleRows() {
     const invoiceBody = document.querySelector(".invoice-body");
-    const rows = Array.from(document.querySelectorAll(".invoice-row"));
+    if (!invoiceBody) return;
+
+    const orderedRows = getInvoiceRows().sort((leftRow, rightRow) => {
+        const leftSelection = paymentUiState.selections.get(getRowDocumentId(leftRow));
+        const rightSelection = paymentUiState.selections.get(getRowDocumentId(rightRow));
+        const leftChecked = Boolean(leftSelection);
+        const rightChecked = Boolean(rightSelection);
+
+        if (leftChecked !== rightChecked) {
+            return leftChecked ? -1 : 1;
+        }
+        if (leftChecked && rightChecked) {
+            return rightSelection.selectedOrder - leftSelection.selectedOrder;
+        }
+        return Number(leftRow.dataset.originalOrder || "0") - Number(rightRow.dataset.originalOrder || "0");
+    });
+
+    orderedRows.forEach((row) => invoiceBody.appendChild(row));
+}
+
+function updateEntityFilterChip() {
+    const chip = document.getElementById("invoice-entity-chip");
+    const chipLabel = document.getElementById("invoice-entity-chip-label");
+    if (!chip || !chipLabel) return;
+
+    if (!paymentUiState.activeEntityId) {
+        chip.classList.add("d-none");
+        chipLabel.textContent = "";
+        return;
+    }
+
+    chipLabel.textContent = paymentUiState.activeEntityName
+        ? `Intestatario: ${paymentUiState.activeEntityName}`
+        : "Intestatario";
+    chip.classList.remove("d-none");
+}
+
+function updateBankAccounts() {
+    const ibanSelect = document.getElementById("bank-account-iban");
+    const ibanEmptyOption = document.getElementById("bank-account-empty");
+    if (!ibanSelect) return;
+
+    const entityId = paymentUiState.activeEntityId;
+    const options = Array.from(ibanSelect.querySelectorAll("option")).filter((option) => option.value);
+    let visibleCount = 0;
+
+    options.forEach((option) => {
+        const optionEntityId = option.getAttribute("data-legal-entity-id") || "";
+        const shouldShow = !entityId || optionEntityId === entityId;
+        option.hidden = !shouldShow;
+        option.disabled = !shouldShow;
+        if (shouldShow) {
+            visibleCount += 1;
+        }
+    });
+
+    if (ibanEmptyOption) {
+        const showEmpty = Boolean(entityId) && visibleCount === 0;
+        ibanEmptyOption.hidden = !showEmpty;
+        ibanEmptyOption.disabled = !showEmpty;
+    }
+
+    if (ibanSelect.value) {
+        const selected = options.find((option) => option.value === ibanSelect.value);
+        if (selected && selected.hidden) {
+            ibanSelect.value = "";
+        }
+    }
+
+    refreshSelect2(ibanSelect);
+}
+
+function applyVisibleFilters() {
+    const dateInput = document.getElementById("invoice-date");
+    const dateValue = (dateInput?.value || "").trim();
+
+    getInvoiceRows().forEach((row) => {
+        const rowDate = row.getAttribute("data-date") || "";
+        const rowEntity = row.getAttribute("data-legal-entity-id") || "";
+        const matchDate = !dateValue || rowDate === dateValue;
+        const matchEntity = !paymentUiState.activeEntityId || rowEntity === paymentUiState.activeEntityId;
+        row.classList.toggle("d-none", !(matchDate && matchEntity));
+    });
+}
+
+function clearEntityFilter() {
+    paymentUiState.activeEntityId = null;
+    paymentUiState.activeEntityName = "";
+    refreshInvoiceWorkspace();
+}
+
+function refreshInvoiceWorkspace() {
+    applySelectionStateToVisibleRows();
+    updateEntityFilterChip();
+    updateBankAccounts();
+    applyVisibleFilters();
+    reorderVisibleRows();
+    updateSelectionSummary();
+}
+
+function getSelectionItems() {
+    return Array.from(paymentUiState.selections.values()).sort(
+        (left, right) => right.selectedOrder - left.selectedOrder
+    );
+}
+
+function updateSelectionSummary() {
     const summaryCount = document.getElementById("payment-selected-count");
     const summaryTotal = document.getElementById("payment-selected-total");
     const summarySuppliers = document.getElementById("payment-selected-suppliers");
-    const modalEl = document.getElementById("payment-confirm-modal");
-    const confirmSubmitButton = document.getElementById("payment-confirm-submit");
+    const items = getSelectionItems();
+    const total = items.reduce((sum, item) => {
+        const amount = Number(String(item.amount || "").replace(",", "."));
+        return sum + (Number.isNaN(amount) ? 0 : amount);
+    }, 0);
+    const supplierNames = Array.from(new Set(items.map((item) => item.supplierName).filter(Boolean)));
+
+    if (summaryCount) summaryCount.textContent = String(items.length);
+    if (summaryTotal) summaryTotal.innerHTML = formatCurrency(total);
+    if (summarySuppliers) {
+        if (!supplierNames.length) {
+            summarySuppliers.textContent = "Nessun fornitore selezionato";
+        } else if (supplierNames.length === 1) {
+            summarySuppliers.textContent = supplierNames[0];
+        } else {
+            summarySuppliers.textContent = `${supplierNames.length} fornitori selezionati`;
+        }
+    }
+}
+
+function renderConfirmationModal() {
     const confirmCount = document.getElementById("payment-confirm-count");
     const confirmSupplierCount = document.getElementById("payment-confirm-supplier-count");
     const confirmTotal = document.getElementById("payment-confirm-total");
     const confirmGroups = document.getElementById("payment-confirm-groups");
+    const items = getSelectionItems();
+    const groupedBySupplier = new Map();
 
-    if (!form || !invoiceBody || !rows.length) return;
-
-    let selectionSequence = 0;
-    let bypassConfirmation = false;
-    const confirmModal = modalEl && window.bootstrap?.Modal ? new window.bootstrap.Modal(modalEl) : null;
-
-    const escapeHtml = (value) => String(value || "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
-
-    const formatCurrency = (value) => {
-        const amount = Number(value || 0);
-        if (Number.isNaN(amount)) return "0,00 €";
-        return amount.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
-    };
-
-    const getCheckbox = (row) => row.querySelector('input[name="payment_id"]');
-
-    const getAmountInput = (row, checkbox) => {
-        const targetCheckbox = checkbox || getCheckbox(row);
-        if (!targetCheckbox) return null;
-        return row.querySelector(`input[name="amount_${targetCheckbox.value}"]`);
-    };
-
-    const getRowAmount = (row, checkbox) => {
-        const amountInput = getAmountInput(row, checkbox);
-        const rawValue = (amountInput?.value || "0").replace(",", ".");
-        const amount = Number(rawValue);
-        return Number.isNaN(amount) ? 0 : amount;
-    };
-
-    const getSelectedRows = () => rows.filter((row) => getCheckbox(row)?.checked);
-
-    const updateSelectionSummary = () => {
-        const selectedRows = getSelectedRows();
-        const total = selectedRows.reduce((sum, row) => sum + getRowAmount(row), 0);
-        const supplierNames = Array.from(new Set(
-            selectedRows
-                .map((row) => (row.getAttribute("data-supplier-name") || "").trim())
-                .filter(Boolean)
-        ));
-
-        if (summaryCount) summaryCount.textContent = selectedRows.length.toString();
-        if (summaryTotal) summaryTotal.innerHTML = `${formatCurrency(total)}`;
-        if (summarySuppliers) {
-            if (!supplierNames.length) {
-                summarySuppliers.textContent = "Nessun fornitore selezionato";
-            } else if (supplierNames.length === 1) {
-                summarySuppliers.textContent = supplierNames[0];
-            } else {
-                summarySuppliers.textContent = `${supplierNames.length} fornitori selezionati`;
-            }
+    items.forEach((item) => {
+        const key = `${item.supplierName || "Fornitore non disponibile"}|${item.legalEntityName || ""}`;
+        if (!groupedBySupplier.has(key)) {
+            groupedBySupplier.set(key, {
+                supplierName: item.supplierName || "Fornitore non disponibile",
+                legalEntityName: item.legalEntityName || "",
+                total: 0,
+                count: 0,
+                items: [],
+            });
         }
-    };
-
-    const reorderRows = () => {
-        const orderedRows = [...rows].sort((leftRow, rightRow) => {
-            const leftChecked = Boolean(getCheckbox(leftRow)?.checked);
-            const rightChecked = Boolean(getCheckbox(rightRow)?.checked);
-            if (leftChecked !== rightChecked) {
-                return leftChecked ? -1 : 1;
-            }
-            if (leftChecked && rightChecked) {
-                return Number(rightRow.dataset.selectedOrder || "0") - Number(leftRow.dataset.selectedOrder || "0");
-            }
-            return Number(leftRow.dataset.originalOrder || "0") - Number(rightRow.dataset.originalOrder || "0");
-        });
-
-        orderedRows.forEach((row) => invoiceBody.appendChild(row));
-    };
-
-    const buildSelectionItems = () => getSelectedRows().map((row) => {
-        const checkbox = getCheckbox(row);
-        const amount = getRowAmount(row, checkbox);
-        return {
-            documentId: row.getAttribute("data-document-id") || checkbox?.value || "",
-            documentLabel: row.getAttribute("data-document-label") || `Documento #${checkbox?.value || ""}`,
-            supplierName: row.getAttribute("data-supplier-name") || "Fornitore non disponibile",
-            legalEntityName: row.getAttribute("data-legal-entity-name") || "",
-            amount,
-        };
+        const group = groupedBySupplier.get(key);
+        const amount = Number(String(item.amount || "").replace(",", "."));
+        group.total += Number.isNaN(amount) ? 0 : amount;
+        group.count += 1;
+        group.items.push(item);
     });
 
-    const renderConfirmation = () => {
-        const items = buildSelectionItems();
-        const groupedBySupplier = new Map();
+    const total = Array.from(groupedBySupplier.values()).reduce((sum, group) => sum + group.total, 0);
 
-        items.forEach((item) => {
-            const key = `${item.supplierName || "Fornitore non disponibile"}|${item.legalEntityName || ""}`;
-            if (!groupedBySupplier.has(key)) {
-                groupedBySupplier.set(key, {
-                    supplierName: item.supplierName || "Fornitore non disponibile",
-                    legalEntityName: item.legalEntityName || "",
-                    total: 0,
-                    count: 0,
-                    items: [],
-                });
-            }
-            const group = groupedBySupplier.get(key);
-            group.total += item.amount;
-            group.count += 1;
-            group.items.push(item);
-        });
+    if (confirmCount) confirmCount.textContent = String(items.length);
+    if (confirmSupplierCount) confirmSupplierCount.textContent = String(groupedBySupplier.size);
+    if (confirmTotal) confirmTotal.innerHTML = formatCurrency(total);
+    if (!confirmGroups) return;
 
-        const total = items.reduce((sum, item) => sum + item.amount, 0);
-
-        if (confirmCount) confirmCount.textContent = items.length.toString();
-        if (confirmSupplierCount) confirmSupplierCount.textContent = groupedBySupplier.size.toString();
-        if (confirmTotal) confirmTotal.innerHTML = `${formatCurrency(total)}`;
-
-        if (confirmGroups) {
-            confirmGroups.innerHTML = Array.from(groupedBySupplier.values()).map((group) => `
-                <details class="payment-confirm-item payment-confirm-group">
-                    <summary class="payment-confirm-item-header payment-confirm-toggle">
-                        <div>
-                            <div class="payment-confirm-item-title">${escapeHtml(group.supplierName)}</div>
-                            <div class="payment-confirm-item-meta">${escapeHtml(group.legalEntityName || "Intestatario non indicato")}</div>
-                            <div class="payment-confirm-item-meta">${escapeHtml(`${group.count} documenti`)}</div>
-                        </div>
-                        <div class="payment-confirm-item-header-right">
-                            <div class="payment-confirm-item-amount">${escapeHtml(formatCurrency(group.total))}</div>
-                            <div class="payment-confirm-toggle-hint">Dettaglio</div>
-                        </div>
-                    </summary>
-                    <div class="payment-confirm-subitems">
-                        ${group.items.map((item) => `
-                            <div class="payment-confirm-subitem">
-                                <span class="payment-confirm-subitem-label">${escapeHtml(item.documentLabel)}</span>
-                                <span class="payment-confirm-subitem-amount">${escapeHtml(formatCurrency(item.amount))}</span>
-                            </div>
-                        `).join("")}
+    confirmGroups.innerHTML = Array.from(groupedBySupplier.values()).map((group) => `
+        <details class="payment-confirm-item payment-confirm-group">
+            <summary class="payment-confirm-item-header payment-confirm-toggle">
+                <div>
+                    <div class="payment-confirm-item-title">${escapeHtml(group.supplierName)}</div>
+                    <div class="payment-confirm-item-meta">${escapeHtml(group.legalEntityName || "Intestatario non indicato")}</div>
+                    <div class="payment-confirm-item-meta">${escapeHtml(`${group.count} documenti`)}</div>
+                </div>
+                <div class="payment-confirm-item-header-right">
+                    <div class="payment-confirm-item-amount">${escapeHtml(formatCurrency(group.total))}</div>
+                    <div class="payment-confirm-toggle-hint">Dettaglio</div>
+                </div>
+            </summary>
+            <div class="payment-confirm-subitems">
+                ${group.items.map((item) => `
+                    <div class="payment-confirm-subitem">
+                        <span class="payment-confirm-subitem-label">${escapeHtml(item.documentLabel)}</span>
+                        <span class="payment-confirm-subitem-amount">${escapeHtml(formatCurrency(item.amount))}</span>
                     </div>
-                </details>
-            `).join("");
-        }
-    };
+                `).join("")}
+            </div>
+        </details>
+    `).join("");
+}
 
-    rows.forEach((row, index) => {
-        row.dataset.originalOrder = String(index);
-        const checkbox = getCheckbox(row);
-        const amountInput = getAmountInput(row, checkbox);
-        if (checkbox?.checked) {
-            selectionSequence += 1;
-            row.dataset.selectedOrder = String(selectionSequence);
-            row.classList.add("invoice-row-selected");
-        }
+function prepareHiddenSelectionInputs(form) {
+    const hiddenContainer = document.getElementById("payment-selection-hidden-inputs");
+    if (!hiddenContainer) return;
 
-        checkbox?.addEventListener("change", () => {
-            if (checkbox.checked) {
-                selectionSequence += 1;
-                row.dataset.selectedOrder = String(selectionSequence);
-            } else {
-                row.dataset.selectedOrder = "0";
-            }
-            row.classList.toggle("invoice-row-selected", checkbox.checked);
-            reorderRows();
-            updateSelectionSummary();
-        });
-
-        amountInput?.addEventListener("input", updateSelectionSummary);
-        amountInput?.addEventListener("change", updateSelectionSummary);
+    hiddenContainer.innerHTML = "";
+    form.querySelectorAll('.invoice-row input[name="payment_id"], .invoice-row input[name^="amount_"]').forEach((input) => {
+        input.disabled = true;
     });
 
-    invoiceBody.addEventListener("click", (event) => {
-        const target = event.target;
-        const row = target.closest(".invoice-row");
-        if (!row) return;
-        if (target.closest("a, button, input, label, select, textarea")) return;
-        const checkbox = getCheckbox(row);
-        if (!checkbox || checkbox.disabled) return;
-        checkbox.checked = !checkbox.checked;
-        checkbox.dispatchEvent(new Event("change", { bubbles: true }));
+    getSelectionItems().forEach((item) => {
+        const paymentIdInput = document.createElement("input");
+        paymentIdInput.type = "hidden";
+        paymentIdInput.name = "payment_id";
+        paymentIdInput.value = item.documentId;
+        hiddenContainer.appendChild(paymentIdInput);
+
+        const amountInput = document.createElement("input");
+        amountInput.type = "hidden";
+        amountInput.name = `amount_${item.documentId}`;
+        amountInput.value = item.amount || "";
+        hiddenContainer.appendChild(amountInput);
+    });
+}
+
+function applyPresetPayment() {
+    const params = new URLSearchParams(window.location.search);
+    const docId = params.get("document_id");
+    const docIdsRaw = params.get("document_ids");
+    const docIds = docIdsRaw
+        ? docIdsRaw.split(",").map((value) => value.trim()).filter(Boolean)
+        : [];
+    const targetIds = docId ? [docId, ...docIds.filter((value) => value !== docId)] : docIds;
+    if (!targetIds.length) return;
+
+    targetIds.forEach((targetDocId) => {
+        const row = document.querySelector(`.invoice-row[data-document-id="${targetDocId}"]`);
+        if (row) {
+            row.classList.add("border", "border-primary", "rounded");
+        }
     });
 
-    form.addEventListener("submit", (event) => {
-        if (bypassConfirmation) {
-            bypassConfirmation = false;
-            return;
-        }
-
-        if (!confirmModal) {
-            return;
-        }
-
-        const selectedRows = getSelectedRows();
-        if (!selectedRows.length) {
-            return;
-        }
-
-        event.preventDefault();
-        renderConfirmation();
-        confirmModal.show();
-    });
-
-    confirmSubmitButton?.addEventListener("click", () => {
-        bypassConfirmation = true;
-        confirmModal?.hide();
-        form.requestSubmit();
-    });
-
-    reorderRows();
-    updateSelectionSummary();
+    const firstRow = document.querySelector(`.invoice-row[data-document-id="${targetIds[0]}"]`);
+    if (firstRow) {
+        firstRow.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
 }
 
 function setupPdfPreview() {
@@ -512,46 +727,37 @@ function setupPdfPreview() {
     fileInput.addEventListener("change", () => {
         const file = fileInput.files[0];
 
-        // Validate file
         if (!file) {
-            // No file selected - show placeholder
             previewFrame.removeAttribute("src");
             placeholderDiv.classList.remove("d-none");
             return;
         }
 
-        // Validate file type
-        if (file.type !== 'application/pdf') {
-            alert('Solo file PDF sono consentiti.');
-            fileInput.value = '';
+        if (file.type !== "application/pdf") {
+            alert("Solo file PDF sono consentiti.");
+            fileInput.value = "";
             return;
         }
 
-        // Validate file size (10MB limit)
         const maxSize = 10 * 1024 * 1024;
         if (file.size > maxSize) {
-            alert('File troppo grande. Massimo 10MB consentito.');
-            fileInput.value = '';
+            alert("File troppo grande. Massimo 10MB consentito.");
+            fileInput.value = "";
             return;
         }
 
-        // Create blob URL and display
         const url = URL.createObjectURL(file);
         previewFrame.src = url;
         placeholderDiv.classList.add("d-none");
 
-        // Clean up old blob URL when new file selected
-        previewFrame.addEventListener('load', () => {
+        previewFrame.addEventListener("load", () => {
             URL.revokeObjectURL(url);
         }, { once: true });
 
-        // Fallback if PDF blocked by browser
         setTimeout(() => {
             try {
-                // Check if PDF loaded successfully
                 const doc = previewFrame.contentDocument;
-                if (!doc || doc.body.innerHTML === '') {
-                    // Browser blocked PDF rendering
+                if (!doc || doc.body.innerHTML === "") {
                     placeholderDiv.innerHTML = `
                         <p class="text-center text-muted">
                             <i class="bi bi-exclamation-triangle"></i><br>
@@ -563,10 +769,8 @@ function setupPdfPreview() {
                     `;
                     placeholderDiv.classList.remove("d-none");
                 }
-            } catch (e) {
-                // Cross-origin error (expected for blob URLs)
-                // PDF likely loaded successfully
-                console.debug('PDF preview loaded (cross-origin check blocked)');
+            } catch (error) {
+                console.debug("PDF preview loaded (cross-origin check blocked)");
             }
         }, 500);
     });
@@ -717,11 +921,8 @@ function applyPaymentMapping(fields, methodSelect, notesInput) {
         const amountValue = fields.amount.value;
         let targetDocId = docIdParam;
 
-        if (!targetDocId) {
-            const selected = document.querySelectorAll('input[name="payment_id"]:checked');
-            if (selected.length === 1) {
-                targetDocId = selected[0].value;
-            }
+        if (!targetDocId && paymentUiState.selections.size === 1) {
+            targetDocId = getSelectionItems()[0]?.documentId || null;
         }
 
         if (targetDocId) {
@@ -731,6 +932,13 @@ function applyPaymentMapping(fields, methodSelect, notesInput) {
                 amountInput.dispatchEvent(new Event("input", { bubbles: true }));
                 amountInput.dispatchEvent(new Event("change", { bubbles: true }));
                 if (badge) badge(amountInput, fields.amount.confidence || 0, "OCR");
+            } else {
+                const currentSelection = paymentUiState.selections.get(String(targetDocId));
+                if (currentSelection) {
+                    currentSelection.amount = amountValue;
+                    paymentUiState.selections.set(String(targetDocId), currentSelection);
+                    updateSelectionSummary();
+                }
             }
         }
     }

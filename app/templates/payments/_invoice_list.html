@@ -1,0 +1,94 @@
+<div class="invoice-list scrollable-list flex-grow-1 h-100">
+    <div class="invoice-header">
+        <span class="invoice-col checkbox-col">
+            <i class="bi bi-check2-square"></i>
+        </span>
+        <span class="invoice-col date-col">Scadenza</span>
+        <span class="invoice-col supplier-col">Fornitore / Intestatario</span>
+        <span class="invoice-col doc-col">Documento</span>
+        <span class="invoice-col due-col text-end">Dovuto</span>
+        <span class="invoice-col amount-col text-end">Importo pagato</span>
+    </div>
+    <div class="invoice-body">
+        {% for doc in all_unpaid_invoices %}
+            {% set supplier_name = doc.supplier.name if doc.supplier else '' %}
+            {% set legal_entity_name = doc.legal_entity.name if doc.legal_entity else '' %}
+            {% set doc_number = doc.document_number or '' %}
+            {% set paid_val = (doc.paid_amount if doc.paid_amount is defined else 0) %}
+            {% set remaining_val = (doc.remaining_amount if doc.remaining_amount is defined else (doc.total_gross_amount - paid_val)) %}
+            {% set due_val = remaining_val if remaining_val is not none else doc.total_gross_amount %}
+            {% set due_val_raw = "%.2f"|format(due_val or 0) %}
+            {% set is_preset_document = doc.id in preset_document_ids %}
+            {% set preset_amount = preset_amounts.get(doc.id) %}
+            <div
+                class="invoice-row"
+                data-search="{{ supplier_name }} {{ legal_entity_name }} {{ doc_number }} {{ doc.id }}"
+                data-date="{{ doc.due_date.isoformat() if doc.due_date else '' }}"
+                data-due="{{ due_val_raw }}"
+                data-document-id="{{ doc.id }}"
+                data-document-label="{{ doc_number or ('Documento #' ~ doc.id) }}"
+                data-supplier-name="{{ supplier_name }}"
+                data-legal-entity-id="{{ doc.legal_entity_id or '' }}"
+                data-legal-entity-name="{{ legal_entity_name }}"
+            >
+                <div class="invoice-col checkbox-col">
+                    <input class="form-check-input" type="checkbox" name="payment_id" value="{{ doc.id }}" aria-label="Seleziona pagamento" {% if is_preset_document %}checked{% endif %}>
+                </div>
+                <div class="invoice-col date-col">
+                    {% if doc.due_date %}
+                        {{ doc.due_date.strftime('%d/%m/%Y') }}
+                    {% else %}
+                        <span class="text-muted">-</span>
+                    {% endif %}
+                </div>
+                <div class="invoice-col supplier-col">
+                    <div class="fw-semibold">{{ supplier_name }}</div>
+                    {% if legal_entity_name %}
+                        <div class="text-muted small">{{ legal_entity_name }}</div>
+                    {% endif %}
+                </div>
+                <div class="invoice-col doc-col">{{ doc_number }}</div>
+                <div class="invoice-col due-col text-end">
+                    <small class="text-muted d-block">Importo dovuto</small>
+                    <strong>{{ due_val|format_amount }} &euro;</strong>
+                </div>
+                <div class="invoice-col amount-col text-end">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text">&euro;</span>
+                        <input type="number" step="0.01" min="0" class="form-control text-end" name="amount_{{ doc.id }}" placeholder="0,00" {% if preset_amount %}value="{{ preset_amount }}"{% endif %}>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="invoice-empty text-center text-muted py-4">
+                <i class="bi bi-folder2-open d-block fs-3 mb-2"></i>
+                Nessuna fattura da pagare.
+            </div>
+        {% endfor %}
+    </div>
+</div>
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-2">
+    <div class="text-muted small">
+        {{ invoice_pagination.start_item }}-{{ invoice_pagination.end_item }} di {{ unpaid_invoices_total|format_int }} fatture aperte
+        {% if invoice_search_query %}
+            per ricerca "<strong>{{ invoice_search_query }}</strong>"
+        {% endif %}
+    </div>
+    {% if invoice_pagination.total_pages > 1 %}
+        <nav aria-label="Paginazione fatture aperte" class="invoice-pagination">
+            <ul class="pagination pagination-sm mb-0">
+                <li class="page-item {% if not invoice_pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{{ invoice_pagination.prev_url or '#' }}" tabindex="{% if not invoice_pagination.has_prev %}-1{% endif %}">Prec</a>
+                </li>
+                {% for page in invoice_pagination.pages %}
+                    <li class="page-item {% if page.active %}active{% endif %}">
+                        <a class="page-link" href="{{ page.url }}">{{ page.number }}</a>
+                    </li>
+                {% endfor %}
+                <li class="page-item {% if not invoice_pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{{ invoice_pagination.next_url or '#' }}" tabindex="{% if not invoice_pagination.has_next %}-1{% endif %}">Succ</a>
+                </li>
+            </ul>
+        </nav>
+    {% endif %}
+</div>
