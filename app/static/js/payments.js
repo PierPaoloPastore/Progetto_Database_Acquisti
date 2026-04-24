@@ -266,6 +266,10 @@ async function loadInvoiceList(targetUrl) {
         invoiceListContainer.getAttribute("data-partial-query-param") || "partial",
         invoiceListContainer.getAttribute("data-partial-query-value") || "invoice-list",
     );
+    const selectedDocumentIds = getSelectedDocumentIds();
+    if (selectedDocumentIds.length) {
+        fetchUrl.searchParams.set("selected_document_ids", selectedDocumentIds.join(","));
+    }
 
     if (paymentUiState.invoiceFetchController) {
         paymentUiState.invoiceFetchController.abort();
@@ -583,6 +587,10 @@ function getSelectionItems() {
     return Array.from(paymentUiState.selections.values()).sort(
         (left, right) => right.selectedOrder - left.selectedOrder
     );
+}
+
+function getSelectedDocumentIds() {
+    return getSelectionItems().map((item) => item.documentId).filter(Boolean);
 }
 
 function updateSelectionSummary() {

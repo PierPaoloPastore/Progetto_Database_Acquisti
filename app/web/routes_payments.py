@@ -186,6 +186,14 @@ def payment_index():
         request.args.get("document_id"),
         request.args.get("document_ids"),
     )
+    selected_document_ids = _parse_document_ids_arg(request.args.get("selected_document_ids"))
+    pinned_document_ids = []
+    seen_pinned_ids: set[int] = set()
+    for doc_id in [*preset_document_ids, *selected_document_ids]:
+        if doc_id in seen_pinned_ids:
+            continue
+        seen_pinned_ids.add(doc_id)
+        pinned_document_ids.append(doc_id)
     preset_amount_raw = (request.args.get("amount") or "").strip()
     preset_amounts: dict[int, str] = {}
     if preset_document_ids and preset_amount_raw:
@@ -199,12 +207,12 @@ def payment_index():
                 q=invoice_search_query,
             )
         )
-        if preset_document_ids:
+        if pinned_document_ids and invoice_page == 1 and not invoice_search_query:
             preset_documents = (
                 uow.session.query(Document)
                 .options(joinedload(Document.supplier), joinedload(Document.legal_entity))
                 .filter(
-                    Document.id.in_(preset_document_ids),
+                    Document.id.in_(pinned_document_ids),
                     Document.document_type == "invoice",
                     Document.is_paid == False,
                 )
@@ -214,7 +222,7 @@ def payment_index():
             preset_docs_by_id = {doc.id: doc for doc in preset_documents}
             missing_preset_documents = [
                 preset_docs_by_id[doc_id]
-                for doc_id in preset_document_ids
+                for doc_id in pinned_document_ids
                 if doc_id in preset_docs_by_id and doc_id not in existing_ids
             ]
             if missing_preset_documents:
