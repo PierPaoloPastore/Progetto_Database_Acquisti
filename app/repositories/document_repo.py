@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 from decimal import Decimal
+import re
 from typing import Dict, List, Optional, Tuple
 from calendar import monthrange
 import logging
@@ -24,6 +25,17 @@ from app.parsers.fatturapa_parser import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _compact_search_value(value: str) -> str:
+    return re.sub(r"[^0-9a-z]+", "", (value or "").lower())
+
+
+def _compact_search_expression(column):
+    expr = func.lower(func.coalesce(column, ""))
+    for token in (".", " ", "-", "_", "/", "\\", "'", '"', ",", "(", ")"):
+        expr = func.replace(expr, token, "")
+    return expr
 
 class DocumentRepository(SqlAlchemyRepository[Document]):
     def __init__(self, session):
@@ -266,6 +278,7 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
         *,
         page: int = 1,
         page_size: int = 100,
+        q: Optional[str] = None,
     ) -> tuple[List[Document], int, int]:
         """Restituisce una pagina di fatture non pagate per la schermata pagamenti."""
         if page < 1:
@@ -281,6 +294,31 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
                 Document.is_paid == False,
             )
         )
+
+        search_text = (q or "").strip()
+        compact_search_text = _compact_search_value(search_text)
+        if search_text:
+            like_value = f"%{search_text}%"
+            compact_like_value = f"%{compact_search_text}%"
+            query = query.outerjoin(Supplier, Document.supplier_id == Supplier.id)
+            query = query.outerjoin(LegalEntity, Document.legal_entity_id == LegalEntity.id)
+
+            search_clauses = [
+                Document.document_number.ilike(like_value),
+                Supplier.name.ilike(like_value),
+                LegalEntity.name.ilike(like_value),
+            ]
+            if search_text.isdigit():
+                search_clauses.append(Document.id == int(search_text))
+            if compact_search_text:
+                search_clauses.extend(
+                    [
+                        _compact_search_expression(Document.document_number).like(compact_like_value),
+                        _compact_search_expression(Supplier.name).like(compact_like_value),
+                        _compact_search_expression(LegalEntity.name).like(compact_like_value),
+                    ]
+                )
+            query = query.filter(or_(*search_clauses))
 
         total = query.order_by(None).count()
         if total:

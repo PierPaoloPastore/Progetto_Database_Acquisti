@@ -18,27 +18,6 @@ const refreshSelect2 = (select) => {
     }
 };
 
-const normalizeSearchText = (value) => String(value || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-
-const compactSearchText = (value) => normalizeSearchText(value).replace(/\s+/g, "");
-
-const matchesSearchText = (haystack, query) => {
-    const normalizedQuery = normalizeSearchText(query);
-    if (!normalizedQuery) return true;
-
-    const normalizedHaystack = normalizeSearchText(haystack);
-    if (normalizedHaystack.includes(normalizedQuery)) {
-        return true;
-    }
-
-    return compactSearchText(normalizedHaystack).includes(compactSearchText(normalizedQuery));
-};
-
 function setupTabSwitching() {
     const tabButtons = document.querySelectorAll("[data-tab-target]");
     const sections = document.querySelectorAll(".tab-section");
@@ -147,6 +126,7 @@ function applyPresetPayment() {
 
 function setupInvoiceFilter() {
     const searchInput = document.getElementById("invoice-search");
+    const searchSubmit = document.getElementById("invoice-search-submit");
     const dateInput = document.getElementById("invoice-date");
     const rows = document.querySelectorAll(".invoice-row");
     const chip = document.getElementById("invoice-entity-chip");
@@ -158,19 +138,33 @@ function setupInvoiceFilter() {
 
     if (!searchInput && !dateInput) return;
 
+    const submitServerSearch = () => {
+        if (!searchInput) return;
+        const params = new URLSearchParams(window.location.search);
+        const query = (searchInput.value || "").trim();
+        const searchUrl = searchInput.getAttribute("data-search-url") || window.location.pathname;
+
+        if (query) {
+            params.set("invoice_q", query);
+        } else {
+            params.delete("invoice_q");
+        }
+        params.set("tab", "tab-new");
+        params.set("invoice_page", "1");
+
+        window.location.assign(`${searchUrl}?${params.toString()}#tab-new`);
+    };
+
     const applyFilter = () => {
-        const query = searchInput?.value || "";
         const dateValue = (dateInput?.value || "").trim();
 
         rows.forEach((row) => {
-            const text = row.getAttribute("data-search") || row.textContent || "";
-            const matchText = matchesSearchText(text, query);
             const rowDate = row.getAttribute("data-date") || "";
             const matchDate = !dateValue || rowDate === dateValue;
             const rowEntity = row.getAttribute("data-legal-entity-id") || "";
             const matchEntity = !activeEntityId || rowEntity === activeEntityId;
 
-            row.classList.toggle("d-none", !(matchText && matchDate && matchEntity));
+            row.classList.toggle("d-none", !(matchDate && matchEntity));
         });
     };
 
@@ -252,7 +246,12 @@ function setupInvoiceFilter() {
     }
     updateBankAccounts(activeEntityId);
 
-    searchInput?.addEventListener("input", applyFilter);
+    searchSubmit?.addEventListener("click", submitServerSearch);
+    searchInput?.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        submitServerSearch();
+    });
     dateInput?.addEventListener("change", applyFilter);
     dateInput?.addEventListener("keyup", applyFilter);
 }

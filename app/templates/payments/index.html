@@ -90,12 +90,28 @@
                                 <div class="d-flex flex-wrap gap-2">
                                     <div class="input-group w-auto flex-grow-1" style="min-width: 280px;">
                                         <span class="input-group-text"><i class="bi bi-search"></i></span>
-                                        <input type="search" id="invoice-search" class="form-control" placeholder="Filtra per fornitore, intestatario o numero documento">
+                                        <input
+                                            type="search"
+                                            id="invoice-search"
+                                            class="form-control"
+                                            value="{{ invoice_search_query or '' }}"
+                                            placeholder="Cerca tra tutte le fatture aperte"
+                                            data-search-url="{{ url_for('payments.payment_index') }}"
+                                        >
+                                        <button type="button" class="btn btn-outline-secondary" id="invoice-search-submit">Cerca</button>
                                     </div>
                                     <div class="input-group date-filter">
                                         <span class="input-group-text"><i class="bi bi-calendar-event"></i></span>
                                         <input type="date" id="invoice-date" class="form-control" placeholder="Data scadenza">
                                     </div>
+                                    {% if invoice_search_query %}
+                                        <a
+                                            href="{{ invoice_search_reset_url }}"
+                                            class="btn btn-outline-secondary"
+                                        >
+                                            Reset ricerca
+                                        </a>
+                                    {% endif %}
                                 </div>
                                 <div id="invoice-entity-chip" class="filter-chips d-none">
                                     <span class="filter-chip">
@@ -191,6 +207,9 @@
                         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                             <div class="text-muted small">
                                 {{ invoice_pagination.start_item }}-{{ invoice_pagination.end_item }} di {{ unpaid_invoices_total|format_int }} fatture aperte
+                                {% if invoice_search_query %}
+                                    per ricerca "<strong>{{ invoice_search_query }}</strong>"
+                                {% endif %}
                             </div>
                             {% if invoice_pagination.total_pages > 1 %}
                                 <nav aria-label="Paginazione fatture aperte">

@@ -178,6 +178,7 @@ def payment_index():
     Mostra la dashboard dei pagamenti.
     """
     payment_history_filters = PaymentHistoryFilters.from_query_args(request.args)
+    invoice_search_query = (request.args.get("invoice_q") or "").strip()
     history_page = _parse_positive_int(request.args.get("history_page"), default=1)
     invoice_page = _parse_positive_int(request.args.get("invoice_page"), default=1)
     preset_document_ids = _parse_document_ids_arg(
@@ -204,6 +205,7 @@ def payment_index():
             uow.documents.list_unpaid_invoices_page(
                 page=invoice_page,
                 page_size=_UNPAID_INVOICES_PAGE_SIZE,
+                q=invoice_search_query,
             )
         )
         if preset_document_ids:
@@ -239,6 +241,8 @@ def payment_index():
         "tab": "tab-new",
         "history_page": history_page,
     }
+    if invoice_search_query:
+        invoice_base_params["invoice_q"] = invoice_search_query
     history_pagination = _build_pagination(
         total=payment_history_total,
         page=history_page,
@@ -274,6 +278,13 @@ def payment_index():
         payment_history_pagination=history_pagination,
         unpaid_invoices_total=unpaid_invoices_total,
         invoice_pagination=invoice_pagination,
+        invoice_search_query=invoice_search_query,
+        invoice_search_reset_url=url_for(
+            "payments.payment_index",
+            **payment_history_filters.to_query_params(),
+            tab="tab-new",
+            history_page=history_page,
+        ),
         preset_document_ids=preset_document_ids,
         preset_amounts=preset_amounts,
     )
