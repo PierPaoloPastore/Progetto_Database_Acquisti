@@ -52,6 +52,24 @@ def _parse_positive_int(value: str | None, default: int = 1) -> int:
     return parsed if parsed > 0 else default
 
 
+def _parse_document_ids_arg(*values: str | None) -> list[int]:
+    parsed_ids: list[int] = []
+    seen: set[int] = set()
+    for raw_value in values:
+        if not raw_value:
+            continue
+        for token in str(raw_value).split(","):
+            token = token.strip()
+            if not token.isdigit():
+                continue
+            doc_id = int(token)
+            if doc_id in seen:
+                continue
+            seen.add(doc_id)
+            parsed_ids.append(doc_id)
+    return parsed_ids
+
+
 def _build_pagination(
     *,
     total: int,
@@ -162,6 +180,15 @@ def payment_index():
     payment_history_filters = PaymentHistoryFilters.from_query_args(request.args)
     history_page = _parse_positive_int(request.args.get("history_page"), default=1)
     invoice_page = _parse_positive_int(request.args.get("invoice_page"), default=1)
+    preset_document_ids = _parse_document_ids_arg(
+        request.args.get("document_id"),
+        request.args.get("document_ids"),
+    )
+    preset_amount_raw = (request.args.get("amount") or "").strip()
+    preset_amounts: dict[int, str] = {}
+    if preset_document_ids and preset_amount_raw:
+        preset_amounts[preset_document_ids[0]] = preset_amount_raw
+
     payment_history, payment_history_total, history_page = list_paid_payments_page(
         filters=payment_history_filters,
         page=history_page,
@@ -179,6 +206,26 @@ def payment_index():
                 page_size=_UNPAID_INVOICES_PAGE_SIZE,
             )
         )
+        if preset_document_ids:
+            preset_documents = (
+                uow.session.query(Document)
+                .options(joinedload(Document.supplier), joinedload(Document.legal_entity))
+                .filter(
+                    Document.id.in_(preset_document_ids),
+                    Document.document_type == "invoice",
+                    Document.is_paid == False,
+                )
+                .all()
+            )
+            existing_ids = {doc.id for doc in all_unpaid_invoices}
+            preset_docs_by_id = {doc.id: doc for doc in preset_documents}
+            missing_preset_documents = [
+                preset_docs_by_id[doc_id]
+                for doc_id in preset_document_ids
+                if doc_id in preset_docs_by_id and doc_id not in existing_ids
+            ]
+            if missing_preset_documents:
+                all_unpaid_invoices = missing_preset_documents + all_unpaid_invoices
 
     payment_service.attach_payment_amounts(all_unpaid_invoices)
     bank_accounts = list_all_bank_accounts()
@@ -227,6 +274,8 @@ def payment_index():
         payment_history_pagination=history_pagination,
         unpaid_invoices_total=unpaid_invoices_total,
         invoice_pagination=invoice_pagination,
+        preset_document_ids=preset_document_ids,
+        preset_amounts=preset_amounts,
     )
 
 

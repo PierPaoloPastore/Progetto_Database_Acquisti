@@ -18,6 +18,27 @@ const refreshSelect2 = (select) => {
     }
 };
 
+const normalizeSearchText = (value) => String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+const compactSearchText = (value) => normalizeSearchText(value).replace(/\s+/g, "");
+
+const matchesSearchText = (haystack, query) => {
+    const normalizedQuery = normalizeSearchText(query);
+    if (!normalizedQuery) return true;
+
+    const normalizedHaystack = normalizeSearchText(haystack);
+    if (normalizedHaystack.includes(normalizedQuery)) {
+        return true;
+    }
+
+    return compactSearchText(normalizedHaystack).includes(compactSearchText(normalizedQuery));
+};
+
 function setupTabSwitching() {
     const tabButtons = document.querySelectorAll("[data-tab-target]");
     const sections = document.querySelectorAll(".tab-section");
@@ -138,12 +159,12 @@ function setupInvoiceFilter() {
     if (!searchInput && !dateInput) return;
 
     const applyFilter = () => {
-        const query = (searchInput?.value || "").toLowerCase();
+        const query = searchInput?.value || "";
         const dateValue = (dateInput?.value || "").trim();
 
         rows.forEach((row) => {
-            const text = (row.getAttribute("data-search") || row.textContent || "").toLowerCase();
-            const matchText = !query || text.includes(query);
+            const text = row.getAttribute("data-search") || row.textContent || "";
+            const matchText = matchesSearchText(text, query);
             const rowDate = row.getAttribute("data-date") || "";
             const matchDate = !dateValue || rowDate === dateValue;
             const rowEntity = row.getAttribute("data-legal-entity-id") || "";
@@ -231,7 +252,7 @@ function setupInvoiceFilter() {
     }
     updateBankAccounts(activeEntityId);
 
-    searchInput?.addEventListener("keyup", applyFilter);
+    searchInput?.addEventListener("input", applyFilter);
     dateInput?.addEventListener("change", applyFilter);
     dateInput?.addEventListener("keyup", applyFilter);
 }
