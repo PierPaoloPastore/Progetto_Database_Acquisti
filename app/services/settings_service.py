@@ -40,12 +40,25 @@ def set_setting(key: str, value: str) -> None:
             extra={"setting_key": key, "error": str(exc)},
         )
 
+def _check_network_mount(path: str) -> None:
+    """Raise RuntimeError if path falls under /mnt/<name> and that mount point is not active."""
+    parts = path.lstrip("/").split(os.sep)
+    if parts and parts[0] == "mnt" and len(parts) >= 2 and parts[1]:
+        mount_point = os.path.join("/", parts[0], parts[1])
+        if not os.path.ismount(mount_point):
+            raise RuntimeError(
+                f"Mount non attivo: {mount_point} non risulta montato. "
+                "Verificare la connessione di rete e il mount CIFS prima di procedere."
+            )
+
+
 def _resolve_path(config_value: str | None, default_parts: list[str]) -> str:
     if config_value:
         target_path = os.path.abspath(config_value)
     else:
         base_dir = os.getcwd()
         target_path = os.path.join(base_dir, *default_parts)
+    _check_network_mount(target_path)
     os.makedirs(target_path, exist_ok=True)
     return target_path
 
