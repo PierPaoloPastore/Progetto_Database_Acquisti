@@ -98,9 +98,14 @@
             <h1 class="mb-0"><i class="bi bi-calendar-check"></i> Scadenziario Pagamenti</h1>
             <small class="text-muted">Aggiornato al {{ updated_at.strftime('%d/%m/%Y %H:%M') }}</small>
         </div>
-        <a href="{{ url_for('payments.payment_index') }}#tab-new" class="btn btn-outline-primary btn-sm">
-            <i class="bi bi-plus-circle"></i> Nuovo pagamento
-        </a>
+        <div class="d-flex flex-wrap gap-2">
+            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('help.guide_view', slug='consultare-lo-scadenziario') }}">
+                <i class="bi bi-question-circle"></i> Guida scadenziario
+            </a>
+            <a href="{{ url_for('payments.payment_index') }}#tab-new" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-plus-circle"></i> Nuovo pagamento
+            </a>
+        </div>
     </div>
 
     <div class="schedule-grid mb-3">

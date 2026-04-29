@@ -48,6 +48,7 @@ def _register_blueprints(app: Flask) -> None:
     from .web.routes_payments import payments_bp
     from .web.routes_delivery_notes import delivery_notes_bp
     from .web.routes_reports import reports_bp
+    from .web.routes_help import help_bp
 
     app.register_blueprint(main_bp)
     
@@ -63,6 +64,7 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(payments_bp, url_prefix="/payments")
     app.register_blueprint(delivery_notes_bp, url_prefix="/delivery-notes")
     app.register_blueprint(reports_bp)
+    app.register_blueprint(help_bp)
 
     # API
     from .api import api_documents_bp, api_categories_bp

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}{{ guide.title }} | Centro Aiuto{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+        <div>
+            <a class="text-decoration-none small" href="{{ url_for('help.index') }}">
+                <i class="bi bi-arrow-left"></i> Torna al Centro Aiuto
+            </a>
+            <h1 class="mt-2 mb-1" data-nav-title>{{ guide.title }}</h1>
+            <p class="text-muted mb-0">{{ guide.summary }}</p>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            {% for action in guide.action_links %}
+            <a class="btn btn-outline-primary btn-sm" href="{{ action.href }}">{{ action.label }}</a>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-12 col-xl-8">
+            <section class="card shadow-sm mb-3">
+                <div class="card-body">
+                    <h2 class="h5 mb-3">Prima di iniziare</h2>
+                    <ul class="mb-0">
+                        {% for item in guide.prerequisites %}
+                        <li>{{ item }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </section>
+
+            <section class="card shadow-sm mb-3">
+                <div class="card-body">
+                    <h2 class="h5 mb-3">Passaggi</h2>
+                    <ol class="mb-0">
+                        {% for step in guide.steps %}
+                        <li class="mb-2">{{ step }}</li>
+                        {% endfor %}
+                    </ol>
+                </div>
+            </section>
+
+            <section class="card shadow-sm">
+                <div class="card-body">
+                    <h2 class="h5 mb-3">Cosa controllare alla fine</h2>
+                    <ul class="mb-0">
+                        {% for item in guide.checks %}
+                        <li>{{ item }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </section>
+        </div>
+
+        <div class="col-12 col-xl-4">
+            <section class="card shadow-sm mb-3">
+                <div class="card-body">
+                    <h2 class="h6 text-uppercase text-muted mb-3">Scheda rapida</h2>
+                    <dl class="row mb-0 small">
+                        <dt class="col-4 text-muted">Per chi</dt>
+                        <dd class="col-8">{{ guide.audience }}</dd>
+                        <dt class="col-4 text-muted">Tempo</dt>
+                        <dd class="col-8">{{ guide.estimated_time }}</dd>
+                    </dl>
+                </div>
+            </section>
+
+            <section class="card shadow-sm">
+                <div class="card-body">
+                    <h2 class="h6 text-uppercase text-muted mb-3">Guide correlate</h2>
+                    <div class="d-flex flex-column gap-3">
+                        {% for item in related_guides %}
+                        <div>
+                            <a class="fw-semibold text-decoration-none" href="{{ item.href }}">{{ item.title }}</a>
+                            <div class="small text-muted">{{ item.summary }}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+{% endblock %}
