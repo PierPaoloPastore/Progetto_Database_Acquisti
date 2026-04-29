@@ -122,7 +122,7 @@ GUIDES: tuple[dict, ...] = (
         "slug": "consultare-lo-scadenziario",
         "icon": "calendar-check",
         "title": "Consultare lo scadenziario",
-        "summary": "Come leggere le scadenze, filtrare i documenti urgenti e avviare rapidamente la registrazione pagamento.",
+        "summary": "Come leggere le scadenze, filtrare i documenti urgenti, preparare la stampa e avviare rapidamente la registrazione pagamento.",
         "audience": "Chi monitora le scadenze da pagare.",
         "estimated_time": "3 minuti",
         "prerequisites": [
@@ -132,11 +132,44 @@ GUIDES: tuple[dict, ...] = (
             "Apri `Scadenziario` dal menu `Operazioni`.",
             "Controlla i riepiloghi in alto per distinguere scadute, imminenti e totale da pagare.",
             "Usa ricerca, filtri per data o stato e selezione dei documenti per isolare il gruppo da lavorare.",
+            "Se devi condividere o preparare una lista di pagamento, seleziona i documenti e usa la barra azioni per stampare il PDF.",
             "Apri il dettaglio del documento per verifiche puntuali oppure usa `Registra` per passare subito al pagamento.",
         ],
         "checks": [
             "Sai individuare subito le fatture scadute e quelle da pagare a breve.",
+            "Sai distinguere tra semplice consultazione, stampa di una lista e registrazione effettiva del pagamento.",
             "Riesci a passare dallo scadenziario alla registrazione pagamento senza cercare manualmente il documento.",
+        ],
+        "actions": [
+            {"label": "Apri Scadenziario", "endpoint": "payments.schedule_view"},
+            {"label": "Guida stampa estratti conto", "endpoint": "help.guide_view", "params": {"slug": "stampare-estratti-conto-dallo-scadenziario"}},
+            {"label": "Apri Pagamenti", "endpoint": "payments.payment_index"},
+        ],
+    },
+    {
+        "slug": "stampare-estratti-conto-dallo-scadenziario",
+        "icon": "printer",
+        "title": "Stampare estratti conto dallo scadenziario",
+        "summary": "Come selezionare le fatture da includere nel PDF dello scadenziario e come interpretare il risultato della stampa.",
+        "audience": "Chi prepara liste di pagamento o riepiloghi da condividere e controllare.",
+        "estimated_time": "3-5 minuti",
+        "prerequisites": [
+            "Avere documenti visibili nello scadenziario.",
+            "Avere wkhtmltopdf o WeasyPrint configurato se la stampa PDF e` abilitata nell'ambiente.",
+        ],
+        "steps": [
+            "Apri `Scadenziario` dal menu `Operazioni`.",
+            "Filtra l'elenco per data, stato, importo o intestatario fino a isolare le fatture che vuoi includere nell'estratto.",
+            "Seleziona una o piu righe con le checkbox nella tabella oppure usa la selezione dei visibili.",
+            "Quando compare la barra azioni, usa `Stampa come PDF`.",
+            "Il gestionale genera un PDF con scadenza, fornitore, IBAN fornitore, intestatario, numero documento, totale, residuo e stato della scadenza.",
+            "Dopo la stampa i documenti selezionati vengono marcati come `Programmata`, cosi puoi riconoscere che sono gia entrati in una lista di pagamento.",
+            "Se la marcatura non serve piu, seleziona di nuovo i documenti e usa `Togli programmata`.",
+        ],
+        "checks": [
+            "Il PDF contiene solo i documenti che avevi selezionato.",
+            "Lo stato `Programmata` compare sulle righe gia inserite in una stampa.",
+            "Sai che la stampa non registra il pagamento: crea solo un riepilogo PDF e imposta il flag di programmazione.",
         ],
         "actions": [
             {"label": "Apri Scadenziario", "endpoint": "payments.schedule_view"},

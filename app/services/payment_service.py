@@ -19,8 +19,8 @@ from app.services.dto import PaymentHistoryFilters
 from app.services.payment_method_catalog import (
     is_known_payment_method,
     is_physical_copy_required,
-    map_payment_method_to_document_type,
     normalize_payment_method_code,
+    resolve_payment_document_type,
 )
 from app.services.unit_of_work import UnitOfWork
 
@@ -322,7 +322,7 @@ def attach_payment_document_file(payment_id: int, file) -> PaymentDocument:
                 supplier_id=payment.document.supplier_id if payment.document else None,
                 file_name=safe_name,
                 file_path=relative_path,
-                payment_type=map_payment_method_to_document_type(payment.payment_method) or (payment.payment_method or "manual"),
+                payment_type=resolve_payment_document_type(payment.payment_method),
                 status="reconciled",
                 uploaded_at=datetime.utcnow(),
             )
@@ -379,7 +379,7 @@ def _create_batch_payment_legacy(
         payment_document = PaymentDocument(
             file_name=file_name,
             file_path=file_path,
-            payment_type=map_payment_method_to_document_type(method) or (method or "batch"),
+            payment_type=resolve_payment_document_type(method),
             status="reconciled",
             bank_account_iban=cleaned_iban or None,
         )
@@ -490,7 +490,7 @@ def create_batch_payment_from_documents(
             payment_document = PaymentDocument(
                 file_name=safe_name,
                 file_path=relative_path,
-                payment_type=map_payment_method_to_document_type(method) or (method or "batch"),
+                payment_type=resolve_payment_document_type(method),
                 status="reconciled",
                 bank_account_iban=cleaned_iban or None,
             )
@@ -499,7 +499,7 @@ def create_batch_payment_from_documents(
             payment_document = PaymentDocument(
                 file_name=placeholder_name,
                 file_path=placeholder_name,
-                payment_type=map_payment_method_to_document_type(method) or (method or "batch"),
+                payment_type=resolve_payment_document_type(method),
                 status="reconciled",
                 bank_account_iban=cleaned_iban or None,
             )
@@ -653,13 +653,7 @@ def register_instant_payment_for_document(
 
         effective_date = paid_date or document.document_date or document.due_date or date.today()
         method_code = payments[0].payment_method if payments else None
-        normalized_method = map_payment_method_to_document_type(method_code)
-        if not normalized_method and method_code:
-            from app.services.payment_method_catalog import normalize_payment_method_code
-            normalized_method = map_payment_method_to_document_type(
-                normalize_payment_method_code(method_code)
-            )
-        payment_type = normalized_method or "sconosciuto"
+        payment_type = resolve_payment_document_type(method_code)
 
         payment_document = None
         for payment in payments:

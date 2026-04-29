@@ -67,6 +67,16 @@ PAYMENT_DOCUMENT_TYPE_MAP: Dict[str, str] = {
     "MP22": "sconosciuto",
 }
 
+ALLOWED_PAYMENT_DOCUMENT_TYPES = {
+    "sconosciuto",
+    "bonifico",
+    "rid",
+    "mav",
+    "cbill",
+    "assegno",
+    "contanti",
+}
+
 
 def normalize_payment_method_code(raw: Optional[str]) -> Optional[str]:
     if not raw:
@@ -118,6 +128,32 @@ def map_payment_method_to_document_type(code: Optional[str]) -> Optional[str]:
     if not code:
         return None
     return PAYMENT_DOCUMENT_TYPE_MAP.get(code)
+
+
+def resolve_payment_document_type(raw: Optional[str]) -> str:
+    """
+    Restituisce un payment_type compatibile con i vincoli DB di payment_documents.
+
+    Accetta sia codici MPxx sia etichette legacy; se non trova un mapping
+    valido, ricade su `sconosciuto` invece di propagare valori arbitrari.
+    """
+    if not raw:
+        return "sconosciuto"
+
+    cleaned = raw.strip()
+    if not cleaned:
+        return "sconosciuto"
+
+    lowered = cleaned.lower()
+    if lowered in ALLOWED_PAYMENT_DOCUMENT_TYPES:
+        return lowered
+
+    normalized_code = normalize_payment_method_code(cleaned)
+    mapped = map_payment_method_to_document_type(normalized_code)
+    if mapped and mapped in ALLOWED_PAYMENT_DOCUMENT_TYPES:
+        return mapped
+
+    return "sconosciuto"
 
 
 def list_payment_method_choices() -> List[Tuple[str, str]]:
