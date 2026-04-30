@@ -211,10 +211,15 @@ def _run_import_paths(
                         legal_entity = _get_or_create_legal_entity(header_data, uow.session)
                         current_legal_entity_id = legal_entity.id
 
-                    # Duplicati per file_name/hash
-                    existing_doc = uow.documents.find_existing(
-                        file_name=invoice_dto.file_name,
-                        file_hash=getattr(invoice_dto, "file_hash", None),
+                    # Supplier
+                    supplier = uow.suppliers.get_or_create_from_dto(invoice_dto.supplier)
+                    supplier_id = supplier.id
+
+                    # Duplicati per file sorgente o identita contabile
+                    existing_doc = uow.documents.find_existing_fatturapa_document(
+                        invoice_dto=invoice_dto,
+                        supplier_id=supplier_id,
+                        legal_entity_id=current_legal_entity_id,
                     )
                     if existing_doc:
                         _log_skip(
@@ -222,14 +227,10 @@ def _run_import_paths(
                             invoice_dto.file_name,
                             existing_doc.id,
                             summary,
-                            reason="Duplicato per file_name/file_hash",
+                            reason="Duplicato per identita documento (fornitore/intestatario/numero/data/importo)",
                             stage="postcheck",
                         )
                         continue
-
-                    # Supplier
-                    supplier = uow.suppliers.get_or_create_from_dto(invoice_dto.supplier)
-                    supplier_id = supplier.id
 
                     # Document
                     document, created = uow.documents.create_from_fatturapa(

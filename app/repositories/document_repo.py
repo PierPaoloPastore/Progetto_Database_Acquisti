@@ -37,6 +37,22 @@ def _compact_search_expression(column):
         expr = func.replace(expr, token, "")
     return expr
 
+
+def _normalize_document_identity_value(value: Optional[str]) -> str:
+    if not value:
+        return ""
+    return re.sub(r"[^0-9a-z]+", "", value.lower())
+
+
+def _normalize_decimal_for_match(value: Optional[Decimal]) -> Optional[Decimal]:
+    if value is None:
+        return None
+    return Decimal(value).quantize(Decimal("0.01"))
+
+
+def _fatturapa_document_type(tipo_documento: Optional[str]) -> str:
+    return "credit_note" if (tipo_documento or "").upper() == "TD04" else "invoice"
+
 class DocumentRepository(SqlAlchemyRepository[Document]):
     def __init__(self, session):
         super().__init__(session, Document)
@@ -92,6 +108,57 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
             .order_by(Document.id.asc())
             .first()
         )
+
+    def find_existing_fatturapa_document(
+        self,
+        *,
+        invoice_dto: InvoiceDTO,
+        supplier_id: int,
+        legal_entity_id: int,
+    ) -> Optional[Document]:
+        """
+        Cerca un documento già presente usando sia il file sorgente
+        sia l'identità contabile della fattura.
+        """
+        existing = self.find_existing(
+            file_name=invoice_dto.file_name,
+            file_hash=getattr(invoice_dto, "file_hash", None),
+        )
+        if existing:
+            return existing
+
+        normalized_number = _normalize_document_identity_value(invoice_dto.invoice_number)
+        document_date = invoice_dto.invoice_date
+        if not normalized_number or document_date is None:
+            return None
+
+        document_type = _fatturapa_document_type(getattr(invoice_dto, "tipo_documento", None))
+        expected_total = _normalize_decimal_for_match(invoice_dto.total_gross_amount)
+        if document_type == "credit_note" and expected_total is not None and expected_total > 0:
+            expected_total = -expected_total
+
+        candidates = (
+            self.session.query(Document)
+            .filter(
+                Document.document_type == document_type,
+                Document.supplier_id == supplier_id,
+                Document.legal_entity_id == legal_entity_id,
+                Document.document_date == document_date,
+            )
+            .order_by(Document.id.asc())
+            .all()
+        )
+
+        for candidate in candidates:
+            candidate_number = _normalize_document_identity_value(candidate.document_number)
+            if candidate_number != normalized_number:
+                continue
+            candidate_total = _normalize_decimal_for_match(candidate.total_gross_amount)
+            if expected_total is not None and candidate_total is not None and candidate_total != expected_total:
+                continue
+            return candidate
+
+        return None
 
     def search(
         self,
@@ -374,9 +441,10 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
         """
         Crea un Document (type='invoice') partendo da un DTO FatturaPA.
         """
-        existing = self.find_existing(
-            file_name=invoice_dto.file_name,
-            file_hash=getattr(invoice_dto, 'file_hash', None),
+        existing = self.find_existing_fatturapa_document(
+            invoice_dto=invoice_dto,
+            supplier_id=supplier_id,
+            legal_entity_id=legal_entity_id,
         )
         if existing:
             return existing, False
