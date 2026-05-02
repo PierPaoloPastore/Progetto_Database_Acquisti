@@ -11,6 +11,7 @@ from __future__ import annotations
 from flask import Blueprint, render_template, redirect, request, url_for, flash
 
 from app.services import (
+    create_supplier,
     list_suppliers_with_stats,
     get_supplier_detail,
     update_supplier,
@@ -36,6 +37,32 @@ def list_view():
         suppliers_stats=suppliers_stats,
         search_term=search_term or "",
     )
+
+
+@suppliers_bp.route("/create", methods=["POST"])
+def create_view():
+    data = request.form
+    supplier, error = create_supplier(
+        name=data.get("name"),
+        vat_number=data.get("vat_number"),
+        fiscal_code=data.get("fiscal_code"),
+        sdi_code=data.get("sdi_code"),
+        pec_email=data.get("pec_email"),
+        email=data.get("email"),
+        iban=data.get("iban"),
+        phone=data.get("phone"),
+        address=data.get("address"),
+        postal_code=data.get("postal_code"),
+        city=data.get("city"),
+        province=data.get("province"),
+        country=data.get("country"),
+    )
+    if error:
+        flash(error, "warning")
+        return redirect(url_for("suppliers.list_view", open_new=1))
+
+    flash("Fornitore creato.", "success")
+    return redirect(url_for("suppliers.detail_view", supplier_id=supplier.id))
 
 
 @suppliers_bp.route("/<int:supplier_id>", methods=["GET"])

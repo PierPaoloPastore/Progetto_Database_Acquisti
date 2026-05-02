@@ -4,8 +4,10 @@ Rifattorizzato con Pattern Unit of Work.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 import re
+
+from sqlalchemy import func
 
 from app.extensions import db
 from app.models import Document, LegalEntity, Supplier
@@ -117,6 +119,73 @@ def get_supplier_detail(
         }
 
 
+def create_supplier(
+    *,
+    name: Optional[str],
+    vat_number: Optional[str] = None,
+    fiscal_code: Optional[str] = None,
+    sdi_code: Optional[str] = None,
+    pec_email: Optional[str] = None,
+    email: Optional[str] = None,
+    iban: Optional[str] = None,
+    phone: Optional[str] = None,
+    address: Optional[str] = None,
+    postal_code: Optional[str] = None,
+    city: Optional[str] = None,
+    province: Optional[str] = None,
+    country: Optional[str] = None,
+) -> Tuple[Optional[Supplier], Optional[str]]:
+    """Crea manualmente un nuovo fornitore con validazioni di base."""
+    cleaned_name = _clean_text(name)
+    if not cleaned_name:
+        return None, "La ragione sociale del fornitore è obbligatoria."
+
+    cleaned_vat = _clean_text(vat_number)
+    cleaned_fiscal = _clean_text(fiscal_code)
+    cleaned_sdi = _clean_text(sdi_code)
+    cleaned_pec = _clean_text(pec_email)
+    cleaned_email = _clean_text(email)
+    cleaned_iban = _normalize_iban(iban)
+    cleaned_phone = _clean_text(phone)
+    cleaned_address = _clean_text(address)
+    cleaned_postal_code = _clean_text(postal_code)
+    cleaned_city = _clean_text(city)
+    cleaned_province = _clean_text(province)
+    cleaned_country = _clean_text(country) or "IT"
+
+    with UnitOfWork() as uow:
+        duplicate_error = _validate_supplier_uniqueness(
+            uow=uow,
+            name=cleaned_name,
+            vat_number=cleaned_vat,
+            fiscal_code=cleaned_fiscal,
+        )
+        if duplicate_error:
+            return None, duplicate_error
+
+        supplier = Supplier(
+            name=cleaned_name,
+            vat_number=cleaned_vat,
+            fiscal_code=cleaned_fiscal,
+            sdi_code=cleaned_sdi,
+            pec_email=cleaned_pec,
+            email=cleaned_email,
+            iban=cleaned_iban,
+            phone=cleaned_phone,
+            address=cleaned_address,
+            postal_code=cleaned_postal_code,
+            city=cleaned_city,
+            province=cleaned_province,
+            country=cleaned_country,
+            typical_due_rule="end_of_month",
+            is_active=True,
+        )
+        uow.suppliers.add(supplier)
+        uow.session.flush()
+        uow.commit()
+        return supplier, None
+
+
 def update_supplier(
     supplier_id: int,
     *,
@@ -209,3 +278,53 @@ def update_supplier(
 
         uow.commit()
         return supplier
+
+
+def _clean_text(val: Optional[str]) -> Optional[str]:
+    if val is None:
+        return None
+    cleaned = val.strip()
+    return cleaned or None
+
+
+def _normalize_iban(val: Optional[str]) -> Optional[str]:
+    cleaned = _clean_text(val)
+    if not cleaned:
+        return None
+    return re.sub(r"\s+", "", cleaned).upper()
+
+
+def _validate_supplier_uniqueness(
+    *,
+    uow: UnitOfWork,
+    name: str,
+    vat_number: Optional[str],
+    fiscal_code: Optional[str],
+) -> Optional[str]:
+    if vat_number and fiscal_code:
+        existing = uow.suppliers.get_by_vat_and_fiscal(vat_number, fiscal_code)
+        if existing:
+            return f"Esiste già un fornitore con la stessa P.IVA e CF: {existing.name}."
+
+    if fiscal_code:
+        existing_by_fiscal = uow.suppliers.get_by_fiscal_code(fiscal_code)
+        if existing_by_fiscal:
+            return f"Esiste già un fornitore con lo stesso codice fiscale: {existing_by_fiscal.name}."
+
+    if vat_number and not fiscal_code:
+        existing_by_vat = uow.suppliers.list_by_vat_number(vat_number)
+        if existing_by_vat:
+            return (
+                "Esiste già almeno un fornitore con questa P.IVA. "
+                "Inserisci anche il codice fiscale oppure aggiorna un record esistente."
+            )
+
+    existing_by_name = (
+        uow.session.query(Supplier)
+        .filter(func.lower(Supplier.name) == name.lower())
+        .first()
+    )
+    if existing_by_name and not vat_number and not fiscal_code:
+        return f"Esiste già un fornitore con la stessa ragione sociale: {existing_by_name.name}."
+
+    return None

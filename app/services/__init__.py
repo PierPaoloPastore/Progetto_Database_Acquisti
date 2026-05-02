@@ -27,6 +27,7 @@ from .supplier_service import (
     get_supplier_detail,
     list_active_suppliers, # Aggiunto
     list_all_suppliers,
+    create_supplier,
     update_supplier,
 )
 from .legal_entity_service import (
@@ -94,6 +95,7 @@ __all__ = [
     "get_supplier_detail",
     "list_active_suppliers",
     "list_all_suppliers",
+    "create_supplier",
     "update_supplier",
     # Legal Entities
     "list_legal_entities_with_stats",
