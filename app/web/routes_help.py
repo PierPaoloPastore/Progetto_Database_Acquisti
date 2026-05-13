@@ -162,7 +162,7 @@ GUIDES: tuple[dict, ...] = (
             "Filtra l'elenco per data, stato, importo o intestatario fino a isolare le fatture che vuoi includere nell'estratto.",
             "Seleziona una o piu righe con le checkbox nella tabella oppure usa la selezione dei visibili.",
             "Quando compare la barra azioni, usa `Stampa come PDF`.",
-            "Il gestionale genera un PDF con scadenza, fornitore, IBAN fornitore, intestatario, numero documento, totale, residuo e stato della scadenza.",
+            "Il gestionale genera un PDF con un riepilogo per fornitore (numero fatture, imponibile totale e residuo totale) e con il dettaglio di scadenza, fornitore, IBAN fornitore, intestatario, numero documento, totale, residuo e stato della scadenza.",
             "Dopo la stampa i documenti selezionati vengono marcati come `Programmata`, cosi puoi riconoscere che sono gia entrati in una lista di pagamento.",
             "Se la marcatura non serve piu, seleziona di nuovo i documenti e usa `Togli programmata`.",
         ],

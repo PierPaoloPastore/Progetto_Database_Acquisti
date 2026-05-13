@@ -42,6 +42,10 @@
             font-weight: 700;
             font-size: 13px;
         }
+        h2 {
+            font-size: 14px;
+            margin: 18px 0 6px 0;
+        }
         table {
             width: 100%;
             border-collapse: collapse;
@@ -79,6 +83,33 @@
         &middot; Finestra in scadenza: {{ soon_days }} giorni
     </div>
 
+    <h2>Riepilogo per fornitore</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Fornitore</th>
+                <th class="text-end">N. fatture</th>
+                <th class="text-end">Imponibile totale</th>
+                <th class="text-end">Residuo totale</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in supplier_summary %}
+                <tr>
+                    <td>{{ item.supplier_name }}</td>
+                    <td class="text-end">{{ item.document_count }}</td>
+                    <td class="text-end">{{ item.taxable_amount|format_amount }} &euro;</td>
+                    <td class="text-end">{{ item.remaining_amount|format_amount }} &euro;</td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="4">Nessun fornitore selezionato.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2>Dettaglio scadenze</h2>
     <table>
         <thead>
             <tr>

@@ -172,6 +172,35 @@ def _build_schedule_rows(documents, today: date, soon_limit: date):
 
     return schedule_rows, summary
 
+
+def _build_supplier_print_summary(schedule_rows: list[dict]) -> list[dict]:
+    supplier_map: dict[object, dict] = {}
+
+    for row in schedule_rows:
+        doc = row["doc"]
+        supplier_id = row["supplier_id"]
+        supplier_name = row["supplier_name"]
+        group_key = supplier_id if supplier_id is not None else f"name:{supplier_name.casefold()}"
+
+        if group_key not in supplier_map:
+            supplier_map[group_key] = {
+                "supplier_id": supplier_id,
+                "supplier_name": supplier_name,
+                "document_count": 0,
+                "taxable_amount": 0.0,
+                "remaining_amount": 0.0,
+            }
+
+        supplier_entry = supplier_map[group_key]
+        supplier_entry["document_count"] += 1
+        supplier_entry["taxable_amount"] += float(doc.total_taxable_amount or 0)
+        supplier_entry["remaining_amount"] += row["remaining_amount"]
+
+    return sorted(
+        supplier_map.values(),
+        key=lambda item: (item["supplier_name"] or "").casefold(),
+    )
+
 @payments_bp.route("/", methods=["GET"], endpoint="payment_index")
 def payment_index():
     """
@@ -450,6 +479,7 @@ def schedule_print():
 
     payment_service.attach_payment_amounts(documents)
     schedule_rows, summary = _build_schedule_rows(documents, today, soon_limit)
+    supplier_summary = _build_supplier_print_summary(schedule_rows)
 
     status_priority = {"overdue": 0, "due_soon": 1, "scheduled": 2, "no_due": 3}
     schedule_rows.sort(
@@ -465,6 +495,7 @@ def schedule_print():
     html_content = render_template(
         "payments/schedule_print.html",
         schedule_rows=schedule_rows,
+        supplier_summary=supplier_summary,
         summary=summary,
         today=today,
         updated_at=updated_at,
