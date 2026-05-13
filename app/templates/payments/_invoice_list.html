@@ -1,4 +1,15 @@
 <div class="invoice-list scrollable-list flex-grow-1 h-100">
+    {% set doc_type_labels = {
+        'invoice': 'Fattura',
+        'f24': 'F24',
+        'insurance': 'Assicurazione',
+        'mav': 'MAV',
+        'cbill': 'CBILL',
+        'receipt': 'Scontrino',
+        'rent': 'Affitto',
+        'tax': 'Tributo',
+        'other': 'Altro'
+    } %}
     <div class="invoice-header">
         <span class="invoice-col checkbox-col">
             <i class="bi bi-check2-square"></i>
@@ -14,6 +25,7 @@
             {% set supplier_name = doc.supplier.name if doc.supplier else '' %}
             {% set legal_entity_name = doc.legal_entity.name if doc.legal_entity else '' %}
             {% set doc_number = doc.document_number or '' %}
+            {% set doc_type_label = doc_type_labels.get(doc.document_type, 'Documento') %}
             {% set paid_val = (doc.paid_amount if doc.paid_amount is defined else 0) %}
             {% set remaining_val = (doc.remaining_amount if doc.remaining_amount is defined else (doc.total_gross_amount - paid_val)) %}
             {% set due_val = remaining_val if remaining_val is not none else doc.total_gross_amount %}
@@ -47,7 +59,10 @@
                         <div class="text-muted small">{{ legal_entity_name }}</div>
                     {% endif %}
                 </div>
-                <div class="invoice-col doc-col">{{ doc_number }}</div>
+                <div class="invoice-col doc-col">
+                    <div class="fw-semibold">{{ doc_number or ('Documento #' ~ doc.id) }}</div>
+                    <div class="text-muted small">{{ doc_type_label }}</div>
+                </div>
                 <div class="invoice-col due-col text-end">
                     <small class="text-muted d-block">Importo dovuto</small>
                     <strong>{{ due_val|format_amount }} &euro;</strong>
@@ -62,20 +77,20 @@
         {% else %}
             <div class="invoice-empty text-center text-muted py-4">
                 <i class="bi bi-folder2-open d-block fs-3 mb-2"></i>
-                Nessuna fattura da pagare.
+                Nessun documento da pagare.
             </div>
         {% endfor %}
     </div>
 </div>
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-2">
     <div class="text-muted small">
-        {{ invoice_pagination.start_item }}-{{ invoice_pagination.end_item }} di {{ unpaid_invoices_total|format_int }} fatture aperte
+        {{ invoice_pagination.start_item }}-{{ invoice_pagination.end_item }} di {{ unpaid_invoices_total|format_int }} documenti aperti
         {% if invoice_search_query %}
             per ricerca "<strong>{{ invoice_search_query }}</strong>"
         {% endif %}
     </div>
     {% if invoice_pagination.total_pages > 1 %}
-        <nav aria-label="Paginazione fatture aperte" class="invoice-pagination">
+        <nav aria-label="Paginazione documenti aperti" class="invoice-pagination">
             <ul class="pagination pagination-sm mb-0">
                 <li class="page-item {% if not invoice_pagination.has_prev %}disabled{% endif %}">
                     <a class="page-link" href="{{ invoice_pagination.prev_url or '#' }}" tabindex="{% if not invoice_pagination.has_prev %}-1{% endif %}">Prec</a>

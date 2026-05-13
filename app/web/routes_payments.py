@@ -242,7 +242,7 @@ def payment_index():
                 .options(joinedload(Document.supplier), joinedload(Document.legal_entity))
                 .filter(
                     Document.id.in_(pinned_document_ids),
-                    Document.document_type == "invoice",
+                    Document.document_type != "credit_note",
                     Document.is_paid == False,
                 )
                 .all()
@@ -358,7 +358,7 @@ def schedule_view():
             uow.session.query(Document)
             .options(joinedload(Document.supplier), joinedload(Document.legal_entity))
             .filter(
-                Document.document_type == "invoice",
+                Document.document_type != "credit_note",
                 Document.is_paid == False,
             )
             .order_by(Document.due_date.asc())
@@ -464,7 +464,7 @@ def schedule_print():
             uow.session.query(Document)
             .options(joinedload(Document.supplier), joinedload(Document.legal_entity))
             .filter(
-                Document.document_type == "invoice",
+                Document.document_type != "credit_note",
                 Document.is_paid == False,
                 Document.id.in_(ids),
             )

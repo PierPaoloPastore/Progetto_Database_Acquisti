@@ -347,7 +347,7 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
         page_size: int = 100,
         q: Optional[str] = None,
     ) -> tuple[List[Document], int, int]:
-        """Restituisce una pagina di fatture non pagate per la schermata pagamenti."""
+        """Restituisce una pagina di documenti pagabili non saldati per la schermata pagamenti."""
         if page < 1:
             page = 1
         if page_size < 1:
@@ -357,7 +357,7 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
             self.session.query(Document)
             .options(joinedload(Document.supplier), joinedload(Document.legal_entity))
             .filter(
-                Document.document_type == "invoice",
+                Document.document_type != "credit_note",
                 Document.is_paid == False,
             )
         )

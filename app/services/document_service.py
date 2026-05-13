@@ -21,6 +21,7 @@ from app.services.payment_method_catalog import (
     is_physical_copy_required,
     normalize_payment_method_code,
 )
+from app.services.payment_service import ensure_document_payment_records
 
 class DocumentService:
     """
@@ -239,6 +240,12 @@ def create_manual_document(form_data: dict) -> tuple[bool, str, Optional[int]]:
 
     with UnitOfWork() as uow:
         uow.documents.add(doc)
+        uow.session.flush()
+        ensure_document_payment_records(
+            uow,
+            doc,
+            mark_paid=bool(doc.is_paid),
+        )
         uow.commit()
 
     return True, "Documento creato manualmente.", doc.id

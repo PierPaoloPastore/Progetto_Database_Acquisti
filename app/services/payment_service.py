@@ -47,6 +47,43 @@ def _create_placeholder_payment(
     return payment
 
 
+def ensure_document_payment_records(
+    uow: UnitOfWork,
+    document: Document,
+    *,
+    method_code: Optional[str] = None,
+    mark_paid: bool = False,
+    paid_date: Optional[date] = None,
+) -> List[Payment]:
+    """
+    Assicura almeno una scadenza/pagamento per il documento.
+    Utile per documenti manuali o flussi che partono senza DatiPagamento.
+    """
+    payments = uow.payments.get_by_document_id(document.id)
+    if not payments:
+        payments = [_create_placeholder_payment(uow, document, method_code=method_code)]
+
+    if mark_paid:
+        effective_date = (
+            paid_date
+            or document.registration_date
+            or document.document_date
+            or document.due_date
+            or date.today()
+        )
+        for payment in payments:
+            if payment.expected_amount is not None:
+                paid_amount = Decimal(payment.expected_amount)
+            else:
+                paid_amount = Decimal(document.total_gross_amount or 0) if len(payments) == 1 else Decimal("0")
+            payment.paid_amount = paid_amount
+            payment.paid_date = effective_date
+            payment.status = "paid"
+
+    document.is_paid = bool(payments) and all(p.status == "paid" for p in payments)
+    return payments
+
+
 def list_payments_by_document(document_id: int) -> List[Payment]:
     """Restituisce i pagamenti di una specifica fattura."""
     with UnitOfWork() as uow:
