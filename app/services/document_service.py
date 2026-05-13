@@ -12,6 +12,8 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional, List, Any
 
+from sqlalchemy.exc import IntegrityError
+
 from app.services.unit_of_work import UnitOfWork
 from app.services import settings_service
 from app.services.dto import DocumentSearchFilters
@@ -182,6 +184,10 @@ def create_manual_document(form_data: dict) -> tuple[bool, str, Optional[int]]:
     if doc_type not in allowed_types:
         return False, "Tipo documento non supportato.", None
 
+    validation_message = _validate_manual_document_form(form_data, doc_type=doc_type)
+    if validation_message:
+        return False, validation_message, None
+
     allowed_statuses = {"pending_physical_copy", "verified", "archived"}
     doc_status = (form_data.get("doc_status") or "verified").strip()
     if doc_status not in allowed_statuses:
@@ -239,14 +245,17 @@ def create_manual_document(form_data: dict) -> tuple[bool, str, Optional[int]]:
         doc.tax_period_description = form_data.get("tax_period_description") or None
 
     with UnitOfWork() as uow:
-        uow.documents.add(doc)
-        uow.session.flush()
-        ensure_document_payment_records(
-            uow,
-            doc,
-            mark_paid=bool(doc.is_paid),
-        )
-        uow.commit()
+        try:
+            uow.documents.add(doc)
+            uow.session.flush()
+            ensure_document_payment_records(
+                uow,
+                doc,
+                mark_paid=bool(doc.is_paid),
+            )
+            uow.commit()
+        except IntegrityError:
+            return False, "Dati obbligatori mancanti o non validi per il tipo documento selezionato.", None
 
     return True, "Documento creato manualmente.", doc.id
 
@@ -281,6 +290,9 @@ def update_document_core(document_id: int, form_data: dict) -> tuple[bool, str, 
         doc = uow.documents.get_by_id(document_id)
         if not doc:
             return False, "Documento non trovato.", None
+        validation_message = _validate_manual_document_form(form_data, doc_type=doc.document_type)
+        if validation_message:
+            return False, validation_message, None
         before = _serialize_document(doc)
 
         doc.document_number = (form_data.get("document_number") or "").strip() or None
@@ -315,6 +327,35 @@ def update_document_core(document_id: int, form_data: dict) -> tuple[bool, str, 
             )
         uow.commit()
         return True, "Documento aggiornato.", doc
+
+
+def _validate_manual_document_form(form_data: dict, *, doc_type: str) -> Optional[str]:
+    required_fields = [
+        ("supplier_id", "Fornitore / Controparte"),
+        ("legal_entity_id", "Intestatario"),
+        ("total_gross_amount", "Totale lordo"),
+    ]
+
+    type_specific_required = {
+        "f24": [("f24_payment_code", "Codice pagamento F24")],
+        "insurance": [("insurance_policy_number", "Numero polizza")],
+    }
+    required_fields.extend(type_specific_required.get(doc_type, []))
+
+    missing_labels: list[str] = []
+    for field_name, label in required_fields:
+        raw_value = form_data.get(field_name)
+        if raw_value is None or str(raw_value).strip() == "":
+            missing_labels.append(label)
+
+    gross = _parse_decimal(form_data.get("total_gross_amount"))
+    if gross is not None and gross <= 0 and "Totale lordo" not in missing_labels:
+        return "Il totale lordo deve essere maggiore di zero."
+
+    if missing_labels:
+        return "Compila i campi obbligatori: " + ", ".join(missing_labels) + "."
+
+    return None
 
 def mark_documents_as_programmed(document_ids: List[int]) -> int:
     if not document_ids:

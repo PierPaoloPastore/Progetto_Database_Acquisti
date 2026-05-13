@@ -112,7 +112,11 @@
     <div class="manual-doc-split">
         <div class="card shadow-sm manual-doc-left">
             <div class="card-body">
-                <form method="post" enctype="multipart/form-data">
+                <div class="alert alert-info py-2 small mb-3">
+                    I campi contrassegnati con <span class="text-danger">*</span> sono obbligatori.
+                </div>
+                <div id="manual-form-alert" class="alert alert-warning d-none py-2 small" role="alert"></div>
+                <form method="post" enctype="multipart/form-data" id="manual-document-form">
                 <div class="row g-3">
                     <div class="col-md-4">
                         <label for="document_type" class="form-label fw-bold">Tipo documento</label>
@@ -128,8 +132,8 @@
                         </select>
                     </div>
                     <div class="col-md-4">
-                        <label for="supplier_id" class="form-label fw-bold">Fornitore / Controparte</label>
-                        <select id="supplier_id" name="supplier_id" class="form-select">
+                        <label for="supplier_id" class="form-label fw-bold">Fornitore / Controparte <span class="text-danger">*</span></label>
+                        <select id="supplier_id" name="supplier_id" class="form-select" required>
                             <option value="">Seleziona fornitore</option>
                             {% for s in suppliers %}
                                 <option value="{{ s.id }}" {% if form_data.get('supplier_id') == s.id|string %}selected{% endif %}>{{ s.name }}</option>
@@ -137,9 +141,9 @@
                         </select>
                     </div>
                     <div class="col-md-4">
-                        <label for="legal_entity_id" class="form-label fw-bold">Intestatario</label>
-                        <select id="legal_entity_id" name="legal_entity_id" class="form-select">
-                            <option value="">Non specificato</option>
+                        <label for="legal_entity_id" class="form-label fw-bold">Intestatario <span class="text-danger">*</span></label>
+                        <select id="legal_entity_id" name="legal_entity_id" class="form-select" required>
+                            <option value="">Seleziona intestatario</option>
                             {% for le in legal_entities %}
                                 <option value="{{ le.id }}" {% if form_data.get('legal_entity_id') == le.id|string %}selected{% endif %}>{{ le.name }}</option>
                             {% endfor %}
@@ -205,8 +209,8 @@
                                value="{{ form_data.get('total_vat_amount', '') }}">
                     </div>
                     <div class="col-md-4">
-                        <label for="total_gross_amount" class="form-label fw-bold">Totale lordo</label>
-                        <input type="number" step="0.01" id="total_gross_amount" name="total_gross_amount" class="form-control text-end"
+                        <label for="total_gross_amount" class="form-label fw-bold">Totale lordo <span class="text-danger">*</span></label>
+                        <input type="number" step="0.01" min="0.01" id="total_gross_amount" name="total_gross_amount" class="form-control text-end" required
                                value="{{ form_data.get('total_gross_amount', '') }}">
                     </div>
                     <div class="col-md-4">
@@ -251,8 +255,8 @@
                                    value="{{ form_data.get('f24_tax_type', '') }}">
                         </div>
                         <div class="col-md-3">
-                            <label for="f24_payment_code" class="form-label fw-bold">Codice pagamento</label>
-                            <input type="text" id="f24_payment_code" name="f24_payment_code" class="form-control"
+                            <label for="f24_payment_code" class="form-label fw-bold">Codice pagamento <span class="text-danger manual-required-marker d-none" data-required-marker-for="f24_payment_code">*</span></label>
+                            <input type="text" id="f24_payment_code" name="f24_payment_code" class="form-control" data-required-by-type="f24"
                                    value="{{ form_data.get('f24_payment_code', '') }}">
                         </div>
                     </div>
@@ -262,8 +266,8 @@
                     <h5>Dettagli assicurazione</h5>
                     <div class="row g-3">
                         <div class="col-md-4">
-                            <label for="insurance_policy_number" class="form-label fw-bold">Numero polizza</label>
-                            <input type="text" id="insurance_policy_number" name="insurance_policy_number" class="form-control"
+                            <label for="insurance_policy_number" class="form-label fw-bold">Numero polizza <span class="text-danger manual-required-marker d-none" data-required-marker-for="insurance_policy_number">*</span></label>
+                            <input type="text" id="insurance_policy_number" name="insurance_policy_number" class="form-control" data-required-by-type="insurance"
                                    value="{{ form_data.get('insurance_policy_number', '') }}">
                         </div>
                         <div class="col-md-4">
@@ -397,8 +401,25 @@
 {% block extra_js %}
 <script>
 document.addEventListener("DOMContentLoaded", () => {
+    const form = document.getElementById("manual-document-form");
+    const formAlert = document.getElementById("manual-form-alert");
     const selector = document.getElementById("document_type");
     const sections = document.querySelectorAll("[data-doc-types]");
+    const requiredMap = {
+        f24: ["f24_payment_code"],
+        insurance: ["insurance_policy_number"],
+    };
+
+    const setAlert = (message) => {
+        if (!formAlert) return;
+        if (message) {
+            formAlert.textContent = message;
+            formAlert.classList.remove("d-none");
+            return;
+        }
+        formAlert.textContent = "";
+        formAlert.classList.add("d-none");
+    };
 
     const updateSections = () => {
         const current = selector.value;
@@ -406,10 +427,63 @@ document.addEventListener("DOMContentLoaded", () => {
             const types = (section.getAttribute("data-doc-types") || "").split(" ");
             section.classList.toggle("d-none", !types.includes(current));
         });
+
+        document.querySelectorAll("#manual-document-form [data-required-by-type]").forEach((input) => {
+            input.required = false;
+        });
+        document.querySelectorAll(".manual-required-marker").forEach((marker) => {
+            marker.classList.add("d-none");
+        });
+        (requiredMap[current] || []).forEach((inputId) => {
+            const input = document.getElementById(inputId);
+            if (input) {
+                input.required = true;
+            }
+            const marker = document.querySelector(`[data-required-marker-for="${inputId}"]`);
+            if (marker) {
+                marker.classList.remove("d-none");
+            }
+        });
     };
 
     selector.addEventListener("change", updateSections);
     updateSections();
+
+    if (form) {
+        ["input", "change"].forEach((eventName) => {
+            form.addEventListener(eventName, () => setAlert(""));
+        });
+
+        form.addEventListener("submit", (event) => {
+            updateSections();
+            if (form.checkValidity()) {
+                return;
+            }
+            event.preventDefault();
+            const current = selector.value;
+            const labels = {
+                supplier_id: "Fornitore / Controparte",
+                legal_entity_id: "Intestatario",
+                total_gross_amount: "Totale lordo",
+                f24_payment_code: "Codice pagamento F24",
+                insurance_policy_number: "Numero polizza",
+            };
+            const requiredIds = [
+                "supplier_id",
+                "legal_entity_id",
+                "total_gross_amount",
+                ...(requiredMap[current] || []),
+            ];
+            const missingFields = requiredIds.filter((inputId) => {
+                const input = document.getElementById(inputId);
+                return input && (!input.value || !String(input.value).trim());
+            });
+            if (missingFields.length) {
+                setAlert(`Compila i campi obbligatori: ${missingFields.map((field) => labels[field] || field).join(", ")}.`);
+            }
+            form.reportValidity();
+        });
+    }
 
     const fileInput = document.getElementById("document_pdf");
     const previewFrame = document.getElementById("manual-pdf-preview");

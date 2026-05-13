@@ -14,6 +14,7 @@ Benvenuto nel centro documentazione del Gestionale Acquisti. Usa questo indice c
   - [Aggiornamenti 2026-02-14](updates/2026-02-14.md)
   - [Aggiornamenti 2026-02-16](updates/2026-02-16.md)
   - [Aggiornamenti 2026-02-17](updates/2026-02-17.md)
+  - [Aggiornamenti 2026-05-13](updates/2026-05-13.md)
 - Piani
   - [Cleaning Plan](../Cleaning_Plan.md)
 - Roadmap

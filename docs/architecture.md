@@ -146,12 +146,14 @@ I repository incapsulano le query SQLAlchemy e centralizzano la logica di access
   - caricamento dettaglio fattura con relazioni (righe, IVA, pagamenti, DDT, note),
   - aggiornamento `doc_status`, `due_date`, `physical_copy_status`,
   - flusso di revisione delle fatture importate,
+  - creazione manuale documenti non-fattura con validazione dei campi obbligatori applicativi,
   - gestione delle copie fisiche (integrazione con `scan_service`),
   - gestione e supporto al collegamento DDT ↔ fattura (usando `DeliveryNote`).
 
 - `payment_service`
   - gestione scadenziario basato su `Payment`:
     - creazione scadenze,
+    - creazione scadenza placeholder per documenti manuali senza dettagli pagamento strutturati,
     - aggiornamento importi pagati,
     - aggiornamento `status` (`planned`, `pending`, `partial`, `paid`, ecc.),
   - import e gestione `PaymentDocument` (PDF di pagamenti reali),
