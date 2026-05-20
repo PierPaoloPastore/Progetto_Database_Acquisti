@@ -17,6 +17,28 @@
             <p class="text-muted mb-0">
                 Stato attuale documenti, scadenze e importazioni recenti.
             </p>
+            <form class="dashboard-search" method="GET" action="{{ url_for('documents.list_view') }}">
+                <label class="dashboard-search-label" for="dashboard-search-q">Cerca documenti</label>
+                <div class="dashboard-search-row">
+                    <input
+                        id="dashboard-search-q"
+                        type="text"
+                        name="q"
+                        class="form-control"
+                        required
+                        placeholder="Numero, fornitore, intestatario, voci"
+                    >
+                    <button class="btn btn-primary" type="submit">
+                        <i class="bi bi-search"></i> Cerca
+                    </button>
+                    <a class="btn btn-outline-secondary" href="{{ url_for('documents.list_view') }}">
+                        Filtri avanzati
+                    </a>
+                </div>
+                <div class="dashboard-search-hint">
+                    La ricerca apre l'elenco documenti con il filtro gia applicato.
+                </div>
+            </form>
         </div>
         <div class="dashboard-hero-actions">
             <a class="btn btn-primary" href="{{ url_for('import.run_view') }}">
