@@ -6,8 +6,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: 1.5rem;
-    align-items: center;
-    justify-content: space-between;
+    align-items: flex-start;
     padding: 1.5rem 1.75rem;
     border-radius: 14px;
     border: 1px solid #d9e2ef;
@@ -22,7 +21,7 @@
 }
 
 .dashboard-hero-main {
-    flex: 1 1 420px;
+    flex: 1 1 100%;
     min-width: 0;
 }
 
@@ -35,14 +34,26 @@
     margin-bottom: 0.25rem;
 }
 
+.dashboard-hero-tools {
+    display: flex;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    gap: 1rem 1.5rem;
+    align-items: flex-start;
+    justify-content: space-between;
+}
+
 .dashboard-hero-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
+    justify-content: flex-end;
+    align-self: center;
 }
 
 .dashboard-search {
-    margin-top: 1rem;
+    flex: 1 1 420px;
+    margin-top: 0;
 }
 
 .dashboard-search-label {
@@ -215,8 +226,15 @@
     .dashboard-hero {
         padding: 1.25rem;
     }
+    .dashboard-hero-tools {
+        gap: 0.85rem;
+    }
     .dashboard-search-row {
         align-items: stretch;
+    }
+    .dashboard-hero-actions {
+        justify-content: flex-start;
+        align-self: stretch;
     }
     .dashboard-search-row .form-control,
     .dashboard-search-row .btn {

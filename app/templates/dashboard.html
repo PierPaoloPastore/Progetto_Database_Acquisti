@@ -17,6 +17,8 @@
             <p class="text-muted mb-0">
                 Stato attuale documenti, scadenze e importazioni recenti.
             </p>
+        </div>
+        <div class="dashboard-hero-tools">
             <form class="dashboard-search" method="GET" action="{{ url_for('documents.list_view') }}">
                 <label class="dashboard-search-label" for="dashboard-search-q">Cerca documenti</label>
                 <div class="dashboard-search-row">
@@ -39,23 +41,23 @@
                     La ricerca apre l'elenco documenti con il filtro gia applicato.
                 </div>
             </form>
-        </div>
-        <div class="dashboard-hero-actions">
-            <a class="btn btn-primary" href="{{ url_for('import.run_view') }}">
-                <i class="bi bi-cloud-arrow-up"></i> Importa XML
-            </a>
-            <a class="btn btn-outline-secondary" href="{{ url_for('documents.review_list_view') }}">
-                <i class="bi bi-clipboard-check"></i> Vai a Revisione
-            </a>
-            <a class="btn btn-outline-secondary" href="{{ url_for('payments.payment_index') }}#tab-new">
-                <i class="bi bi-credit-card-2-front"></i> Nuovo pagamento
-            </a>
-            <a class="btn btn-outline-secondary" href="{{ url_for('payments.schedule_view') }}">
-                <i class="bi bi-calendar-check"></i> Scadenziario
-            </a>
-            <a class="btn btn-outline-secondary" href="{{ url_for('help.index') }}">
-                <i class="bi bi-question-circle"></i> Centro Aiuto
-            </a>
+            <div class="dashboard-hero-actions">
+                <a class="btn btn-primary" href="{{ url_for('import.run_view') }}">
+                    <i class="bi bi-cloud-arrow-up"></i> Importa XML
+                </a>
+                <a class="btn btn-outline-secondary" href="{{ url_for('documents.review_list_view') }}">
+                    <i class="bi bi-clipboard-check"></i> Vai a Revisione
+                </a>
+                <a class="btn btn-outline-secondary" href="{{ url_for('payments.payment_index') }}#tab-new">
+                    <i class="bi bi-credit-card-2-front"></i> Nuovo pagamento
+                </a>
+                <a class="btn btn-outline-secondary" href="{{ url_for('payments.schedule_view') }}">
+                    <i class="bi bi-calendar-check"></i> Scadenziario
+                </a>
+                <a class="btn btn-outline-secondary" href="{{ url_for('help.index') }}">
+                    <i class="bi bi-question-circle"></i> Centro Aiuto
+                </a>
+            </div>
         </div>
     </section>
 
