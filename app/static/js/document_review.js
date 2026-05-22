@@ -425,7 +425,6 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     const confirmBtn = document.getElementById("confirm-next");
-    const saveBtn = document.getElementById("save-stay");
     document.addEventListener("keydown", (event) => {
         if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
         if (isTypingTarget(event.target)) return;
@@ -444,9 +443,6 @@ document.addEventListener("DOMContentLoaded", () => {
             event.preventDefault();
         } else if ((event.key === "s" || event.key === "S") && discardModal) {
             discardModal.show();
-            event.preventDefault();
-        } else if ((event.key === "r" || event.key === "R") && saveBtn) {
-            saveBtn.click();
             event.preventDefault();
         }
     });
