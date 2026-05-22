@@ -1,4 +1,49 @@
 document.addEventListener("DOMContentLoaded", () => {
+    const parseLocalizedNumber = (value) => {
+        if (value === null || value === undefined) return null;
+        const cleaned = String(value)
+            .replace(/\s+/g, "")
+            .replace("€", "")
+            .replace(/[^0-9,.-]/g, "");
+        if (!cleaned) return null;
+
+        const lastComma = cleaned.lastIndexOf(",");
+        const lastDot = cleaned.lastIndexOf(".");
+        let normalized = cleaned;
+
+        if (lastComma !== -1 && lastDot !== -1) {
+            if (lastComma > lastDot) {
+                normalized = cleaned.replace(/\./g, "").replace(",", ".");
+            } else {
+                normalized = cleaned.replace(/,/g, "");
+            }
+        } else if (lastComma !== -1) {
+            normalized = cleaned.replace(/\./g, "").replace(",", ".");
+        } else if ((cleaned.match(/\./g) || []).length > 1) {
+            const integerPart = cleaned.slice(0, lastDot).replace(/\./g, "");
+            const decimalPart = cleaned.slice(lastDot + 1);
+            normalized = `${integerPart}.${decimalPart}`;
+        }
+
+        const parsed = Number(normalized);
+        return Number.isNaN(parsed) ? null : parsed;
+    };
+
+    const toPlainDecimal = (value) => {
+        const parsed = parseLocalizedNumber(value);
+        if (parsed === null) return "";
+        return parsed.toFixed(2);
+    };
+
+    const toDisplayDecimal = (value) => {
+        const parsed = parseLocalizedNumber(value);
+        if (parsed === null) return "";
+        return new Intl.NumberFormat("it-IT", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        }).format(parsed);
+    };
+
     const refreshSelect2 = (select) => {
         if (!select || !window.jQuery) return;
         const $el = window.jQuery(select);
@@ -447,8 +492,8 @@ document.addEventListener("DOMContentLoaded", () => {
         let displayValue = expectedDisplay;
 
         if (type === "number") {
-            const expectedValue = normalizeNumber(expectedRaw);
-            const currentValue = normalizeNumber(field.value);
+            const expectedValue = parseLocalizedNumber(expectedRaw);
+            const currentValue = parseLocalizedNumber(field.value);
             if (expectedValue === null && currentValue === null) {
                 matches = true;
             } else if (expectedValue !== null && currentValue !== null) {
@@ -509,14 +554,41 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const numberFields = document.querySelectorAll(".js-format-decimal");
     numberFields.forEach((field) => {
-        const applyFormat = () => {
+        const applyDisplayFormat = () => {
             if (!field.value) return;
-            field.value = formatNumber(field.value);
+            field.value = toDisplayDecimal(field.value);
             updateComparison(field);
         };
-        applyFormat();
-        field.addEventListener("blur", applyFormat);
+        const applyPlainFormat = () => {
+            if (!field.value) return;
+            field.value = toPlainDecimal(field.value);
+        };
+        applyDisplayFormat();
+        field.addEventListener("focus", applyPlainFormat);
+        field.addEventListener("blur", applyDisplayFormat);
     });
+
+    const reviewForm = document.querySelector(".review-form");
+    if (reviewForm) {
+        const syncCategoryAssignmentsForReviewSubmit = () => {
+            reviewForm.querySelectorAll("input[data-review-category-hidden='1']").forEach((field) => field.remove());
+            categoryLineSelects.forEach((select) => {
+                const hidden = document.createElement("input");
+                hidden.type = "hidden";
+                hidden.name = select.name;
+                hidden.value = select.value || "";
+                hidden.setAttribute("data-review-category-hidden", "1");
+                reviewForm.appendChild(hidden);
+            });
+        };
+
+        reviewForm.addEventListener("submit", () => {
+            numberFields.forEach((field) => {
+                field.value = toPlainDecimal(field.value);
+            });
+            syncCategoryAssignmentsForReviewSubmit();
+        });
+    }
 
     const applyAllCategoriesBtn = document.getElementById("category-apply-all-btn");
     const applyAllCategoriesSelect = document.getElementById("category-apply-all-select");

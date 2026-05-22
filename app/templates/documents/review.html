@@ -11,7 +11,8 @@
             Revisione: {{ invoice.supplier.name if invoice.supplier else 'N/D' }}
             <span class="badge bg-light text-dark ms-2">{{ invoice.document_type|upper }}</span>
         </h6>
-        <div class="pe-3">
+        <div class="pe-3 d-flex align-items-center gap-3">
+            <a href="{{ url_for('documents.review_list_view') }}" class="text-white text-decoration-none small">Coda lavorazione</a>
             <a href="{{ url_for('documents.list_view') }}" class="text-white text-decoration-none small">Esci</a>
         </div>
     </div>
@@ -36,7 +37,7 @@
             </div>
             {% endif %}
 
-            <form method="POST" action="{{ url_for('documents.review_loop_invoice_view', document_id=invoice.id) }}" class="review-form">
+            <form method="POST" action="{{ url_for('documents.review_loop_invoice_view', document_id=invoice.id) }}" class="review-form" id="review-main-form">
                 <input type="hidden" name="invoice_id" value="{{ invoice.id }}">
                 <input type="hidden" name="instant_payment" id="instant-payment-hidden" value="">
                 <input type="hidden" name="instant_payment_iban" id="instant-payment-iban-hidden" value="">
@@ -138,10 +139,10 @@
                                 Imponibile
                                 <span class="field-indicator" aria-hidden="true"><i class="bi bi-check-circle-fill"></i></span>
                             </label>
-                            <input type="number"
-                                   step="0.01"
+                            <input type="text"
                                    name="total_taxable_amount"
                                    class="form-control form-control-sm text-end js-compare-field js-format-decimal"
+                                   inputmode="decimal"
                                    data-compare-type="number"
                                    data-expected="{{ invoice.total_taxable_amount or '' }}"
                                    value="{{ invoice.total_taxable_amount }}">
@@ -152,10 +153,10 @@
                                 IVA
                                 <span class="field-indicator" aria-hidden="true"><i class="bi bi-check-circle-fill"></i></span>
                             </label>
-                            <input type="number"
-                                   step="0.01"
+                            <input type="text"
                                    name="total_vat_amount"
                                    class="form-control form-control-sm text-end js-compare-field js-format-decimal"
+                                   inputmode="decimal"
                                    data-compare-type="number"
                                    data-expected="{{ invoice.total_vat_amount or '' }}"
                                    value="{{ invoice.total_vat_amount }}">
@@ -168,10 +169,10 @@
                             </label>
                             <div class="input-group input-group-sm">
                                 <span class="input-group-text">&euro;</span>
-                                <input type="number"
-                                       step="0.01"
+                                <input type="text"
                                        name="total_gross_amount"
                                        class="form-control fw-bold text-end js-compare-field js-format-decimal"
+                                       inputmode="decimal"
                                        data-compare-type="number"
                                        data-expected="{{ invoice.total_gross_amount or '' }}"
                                        value="{{ invoice.total_gross_amount }}"
@@ -336,7 +337,7 @@
                     <form method="POST"
                           action="{{ url_for('documents.assign_category_batch_view', document_id=invoice.id) }}">
                         <div class="d-flex flex-wrap align-items-center gap-2">
-                            <select id="category-apply-all-select" class="form-select form-select-sm" style="min-width: 220px;">
+                            <select id="category-apply-all-select" class="form-select form-select-sm js-select2" style="min-width: 220px;">
                                 <option value="">Seleziona categoria per tutte</option>
                                 {% for cat in categories %}
                                     <option value="{{ cat.id }}">{{ cat.name }}</option>
@@ -364,7 +365,7 @@
                                             <td class="text-truncate" title="{{ line.description }}">{{ line.description }}</td>
                                             <td class="text-end">{{ (line.total_line_amount or 0)|format_amount }} &euro;</td>
                                             <td>
-                                                <select name="line_category_{{ line.id }}" class="form-select form-select-sm js-category-line-select">
+                                                <select name="line_category_{{ line.id }}" class="form-select form-select-sm js-category-line-select js-select2">
                                                     <option value="">Senza categoria</option>
                                                     {% for cat in categories %}
                                                         <option value="{{ cat.id }}" {% if line.category_id == cat.id %}selected{% endif %}>{{ cat.name }}</option>

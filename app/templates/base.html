@@ -140,8 +140,8 @@
         {% with messages = get_flashed_messages(with_categories=true) %}
           {% if messages %}
             {% for category, message in messages %}
-              {% set bootstrap_class = 'danger' if category == 'error' else 'success' if category == 'success' else 'info' %}
-              <div class="alert alert-{{ bootstrap_class }} alert-dismissible fade show" role="alert">
+              {% set bootstrap_class = 'danger' if category in ['error', 'danger'] else 'warning' if category == 'warning' else 'success' if category == 'success' else 'info' %}
+              <div class="alert alert-{{ bootstrap_class }} alert-dismissible fade show {% if bootstrap_class in ['success', 'info'] %}js-auto-dismiss-alert{% endif %}" role="alert" {% if bootstrap_class in ['success', 'info'] %}data-auto-dismiss-ms="4500"{% endif %}>
                 {{ message }}
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
               </div>
@@ -203,6 +203,19 @@
             };
 
             window.initSelect2Controls();
+
+            document.querySelectorAll(".js-auto-dismiss-alert").forEach((alertEl) => {
+                const delay = Number(alertEl.dataset.autoDismissMs || "4500");
+                window.setTimeout(() => {
+                    if (!alertEl.isConnected) return;
+                    const instance = window.bootstrap?.Alert.getOrCreateInstance(alertEl);
+                    if (instance) {
+                        instance.close();
+                    } else {
+                        alertEl.remove();
+                    }
+                }, Number.isNaN(delay) ? 4500 : delay);
+            });
         });
     </script>
     

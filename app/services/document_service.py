@@ -718,7 +718,26 @@ def _parse_decimal(value: Optional[str]) -> Optional[Decimal]:
     if value is None or value == "":
         return None
     try:
-        return Decimal(value)
+        raw_value = str(value).strip().replace(" ", "").replace("€", "")
+        if not raw_value:
+            return None
+
+        last_comma = raw_value.rfind(",")
+        last_dot = raw_value.rfind(".")
+        normalized = raw_value
+
+        if last_comma != -1 and last_dot != -1:
+            if last_comma > last_dot:
+                normalized = raw_value.replace(".", "").replace(",", ".")
+            else:
+                normalized = raw_value.replace(",", "")
+        elif last_comma != -1:
+            normalized = raw_value.replace(".", "").replace(",", ".")
+        elif raw_value.count(".") > 1:
+            integer_part, decimal_part = raw_value.rsplit(".", 1)
+            normalized = integer_part.replace(".", "") + "." + decimal_part
+
+        return Decimal(normalized)
     except Exception:
         return None
 

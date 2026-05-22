@@ -133,6 +133,46 @@ def _clear_review_skipped_ids() -> None:
     session.pop(_REVIEW_SKIPPED_SESSION_KEY, None)
 
 
+def _extract_review_category_assignments(form_data) -> tuple[Optional[dict[int, Optional[int]]], Optional[str]]:
+    assignments: dict[int, Optional[int]] = {}
+    for key, raw_value in form_data.items():
+        if not key.startswith("line_category_"):
+            continue
+
+        line_id_raw = key.removeprefix("line_category_")
+        try:
+            line_id = int(line_id_raw)
+        except ValueError:
+            return None, "Riga non valida."
+
+        category_id = None
+        if (raw_value or "").strip():
+            try:
+                category_id = int(raw_value)
+            except ValueError:
+                return None, "Categoria non valida."
+
+        assignments[line_id] = category_id
+
+    return assignments, None
+
+
+def _save_review_category_assignments(document_id: int, form_data) -> tuple[bool, Optional[str]]:
+    assignments, error_message = _extract_review_category_assignments(form_data)
+    if error_message:
+        return False, error_message
+    if not assignments:
+        return True, None
+
+    result = assign_categories_to_invoice_lines(
+        invoice_id=document_id,
+        assignments=assignments,
+    )
+    if result.get("success"):
+        return True, None
+    return False, result.get("message", "Errore durante il salvataggio delle categorie.")
+
+
 def _build_document_filter_context(
     *,
     filters: DocumentSearchFilters,
@@ -800,6 +840,10 @@ def review_loop_invoice_view(document_id: int):
         action = request.form.get("action") or "review"
         if action == "review":
             chosen_status = (request.form.get("doc_status") or "").strip()
+            categories_ok, categories_message = _save_review_category_assignments(document_id, request.form)
+            if not categories_ok:
+                flash(categories_message or "Errore durante il salvataggio delle categorie.", "danger")
+                return redirect(url_for("documents.review_loop_invoice_view", document_id=document_id))
             success, message = DocumentService.review_and_confirm(document_id, request.form.to_dict())
             if not success:
                 if message == "Documento non trovato": abort(404)
@@ -826,6 +870,10 @@ def review_loop_invoice_view(document_id: int):
             flash("Documento saltato. Nessuna modifica salvata.", "info")
             return redirect(url_for("documents.review_loop_redirect_view", skip_id=document_id))
         elif action == "save":
+            categories_ok, categories_message = _save_review_category_assignments(document_id, request.form)
+            if not categories_ok:
+                flash(categories_message or "Errore durante il salvataggio delle categorie.", "danger")
+                return redirect(url_for("documents.review_loop_invoice_view", document_id=document_id))
             success, message = DocumentService.review_and_confirm(document_id, request.form.to_dict())
             if not success:
                 if message == "Documento non trovato": abort(404)
