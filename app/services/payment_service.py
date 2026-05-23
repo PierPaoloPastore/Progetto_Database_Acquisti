@@ -260,7 +260,7 @@ def attach_payment_amounts(documents: Sequence[Document]) -> None:
         if not payment_rows and getattr(doc, "is_paid", False):
             paid = gross
         remaining = gross - paid
-        if remaining < 0:
+        if remaining < 0 and not getattr(doc, "is_credit_note", False):
             remaining = 0.0
 
         if payment_rows:
