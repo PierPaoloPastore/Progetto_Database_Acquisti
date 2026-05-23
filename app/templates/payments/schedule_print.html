@@ -116,6 +116,7 @@
                 <th>Emissione</th>
                 <th>Scadenza</th>
                 <th>Fornitore</th>
+                <th>Tipo</th>
                 <th>IBAN fornitore</th>
                 <th>Intestatario</th>
                 <th>Documento</th>
@@ -127,10 +128,12 @@
         <tbody>
             {% for row in schedule_rows %}
                 {% set doc = row.doc %}
+                {% set is_credit_note = doc.document_type == 'credit_note' %}
                 <tr>
                     <td>{{ doc.document_date.strftime('%d/%m/%Y') if doc.document_date else '-' }}</td>
                     <td>{{ doc.due_date.strftime('%d/%m/%Y') if doc.due_date else '-' }}</td>
                     <td>{{ row.supplier_name }}</td>
+                    <td>{{ 'Nota di credito' if is_credit_note else doc.document_type|replace('_', ' ')|title }}</td>
                     <td>{{ doc.supplier.iban if doc.supplier and doc.supplier.iban else '-' }}</td>
                     <td>{{ row.legal_entity_name }}</td>
                     <td>{{ doc.document_number or 'N/D' }}</td>
@@ -150,7 +153,7 @@
                 </tr>
             {% else %}
                 <tr>
-                    <td colspan="9">Nessun documento selezionato.</td>
+                    <td colspan="10">Nessun documento selezionato.</td>
                 </tr>
             {% endfor %}
         </tbody>

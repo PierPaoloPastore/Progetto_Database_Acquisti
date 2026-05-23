@@ -11,6 +11,7 @@
     {% set total_amount = doc.total_gross_amount or 0 %}
     {% set is_partial = row.remaining_amount < total_amount and row.remaining_amount > 0 %}
     {% set is_credit_note = doc.document_type == 'credit_note' %}
+    {% set document_type_label = 'Nota di credito' if is_credit_note else doc.document_type|replace('_', ' ')|title %}
     {% if doc.due_date %}
         {% set delta_days = (doc.due_date - today).days %}
     {% else %}
@@ -60,9 +61,11 @@
         {% endif %}
         <td>
             <div class="fw-semibold">{{ doc.document_number or 'N/D' }}</div>
-            {% if is_credit_note %}
-                <span class="badge bg-danger-subtle text-danger border border-danger-subtle mt-1">Nota di credito</span>
-            {% endif %}
+        </td>
+        <td>
+            <span class="badge {% if is_credit_note %}bg-danger-subtle text-danger border border-danger-subtle{% else %}bg-light text-dark border{% endif %}">
+                {{ document_type_label }}
+            </span>
         </td>
         <td class="text-end schedule-amount-muted">{{ (doc.total_gross_amount or 0)|format_amount }} &euro;</td>
         <td class="text-end fw-semibold schedule-amount-strong">{{ row.remaining_amount|format_amount }} &euro;</td>
@@ -269,6 +272,7 @@
                                                     </th>
                                                     <th>Fornitore</th>
                                                     <th>Documento</th>
+                                                    <th>Tipo</th>
                                                     <th class="text-end schedule-sort" data-sort="total">
                                                         Totale <i class="bi bi-arrow-down-up sort-icon"></i>
                                                     </th>
