@@ -10,6 +10,7 @@
     {% set doc = row.doc %}
     {% set total_amount = doc.total_gross_amount or 0 %}
     {% set is_partial = row.remaining_amount < total_amount and row.remaining_amount > 0 %}
+    {% set is_credit_note = doc.document_type == 'credit_note' %}
     {% if doc.due_date %}
         {% set delta_days = (doc.due_date - today).days %}
     {% else %}
@@ -59,6 +60,9 @@
         {% endif %}
         <td>
             <div class="fw-semibold">{{ doc.document_number or 'N/D' }}</div>
+            {% if is_credit_note %}
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle mt-1">Nota di credito</span>
+            {% endif %}
         </td>
         <td class="text-end schedule-amount-muted">{{ (doc.total_gross_amount or 0)|format_amount }} &euro;</td>
         <td class="text-end fw-semibold schedule-amount-strong">{{ row.remaining_amount|format_amount }} &euro;</td>
@@ -75,10 +79,12 @@
                 <a href="{{ url_for('documents.detail_view', document_id=doc.id) }}" class="btn btn-sm btn-outline-secondary">
                     <i class="bi bi-eye"></i>
                 </a>
-                <a href="{{ url_for('payments.payment_index', document_id=doc.id, amount=row.remaining_amount_raw) }}#tab-new"
-                   class="btn btn-sm {% if is_partial %}btn-outline-primary{% else %}btn-primary{% endif %}">
-                    <i class="bi {% if is_partial %}bi-arrow-repeat{% else %}bi-cash-coin{% endif %}"></i> Registra
-                </a>
+                {% if not is_credit_note %}
+                    <a href="{{ url_for('payments.payment_index', document_id=doc.id, amount=row.remaining_amount_raw) }}#tab-new"
+                       class="btn btn-sm {% if is_partial %}btn-outline-primary{% else %}btn-primary{% endif %}">
+                        <i class="bi {% if is_partial %}bi-arrow-repeat{% else %}bi-cash-coin{% endif %}"></i> Registra
+                    </a>
+                {% endif %}
                 {% if is_partial %}
                     <span class="badge bg-light text-dark border">Parziale</span>
                 {% endif %}
@@ -143,8 +149,8 @@
     <div class="card shadow-sm">
         <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
             <div>
-                <h5 class="mb-0">Documenti da saldare</h5>
-                <small class="text-muted">Gestisci le scadenze e registra i pagamenti</small>
+                <h5 class="mb-0">Documenti aperti</h5>
+                <small class="text-muted">Gestisci le scadenze, i pagamenti e le note di credito</small>
             </div>
         </div>
         <div class="card-body p-0">
