@@ -6,6 +6,7 @@ from flask import Flask, jsonify
 from config import DevConfig
 from .extensions import init_extensions
 
+
 def create_app(config_class=DevConfig) -> Flask:
     app = Flask(
         __name__,
@@ -35,10 +36,10 @@ def create_app(config_class=DevConfig) -> Flask:
 def _register_blueprints(app: Flask) -> None:
     # Web
     from .web.routes_main import main_bp
-    
+
     # FIX: Usiamo il nuovo routes_documents invece di invoices
     from .web.routes_documents import documents_bp
-    
+
     from .web.routes_suppliers import suppliers_bp
     from .web.routes_legal_entities import legal_entities_bp
     from .web.routes_categories import categories_bp
@@ -51,10 +52,10 @@ def _register_blueprints(app: Flask) -> None:
     from .web.routes_help import help_bp
 
     app.register_blueprint(main_bp)
-    
+
     # FIX: Prefisso URL /documents
     app.register_blueprint(documents_bp, url_prefix="/documents")
-    
+
     app.register_blueprint(suppliers_bp, url_prefix="/suppliers")
     app.register_blueprint(legal_entities_bp, url_prefix="/legal-entities")
     app.register_blueprint(categories_bp, url_prefix="/categories")
@@ -67,8 +68,8 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(help_bp)
 
     # API
-    from .api import api_documents_bp, api_categories_bp
+    from .api import api_categories_bp, api_delivery_notes_bp, api_documents_bp
 
-    # Registra con il nuovo prefisso
     app.register_blueprint(api_documents_bp, url_prefix="/api/documents")
     app.register_blueprint(api_categories_bp, url_prefix="/api/categories")
+    app.register_blueprint(api_delivery_notes_bp, url_prefix="/api")

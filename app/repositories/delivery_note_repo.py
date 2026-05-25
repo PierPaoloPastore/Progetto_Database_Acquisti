@@ -4,6 +4,7 @@ Gestisce query e operazioni di base sui DDT.
 """
 from __future__ import annotations
 
+from datetime import date
 from typing import List, Optional
 
 from sqlalchemy.orm import joinedload
@@ -107,4 +108,24 @@ class DeliveryNoteRepository(SqlAlchemyRepository[DeliveryNote]):
             .filter(DeliveryNote.document_id == document_id)
             .order_by(DeliveryNote.ddt_date.desc(), DeliveryNote.id.desc())
             .all()
+        )
+
+    def find_by_identity_and_import_source(
+        self,
+        *,
+        supplier_id: int,
+        ddt_number: str,
+        ddt_date: date,
+        import_source: str,
+    ) -> Optional[DeliveryNote]:
+        return (
+            self.session.query(DeliveryNote)
+            .filter(
+                DeliveryNote.supplier_id == supplier_id,
+                DeliveryNote.ddt_number == ddt_number,
+                DeliveryNote.ddt_date == ddt_date,
+                DeliveryNote.import_source == import_source,
+            )
+            .order_by(DeliveryNote.id.asc())
+            .first()
         )

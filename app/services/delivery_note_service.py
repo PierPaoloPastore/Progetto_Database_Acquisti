@@ -3,17 +3,23 @@ Servizi per la gestione dei DDT (DeliveryNote).
 """
 from __future__ import annotations
 
+import logging
 import os
 from datetime import date, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from werkzeug.utils import secure_filename
 
-from app.models import DeliveryNote, LegalEntity, DeliveryNoteLine
+from app.models import DeliveryNote, DeliveryNoteLine, LegalEntity
+from app.services import scan_service, settings_service
 from app.services.unit_of_work import UnitOfWork
-from app.services import settings_service, scan_service
+
+
+logger = logging.getLogger(__name__)
+
+ALLOWED_EXTERNAL_FILE_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff"}
 
 
 def list_delivery_notes(
@@ -81,22 +87,15 @@ def create_delivery_note(
         raise ValueError("File PDF DDT obbligatorio")
 
     with UnitOfWork() as uow:
-        # Validazioni base (esistono gli FK?)
         supplier = uow.suppliers.get_by_id(supplier_id)
         if not supplier:
             raise ValueError("Fornitore non valido")
-        if legal_entity_id:
+        if legal_entity_id is not None:
             legal_entity = uow.session.query(LegalEntity).get(legal_entity_id)
             if legal_entity is None:
                 raise ValueError("Intestatario non valido")
 
-        base_path = settings_service.get_delivery_note_storage_path()
-        safe_name = secure_filename(file.filename) or f"ddt_{ddt_number}.pdf"
-        rel_path = scan_service.store_delivery_note_file(
-            file=file,
-            base_path=base_path,
-            filename=safe_name,
-        )
+        safe_name, rel_path = _store_uploaded_delivery_note_file(file, ddt_number)
 
         note = DeliveryNote(
             supplier_id=supplier_id,
@@ -117,6 +116,131 @@ def create_delivery_note(
         return note
 
 
+def create_external_delivery_note(
+    *,
+    supplier_id: int,
+    legal_entity_id: Optional[int],
+    ddt_number: str,
+    ddt_date: date,
+    external_id: str,
+    total_amount: Optional[Decimal] = None,
+    notes: Optional[str] = None,
+    lines: Optional[list[dict[str, Any]]] = None,
+    file=None,
+) -> dict[str, Any]:
+    """
+    Crea un DDT proveniente da GestionaleFitofarmaci.
+
+    - document_id resta null
+    - status viene forzato a unmatched
+    - source viene forzato a manual
+    - import_source contiene l'origine esterna con external_id
+    """
+    normalized_number = str(ddt_number or "").strip()
+    normalized_external_id = str(external_id or "").strip()
+    normalized_notes = str(notes or "").strip() or None
+    warnings: list[str] = []
+
+    if supplier_id is None:
+        raise ValueError("supplier_id obbligatorio")
+    if not normalized_number:
+        raise ValueError("ddt_number obbligatorio")
+    if not ddt_date:
+        raise ValueError("ddt_date obbligatoria")
+    if not normalized_external_id:
+        raise ValueError("external_id obbligatorio")
+    if lines is not None and not isinstance(lines, list):
+        raise ValueError("lines deve essere una lista di oggetti")
+
+    upload = _normalize_optional_upload(file)
+    if upload is not None:
+        _validate_external_upload(upload)
+
+    if normalized_notes:
+        warnings.append("notes ricevuto ma non persistito: delivery_notes non ha un campo dedicato")
+
+    import_source = f"GestionaleFitofarmaci:{normalized_external_id}"
+
+    with UnitOfWork() as uow:
+        supplier = uow.suppliers.get_by_id(supplier_id)
+        if not supplier:
+            raise LookupError("Fornitore non valido")
+        if legal_entity_id is not None:
+            legal_entity = uow.session.query(LegalEntity).get(legal_entity_id)
+            if legal_entity is None:
+                raise LookupError("Intestatario non valido")
+
+        existing = uow.delivery_notes.find_by_identity_and_import_source(
+            supplier_id=supplier_id,
+            ddt_number=normalized_number,
+            ddt_date=ddt_date,
+            import_source=import_source,
+        )
+        if existing is not None:
+            logger.info(
+                "DDT esterno duplicato rilevato",
+                extra={
+                    "delivery_note_id": existing.id,
+                    "supplier_id": supplier_id,
+                    "ddt_number": normalized_number,
+                    "ddt_date": ddt_date.isoformat(),
+                    "import_source": import_source,
+                },
+            )
+            return {
+                "delivery_note": existing,
+                "created": False,
+                "duplicate": True,
+                "warnings": warnings,
+            }
+
+        safe_name = None
+        rel_path = None
+        if upload is not None:
+            safe_name, rel_path = _store_uploaded_delivery_note_file(upload, normalized_number)
+
+        note = DeliveryNote(
+            document_id=None,
+            supplier_id=supplier_id,
+            legal_entity_id=legal_entity_id,
+            ddt_number=normalized_number,
+            ddt_date=ddt_date,
+            total_amount=total_amount,
+            file_path=rel_path,
+            file_name=safe_name,
+            source="manual",
+            import_source=import_source,
+            imported_at=datetime.utcnow(),
+            status="unmatched",
+        )
+        uow.delivery_notes.add(note)
+        uow.session.flush()
+
+        if lines:
+            _create_delivery_note_lines(note.id, lines, uow)
+
+        uow.commit()
+        logger.info(
+            "DDT esterno creato",
+            extra={
+                "delivery_note_id": note.id,
+                "supplier_id": supplier_id,
+                "legal_entity_id": legal_entity_id,
+                "ddt_number": normalized_number,
+                "ddt_date": ddt_date.isoformat(),
+                "import_source": import_source,
+                "has_file": bool(rel_path),
+                "lines_count": len(lines or []),
+            },
+        )
+        return {
+            "delivery_note": note,
+            "created": True,
+            "duplicate": False,
+            "warnings": warnings,
+        }
+
+
 def upsert_delivery_note_lines(note_id: int, lines_payload: list[dict]) -> DeliveryNote:
     """
     Aggiorna/crea le righe di un DDT rimpiazzando quelle esistenti non presenti nel payload.
@@ -133,7 +257,7 @@ def upsert_delivery_note_lines(note_id: int, lines_payload: list[dict]) -> Deliv
         for entry in lines_payload:
             line_id = entry.get("id")
             line_number = entry.get("line_number")
-            description = (entry.get("description") or "").strip()
+            description = str(entry.get("description") or "").strip()
             if not line_number:
                 continue
             if not description:
@@ -148,7 +272,7 @@ def upsert_delivery_note_lines(note_id: int, lines_payload: list[dict]) -> Deliv
 
             ln.line_number = int(line_number)
             ln.description = description
-            ln.item_code = (entry.get("item_code") or "").strip() or None
+            ln.item_code = str(entry.get("item_code") or "").strip() or None
 
             def _num(val, cast):
                 if val is None or val == "":
@@ -159,11 +283,10 @@ def upsert_delivery_note_lines(note_id: int, lines_payload: list[dict]) -> Deliv
                     return None
 
             ln.quantity = _num(entry.get("quantity"), Decimal)
-            ln.uom = (entry.get("uom") or "").strip() or None
+            ln.uom = str(entry.get("uom") or "").strip() or None
             ln.amount = _num(entry.get("amount"), Decimal)
-            ln.notes = (entry.get("notes") or "").strip() or None
+            ln.notes = str(entry.get("notes") or "").strip() or None
 
-        # Delete lines not seen
         for line_id, ln in existing.items():
             if line_id not in seen_ids and line_id is not None:
                 uow.delivery_note_lines.delete(ln)
@@ -248,13 +371,7 @@ def attach_delivery_note_file(note_id: int, file) -> DeliveryNote:
         if not note:
             raise ValueError("DDT non trovato")
 
-        base_path = settings_service.get_delivery_note_storage_path()
-        safe_name = secure_filename(file.filename) or f"ddt_{note.ddt_number}.pdf"
-        rel_path = scan_service.store_delivery_note_file(
-            file=file,
-            base_path=base_path,
-            filename=safe_name,
-        )
+        safe_name, rel_path = _store_uploaded_delivery_note_file(file, note.ddt_number)
 
         _remove_delivery_note_file(note)
         note.file_path = rel_path
@@ -290,7 +407,7 @@ def update_delivery_note(
         supplier = uow.suppliers.get_by_id(supplier_id)
         if not supplier:
             raise ValueError("Fornitore non valido")
-        if legal_entity_id:
+        if legal_entity_id is not None:
             legal_entity = uow.session.query(LegalEntity).get(legal_entity_id)
             if legal_entity is None:
                 raise ValueError("Intestatario non valido")
@@ -318,3 +435,80 @@ def delete_delivery_note(note_id: int) -> bool:
         uow.delivery_notes.delete(note)
         uow.commit()
         return True
+
+
+def _normalize_optional_upload(file):
+    if file is None:
+        return None
+    if not getattr(file, "filename", None):
+        return None
+    return file
+
+
+def _validate_external_upload(file) -> None:
+    suffix = Path(file.filename or "").suffix.lower()
+    if suffix not in ALLOWED_EXTERNAL_FILE_EXTENSIONS:
+        allowed = ", ".join(sorted(ALLOWED_EXTERNAL_FILE_EXTENSIONS))
+        raise ValueError(f"Formato file non supportato. Estensioni ammesse: {allowed}")
+
+
+def _store_uploaded_delivery_note_file(file, ddt_number: str) -> tuple[str, str]:
+    original_name = getattr(file, "filename", "") or ""
+    suffix = Path(original_name).suffix.lower()
+    safe_name = secure_filename(original_name) or f"ddt_{ddt_number}{suffix or '.pdf'}"
+    base_path = settings_service.get_delivery_note_storage_path()
+    rel_path = scan_service.store_delivery_note_file(
+        file=file,
+        base_path=base_path,
+        filename=safe_name,
+    )
+    return safe_name, rel_path
+
+
+def _create_delivery_note_lines(note_id: int, lines_payload: list[dict[str, Any]], uow: UnitOfWork) -> None:
+    seen_line_numbers: set[int] = set()
+    for idx, entry in enumerate(lines_payload, start=1):
+        if not isinstance(entry, dict):
+            raise ValueError(f"lines[{idx}] non valido: atteso oggetto")
+
+        raw_line_number = entry.get("line_number")
+        description = str(entry.get("description") or "").strip()
+        if raw_line_number in (None, ""):
+            raise ValueError(f"lines[{idx}].line_number obbligatorio")
+        try:
+            line_number = int(raw_line_number)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"lines[{idx}].line_number non valido") from exc
+        if line_number < 1:
+            raise ValueError(f"lines[{idx}].line_number deve essere >= 1")
+        if not description:
+            raise ValueError(f"lines[{idx}].description obbligatoria")
+        if line_number in seen_line_numbers:
+            raise ValueError(f"lines[{idx}].line_number duplicato nel payload")
+        seen_line_numbers.add(line_number)
+
+        line = DeliveryNoteLine(
+            delivery_note_id=note_id,
+            line_number=line_number,
+            description=description,
+            item_code=str(entry.get("item_code") or "").strip() or None,
+            quantity=_parse_optional_decimal(entry.get("quantity"), f"lines[{idx}].quantity"),
+            uom=str(entry.get("uom") or "").strip() or None,
+            amount=_parse_optional_decimal(entry.get("amount"), f"lines[{idx}].amount"),
+            notes=str(entry.get("notes") or "").strip() or None,
+        )
+        uow.delivery_note_lines.add(line)
+
+
+def _parse_optional_decimal(value: Any, field_name: str) -> Optional[Decimal]:
+    if value is None or value == "":
+        return None
+    normalized = str(value).strip().replace(" ", "")
+    if not normalized:
+        return None
+    if "," in normalized:
+        normalized = normalized.replace(".", "").replace(",", ".")
+    try:
+        return Decimal(normalized)
+    except (InvalidOperation, ValueError) as exc:
+        raise ValueError(f"{field_name} non valido") from exc
