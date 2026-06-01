@@ -308,7 +308,7 @@
                                             <span class="text-muted">-</span>
                                         {% endif %}
                                     </td>
-                                    <td class="text-end">{{ (payment.paid_amount or payment.expected_amount or 0)|format_amount }} &euro;</td>
+                                    <td class="text-end">{{ (payment.paid_amount if payment.paid_amount is not none else 0)|format_amount }} &euro;</td>
                                     <td>{{ method_label or 'N/D' }}</td>
                                     <td>
                                         {% if payment_document and payment_document.bank_account_iban %}

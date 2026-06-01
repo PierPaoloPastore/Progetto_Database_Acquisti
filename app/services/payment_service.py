@@ -148,11 +148,12 @@ def detach_payment(payment_id: int) -> tuple[bool, str]:
         payment.payment_document = None
         payment.payment_document_id = None
         payment.paid_date = None
-        payment.paid_amount = None
+        payment.paid_amount = Decimal("0.00")
         payment.notes = None
         payment.status = "unpaid"
 
         if document:
+            document.is_paid = False
             _update_document_paid_status(uow, document)
 
         uow.commit()
@@ -810,14 +811,14 @@ def update_payment_method_for_document(
 
 def _update_document_paid_status(uow: UnitOfWork, document: Document):
     """
-    Helper interno: ricalcola se la fattura ? pagata totalmente.
+    Helper interno: ricalcola se la fattura e pagata totalmente.
     """
     payments = uow.payments.get_by_document_id(document.id)
     if not payments:
         document.is_paid = False
         return
 
-    document.is_paid = all(p.status == "paid" for p in payments)
+    document.is_paid = all((p.status or "").strip().lower() == "paid" for p in payments)
 
 # --- FUNZIONE REINSERITA PER COMPATIBILITÀ DASHBOARD ---
 def list_overdue_payments_for_ui() -> List[Document]:

@@ -105,7 +105,7 @@
                                             {% endif %}
                                         </td>
                                         <td class="text-end">{{ (doc.total_gross_amount or 0)|format_amount }} &euro;</td>
-                                        <td class="text-end">{{ (p.paid_amount or p.expected_amount or 0)|format_amount }} &euro;</td>
+                                        <td class="text-end">{{ (p.paid_amount if p.paid_amount is not none else 0)|format_amount }} &euro;</td>
                                         <td>
                                             <span class="status-badge status-{{ p.status }}">{{ p.status }}</span>
                                         </td>
@@ -183,7 +183,7 @@
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label small fw-bold">Importo pagato</label>
-                                <input type="number" step="0.01" name="paid_amount" class="form-control form-control-sm text-end" value="{{ payment.paid_amount or payment.expected_amount or '' }}" data-payment-edit disabled>
+                                <input type="number" step="0.01" name="paid_amount" class="form-control form-control-sm text-end" value="{{ payment.paid_amount if payment.paid_amount is not none else '' }}" data-payment-edit disabled>
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label small fw-bold">Metodo</label>

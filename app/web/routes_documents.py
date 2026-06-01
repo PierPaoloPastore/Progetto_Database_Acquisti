@@ -1237,6 +1237,11 @@ def detail_view(document_id: int):
     )
     detail["linked_delivery_notes"] = list_delivery_notes_by_document(document_id)
     payments = detail.get("payments") or []
+    if payments:
+        detail["invoice"].is_paid = all(
+            (p.status or "").strip().lower() == "paid"
+            for p in payments
+        )
     _decorate_detail_payments(payments)
     paid_total = sum(float(p.paid_amount or 0) for p in payments)
     gross_total = float(detail["invoice"].total_gross_amount or 0)
