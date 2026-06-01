@@ -568,7 +568,7 @@
                     <form method="post"
                           action="{{ url_for('documents.edit_document_view', document_id=invoice.id) }}"
                           id="doc-edit-form">
-                        <input type="hidden" name="confirm_text" id="doc-edit-confirm-text" value="">
+                        <input type="hidden" name="confirm_text" id="doc-edit-confirm-text" value="" data-doc-edit-confirm>
                         <div class="row g-2">
                             <div class="col-md-6">
                                 <label class="form-label small fw-bold">Numero documento</label>
@@ -619,6 +619,49 @@
                             <div class="col-12">
                                 <label class="form-label small fw-bold">Note</label>
                                 <textarea name="note" rows="2" class="form-control form-control-sm" data-doc-edit disabled>{{ invoice.note or '' }}</textarea>
+                            </div>
+                            <div class="col-12">
+                                <div class="border rounded p-3 bg-light">
+                                    <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-2">
+                                        <div>
+                                            <div class="small fw-bold text-uppercase text-muted">Pagamenti collegati</div>
+                                            <div class="small text-muted">Usa "Stacca pagamento" solo se il collegamento al documento e stato fatto per errore.</div>
+                                        </div>
+                                        <span class="badge bg-light text-dark">{{ payments|list|length|format_int }} movimenti</span>
+                                    </div>
+                                    {% if payments %}
+                                        <div class="d-grid gap-2">
+                                            {% for p in payments %}
+                                                {% set can_detach_payment = p.payment_document_id or p.paid_date or p.paid_amount or p.status in ['paid', 'partial'] %}
+                                                <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap border rounded px-3 py-2 bg-white">
+                                                    <div>
+                                                        <div class="fw-bold">Pagamento #{{ p.id }}</div>
+                                                        <div class="small text-muted">
+                                                            Previsto EUR {{ (p.expected_amount or 0)|format_amount }}
+                                                            - Pagato EUR {{ (p.paid_amount or 0)|format_amount }}
+                                                            - {{ p.display_paid_date.strftime('%d/%m/%Y') if p.display_paid_date else 'Data non registrata' }}
+                                                            - {{ p.status_label }}
+                                                        </div>
+                                                    </div>
+                                                    {% if can_detach_payment %}
+                                                        <form method="post"
+                                                              action="{{ url_for('documents.detach_payment_view', document_id=invoice.id, payment_id=p.id) }}"
+                                                              onsubmit="return confirm('Staccare il pagamento #{{ p.id }} da questo documento?');">
+                                                            <input type="hidden" name="confirm_text" value="" data-doc-edit-confirm>
+                                                            <button type="submit" class="btn btn-sm btn-outline-danger" data-doc-edit disabled>
+                                                                <i class="bi bi-link-45deg"></i> Stacca pagamento
+                                                            </button>
+                                                        </form>
+                                                    {% else %}
+                                                        <span class="badge bg-light text-dark border">Solo scadenza</span>
+                                                    {% endif %}
+                                                </div>
+                                            {% endfor %}
+                                        </div>
+                                    {% else %}
+                                        <div class="small text-muted">Nessun pagamento collegato a questo documento.</div>
+                                    {% endif %}
+                                </div>
                             </div>
                         </div>
                         <div class="d-flex justify-content-end mt-3">

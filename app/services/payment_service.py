@@ -124,6 +124,46 @@ def add_payment(
         logger.info(f"Pagamento di {amount} aggiunto al doc {document_id}")
         return payment
 
+def detach_payment(payment_id: int) -> tuple[bool, str]:
+    """
+    Scollega i dati di pagamento effettivo mantenendo la scadenza del documento.
+    """
+    with UnitOfWork() as uow:
+        payment = uow.payments.get_by_id(payment_id)
+        if not payment:
+            return False, "Pagamento non trovato."
+
+        has_payment_link = any(
+            [
+                payment.payment_document_id,
+                payment.paid_date,
+                payment.paid_amount not in (None, 0),
+                (payment.status or "").strip().lower() in {"paid", "partial"},
+            ]
+        )
+        if not has_payment_link:
+            return False, "Nessun pagamento collegato da staccare."
+
+        document = uow.session.get(Document, payment.document_id)
+        payment.payment_document = None
+        payment.payment_document_id = None
+        payment.paid_date = None
+        payment.paid_amount = None
+        payment.notes = None
+        payment.status = "unpaid"
+
+        if document:
+            _update_document_paid_status(uow, document)
+
+        uow.commit()
+        logger.info(
+            "Pagamento %s scollegato dal documento %s",
+            payment_id,
+            payment.document_id,
+        )
+        return True, "Pagamento scollegato dal documento."
+
+
 def delete_payment(payment_id: int) -> bool:
     """
     Cancella un pagamento e ricalcola lo stato della fattura.

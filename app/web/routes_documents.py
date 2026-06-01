@@ -40,6 +40,7 @@ from app.services.payment_method_catalog import (
 )
 from app.services.payment_service import (
     attach_payment_amounts,
+    detach_payment,
     register_instant_payment_for_document,
     update_payment_method_for_document,
 )
@@ -1355,6 +1356,30 @@ def edit_document_view(document_id: int):
 
     ok, message, _ = update_document_core(document_id, request.form.to_dict())
     flash(message, "success" if ok else "danger")
+    return redirect(url_for("documents.detail_view", document_id=document_id))
+
+
+@documents_bp.route("/<int:document_id>/payments/<int:payment_id>/detach", methods=["POST"])
+def detach_payment_view(document_id: int, payment_id: int):
+    doc = DocumentService.get_document_by_id(document_id)
+    if doc is None:
+        flash("Documento non trovato.", "warning")
+        return redirect(url_for("documents.list_view"))
+
+    confirm_text = (request.form.get("confirm_text") or "").strip()
+    expected = (doc.document_number or f"Documento #{document_id}").strip()
+    if confirm_text.lower() != expected.lower():
+        flash("Conferma non valida. Scollegamento pagamento annullato.", "warning")
+        return redirect(url_for("documents.detail_view", document_id=document_id))
+
+    with UnitOfWork() as uow:
+        payment = uow.payments.get_by_id(payment_id)
+        if not payment or payment.document_id != document_id:
+            flash("Pagamento non collegato a questo documento.", "warning")
+            return redirect(url_for("documents.detail_view", document_id=document_id))
+
+    ok, message = detach_payment(payment_id)
+    flash(message, "success" if ok else "warning")
     return redirect(url_for("documents.detail_view", document_id=document_id))
 
 

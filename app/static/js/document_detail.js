@@ -71,6 +71,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const editFields = document.querySelectorAll("[data-doc-edit]");
     const editSaveBtn = document.getElementById("doc-edit-save-btn");
     const editConfirmHidden = document.getElementById("doc-edit-confirm-text");
+    const editConfirmTargets = document.querySelectorAll("[data-doc-edit-confirm]");
     const editAccordionToggle = document.getElementById("doc-edit-accordion-toggle");
     const editCollapse = document.getElementById("collapse-edit");
 
@@ -93,6 +94,9 @@ document.addEventListener("DOMContentLoaded", () => {
             if (editConfirmHidden) {
                 editConfirmHidden.value = editInput.dataset.expected || "";
             }
+            editConfirmTargets.forEach((field) => {
+                field.value = editInput.dataset.expected || "";
+            });
             if (editAccordionToggle) {
                 editAccordionToggle.removeAttribute("disabled");
                 editAccordionToggle.setAttribute("aria-disabled", "false");
