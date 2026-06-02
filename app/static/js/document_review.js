@@ -608,6 +608,15 @@ document.addEventListener("DOMContentLoaded", () => {
         const reasonEl = document.querySelector("[data-instant-reason]");
         const select = paymentMethodForm.querySelector("select[name='payment_method_code']");
         const submitBtn = paymentMethodForm.querySelector("button[type='submit']");
+        const reviewPrimaryButtons = document.querySelectorAll(
+            ".review-form button[type='submit'], #discard-trigger"
+        );
+
+        const toggleReviewPrimaryButtons = (disabled) => {
+            reviewPrimaryButtons.forEach((button) => {
+                button.disabled = disabled;
+            });
+        };
 
         const setFeedback = (message, ok) => {
             if (!feedback) return;
@@ -627,6 +636,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (submitBtn) {
                 submitBtn.disabled = true;
             }
+            toggleReviewPrimaryButtons(true);
             if (feedback) {
                 feedback.textContent = "Aggiorno metodo...";
                 feedback.classList.remove("text-danger", "text-success", "d-none");
@@ -697,6 +707,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (submitBtn) {
                     submitBtn.disabled = false;
                 }
+                toggleReviewPrimaryButtons(false);
             }
         });
     }

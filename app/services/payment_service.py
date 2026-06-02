@@ -5,10 +5,12 @@ Rifattorizzato con Pattern Unit of Work.
 from __future__ import annotations
 
 import logging
+import time
 from datetime import date, datetime
 from decimal import Decimal
 from typing import List, Optional, Sequence
 
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import joinedload
 from werkzeug.utils import secure_filename
 
@@ -25,6 +27,14 @@ from app.services.payment_method_catalog import (
 from app.services.unit_of_work import UnitOfWork
 
 logger = logging.getLogger(__name__)
+
+
+def _is_mysql_deadlock_error(exc: OperationalError) -> bool:
+    orig = getattr(exc, "orig", None)
+    args = getattr(orig, "args", ()) or ()
+    if not args:
+        return False
+    return args[0] == 1213
 
 
 def _create_placeholder_payment(
@@ -124,45 +134,65 @@ def add_payment(
         logger.info(f"Pagamento di {amount} aggiunto al doc {document_id}")
         return payment
 
-def detach_payment(payment_id: int) -> tuple[bool, str]:
+def detach_payment(payment_id: int, *, document_id: Optional[int] = None) -> tuple[bool, str]:
     """
     Scollega i dati di pagamento effettivo mantenendo la scadenza del documento.
     """
-    with UnitOfWork() as uow:
-        payment = uow.payments.get_by_id(payment_id)
-        if not payment:
-            return False, "Pagamento non trovato."
+    max_attempts = 2
+    for attempt in range(1, max_attempts + 1):
+        try:
+            with UnitOfWork() as uow:
+                payment = uow.payments.get_by_id(payment_id)
+                if not payment:
+                    return False, "Pagamento non trovato."
+                if document_id is not None and payment.document_id != document_id:
+                    return False, "Pagamento non collegato a questo documento."
 
-        has_payment_link = any(
-            [
-                payment.payment_document_id,
-                payment.paid_date,
-                payment.paid_amount not in (None, 0),
-                (payment.status or "").strip().lower() in {"paid", "partial"},
-            ]
-        )
-        if not has_payment_link:
-            return False, "Nessun pagamento collegato da staccare."
+                has_payment_link = any(
+                    [
+                        payment.payment_document_id,
+                        payment.paid_date,
+                        payment.paid_amount not in (None, 0),
+                        (payment.status or "").strip().lower() in {"paid", "partial"},
+                    ]
+                )
+                if not has_payment_link:
+                    return False, "Nessun pagamento collegato da staccare."
 
-        document = uow.session.get(Document, payment.document_id)
-        payment.payment_document = None
-        payment.payment_document_id = None
-        payment.paid_date = None
-        payment.paid_amount = Decimal("0.00")
-        payment.notes = None
-        payment.status = "unpaid"
+                owning_document_id = payment.document_id
+                document = uow.session.get(Document, owning_document_id)
+                payment.payment_document = None
+                payment.payment_document_id = None
+                payment.paid_date = None
+                payment.paid_amount = Decimal("0.00")
+                payment.notes = None
+                payment.status = "unpaid"
 
-        if document:
-            document.is_paid = False
-            _update_document_paid_status(uow, document)
+                if document:
+                    document.is_paid = False
+                    _update_document_paid_status(uow, document)
 
-        uow.commit()
-        logger.info(
-            "Pagamento %s scollegato dal documento %s",
-            payment_id,
-            payment.document_id,
-        )
-        return True, "Pagamento scollegato dal documento."
+                uow.commit()
+                logger.info(
+                    "Pagamento %s scollegato dal documento %s",
+                    payment_id,
+                    owning_document_id,
+                )
+                return True, "Pagamento scollegato dal documento."
+        except OperationalError as exc:
+            if not _is_mysql_deadlock_error(exc):
+                raise
+            logger.warning(
+                "Deadlock MySQL durante stacco pagamento %s (tentativo %s/%s)",
+                payment_id,
+                attempt,
+                max_attempts,
+            )
+            if attempt >= max_attempts:
+                return False, "Database temporaneamente occupato. Riprova tra qualche secondo."
+            time.sleep(0.15)
+
+    return False, "Impossibile scollegare il pagamento."
 
 
 def delete_payment(payment_id: int) -> bool:
@@ -786,28 +816,43 @@ def update_payment_method_for_document(
     if not normalized or not is_known_payment_method(normalized):
         return False, "Metodo di pagamento non valido."
 
-    with UnitOfWork() as uow:
-        document = uow.session.get(Document, document_id)
-        if not document:
-            return False, "Documento non trovato."
+    max_attempts = 2
+    for attempt in range(1, max_attempts + 1):
+        try:
+            with UnitOfWork() as uow:
+                document = uow.session.get(Document, document_id)
+                if not document:
+                    return False, "Documento non trovato."
 
-        payments = uow.payments.get_by_document_id(document_id)
-        if not payments:
-            payment = _create_placeholder_payment(uow, document, method_code=normalized)
-            payments = [payment]
+                payments = uow.payments.get_by_document_id(document_id)
+                if not payments:
+                    payment = _create_placeholder_payment(uow, document, method_code=normalized)
+                    payments = [payment]
 
-        for payment in payments:
-            payment.payment_method = normalized
+                for payment in payments:
+                    payment.payment_method = normalized
 
-        if is_physical_copy_required(normalized):
-            if document.physical_copy_status == "not_required":
-                document.physical_copy_status = "missing"
-        else:
-            if document.physical_copy_status in {"missing", "requested"}:
-                document.physical_copy_status = "not_required"
+                if is_physical_copy_required(normalized):
+                    if document.physical_copy_status == "not_required":
+                        document.physical_copy_status = "missing"
+                else:
+                    if document.physical_copy_status in {"missing", "requested"}:
+                        document.physical_copy_status = "not_required"
 
-        uow.commit()
-        return True, "Metodo di pagamento aggiornato."
+                uow.commit()
+                return True, "Metodo di pagamento aggiornato."
+        except OperationalError as exc:
+            if not _is_mysql_deadlock_error(exc):
+                raise
+            logger.warning(
+                "Deadlock MySQL durante aggiornamento metodo pagamento doc %s (tentativo %s/%s)",
+                document_id,
+                attempt,
+                max_attempts,
+            )
+            if attempt >= max_attempts:
+                return False, "Database temporaneamente occupato. Riprova tra qualche secondo."
+            time.sleep(0.15)
 
 def _update_document_paid_status(uow: UnitOfWork, document: Document):
     """

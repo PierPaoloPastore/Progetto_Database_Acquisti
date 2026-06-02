@@ -1377,13 +1377,7 @@ def detach_payment_view(document_id: int, payment_id: int):
         flash("Conferma non valida. Scollegamento pagamento annullato.", "warning")
         return redirect(url_for("documents.detail_view", document_id=document_id))
 
-    with UnitOfWork() as uow:
-        payment = uow.payments.get_by_id(payment_id)
-        if not payment or payment.document_id != document_id:
-            flash("Pagamento non collegato a questo documento.", "warning")
-            return redirect(url_for("documents.detail_view", document_id=document_id))
-
-    ok, message = detach_payment(payment_id)
+    ok, message = detach_payment(payment_id, document_id=document_id)
     flash(message, "success" if ok else "warning")
     return redirect(url_for("documents.detail_view", document_id=document_id))
 
