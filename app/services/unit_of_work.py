@@ -9,6 +9,7 @@ from app.extensions import db
 from app.repositories.category_repo import CategoryRepository
 from app.repositories.supplier_repo import SupplierRepository
 from app.repositories.payment_repo import PaymentRepository
+from app.repositories.credit_note_allocation_repo import CreditNoteAllocationRepository
 from app.repositories.document_repo import DocumentRepository
 from app.repositories.delivery_note_repo import DeliveryNoteRepository
 from app.repositories.delivery_note_line_repo import DeliveryNoteLineRepository
@@ -21,6 +22,7 @@ class UnitOfWork:
         self._categories: Optional[CategoryRepository] = None
         self._suppliers: Optional[SupplierRepository] = None
         self._payments: Optional[PaymentRepository] = None
+        self._credit_note_allocations: Optional[CreditNoteAllocationRepository] = None
         self._documents: Optional[DocumentRepository] = None
         self._delivery_notes: Optional[DeliveryNoteRepository] = None
         self._delivery_note_lines: Optional[DeliveryNoteLineRepository] = None
@@ -53,6 +55,12 @@ class UnitOfWork:
         if self._payments is None:
             self._payments = PaymentRepository(self.session)
         return self._payments
+
+    @property
+    def credit_note_allocations(self) -> CreditNoteAllocationRepository:
+        if self._credit_note_allocations is None:
+            self._credit_note_allocations = CreditNoteAllocationRepository(self.session)
+        return self._credit_note_allocations
     
     @property
     def delivery_notes(self) -> DeliveryNoteRepository:

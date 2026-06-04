@@ -1237,18 +1237,10 @@ def detail_view(document_id: int):
     )
     detail["linked_delivery_notes"] = list_delivery_notes_by_document(document_id)
     payments = detail.get("payments") or []
-    if payments:
-        detail["invoice"].is_paid = all(
-            (p.status or "").strip().lower() == "paid"
-            for p in payments
-        )
     _decorate_detail_payments(payments)
-    paid_total = sum(float(p.paid_amount or 0) for p in payments)
-    gross_total = float(detail["invoice"].total_gross_amount or 0)
-    remaining_amount = gross_total - paid_total
-    if remaining_amount < 0:
-        remaining_amount = 0.0
-    detail["remaining_amount"] = remaining_amount
+    attach_payment_amounts([detail["invoice"]])
+    detail["remaining_amount"] = float(getattr(detail["invoice"], "remaining_amount", 0) or 0)
+    detail["invoice"].is_paid = bool(getattr(detail["invoice"], "payment_overview_status", "") == "paid")
     detail["updated_at"] = request.args.get("updated_at")
     detail["suppliers"] = list_all_suppliers()
     detail["legal_entities"] = list_legal_entities(include_inactive=True)

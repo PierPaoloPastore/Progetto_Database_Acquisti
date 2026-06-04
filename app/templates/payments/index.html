@@ -8,11 +8,16 @@
 
 {% block content %}
 <div class="container-fluid payments-page">
-    <div class="d-flex justify-content-between align-items-center mb-2">
+    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
         <h1 class="mb-0"><i class="bi bi-cash-stack"></i> Pagamenti</h1>
-        <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('help.guide_view', slug='registrare-un-pagamento') }}">
-            <i class="bi bi-question-circle"></i> Guida pagamenti
-        </a>
+        <div class="d-flex gap-2 flex-wrap">
+            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('help.guide_view', slug='registrare-un-pagamento') }}">
+                <i class="bi bi-question-circle"></i> Guida pagamenti
+            </a>
+            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('help.guide_view', slug='gestire-note-di-credito-nei-pagamenti') }}">
+                <i class="bi bi-journal-text"></i> Guida note credito
+            </a>
+        </div>
     </div>
 
     <ul class="nav nav-tabs mb-2 payments-tabs" role="tablist">
@@ -63,6 +68,25 @@
                             <div class="col-12">
                                 <label for="notes" class="form-label">Note</label>
                                 <textarea class="form-control" name="notes" id="notes" rows="2" placeholder="Dettagli aggiuntivi"></textarea>
+                            </div>
+                            <div class="col-12">
+                                <label for="credit-note-select" class="form-label">Note di credito da compensare</label>
+                                <select class="form-select js-select2" name="credit_note_id" id="credit-note-select" multiple data-placeholder="Seleziona note di credito aperte">
+                                    {% for credit_note in available_credit_notes %}
+                                        {% set available_amount = ((credit_note.credit_note_available_amount if credit_note.credit_note_available_amount is defined else ((credit_note.remaining_amount or 0) * -1)) or 0) %}
+                                        <option
+                                            value="{{ credit_note.id }}"
+                                            data-supplier-id="{{ credit_note.supplier_id or '' }}"
+                                            data-legal-entity-id="{{ credit_note.legal_entity_id or '' }}"
+                                            data-available-amount="{{ '%.2f'|format(available_amount) }}"
+                                        >
+                                            {{ credit_note.supplier.name if credit_note.supplier else 'Fornitore non disponibile' }} | {{ credit_note.document_number or ('Nota #' ~ credit_note.id) }} | {{ credit_note.document_date.strftime('%d/%m/%Y') if credit_note.document_date else 'Senza data' }} | residuo {{ available_amount|format_amount }} &euro;
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text" id="credit-note-helper-text">
+                                    Seleziona solo note di credito dello stesso fornitore e della stessa intestazione delle fatture. Il sistema usera` automaticamente il residuo disponibile.
+                                </div>
                             </div>
                             <div class="col-12">
                                 <label class="form-label">OCR (opzionale)</label>
@@ -130,6 +154,8 @@
                                     <strong id="payment-selected-count">0</strong> documenti
                                 </div>
                                 <div class="payment-selection-summary-total" id="payment-selected-total">0,00 &euro;</div>
+                                <div class="small text-muted" id="payment-selected-credit-notes">Note di credito: 0,00 &euro;</div>
+                                <div class="small fw-semibold" id="payment-selected-net-total">Netto da versare: 0,00 &euro;</div>
                                 <div class="payment-selection-summary-meta" id="payment-selected-suppliers">Nessun fornitore selezionato</div>
                             </div>
                             <button type="submit" class="btn btn-success">
@@ -385,7 +411,15 @@
                             <strong id="payment-confirm-supplier-count">0</strong>
                         </div>
                         <div class="payment-confirm-stat">
-                            <span class="payment-confirm-stat-label">Totale pagamento</span>
+                            <span class="payment-confirm-stat-label">Note di credito</span>
+                            <strong id="payment-confirm-credit-count">0</strong>
+                        </div>
+                        <div class="payment-confirm-stat">
+                            <span class="payment-confirm-stat-label">Compensazione</span>
+                            <strong id="payment-confirm-credit-total">0,00 &euro;</strong>
+                        </div>
+                        <div class="payment-confirm-stat">
+                            <span class="payment-confirm-stat-label">Netto da versare</span>
                             <strong id="payment-confirm-total">0,00 &euro;</strong>
                         </div>
                     </div>

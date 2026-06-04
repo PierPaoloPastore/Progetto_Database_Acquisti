@@ -1,4 +1,4 @@
-Last updated: 2026-02-16
+Last updated: 2026-06-04
 
 # Pagamenti — UI/UX aggiornamenti
 
@@ -26,3 +26,22 @@ Modifiche introdotte nella vista Pagamenti (tab “Nuovo Pagamento”) per gesti
 ## Come verificare rapidamente
 - UI: aprire `http://localhost:5000/payments/`, tab “Nuovo Pagamento”. Ridimensionare la finestra per controllare che la lista scrolli solo in verticale e che testo/valori restino su una riga con ellissi.
 - PDF viewer: confermare che l’iframe a destra occupi ~40% della larghezza in desktop e scenda sotto la lista in mobile.
+
+
+## Gestione note di credito
+- Le note di credito non vengono registrate come incasso o pagamento negativo.
+- Nella tab `Nuovo Pagamento` c'e` un select dedicato `Note di credito da compensare`.
+- Il riepilogo mostra tre valori distinti:
+  - totale fatture selezionate,
+  - totale compensato da note di credito,
+  - netto da versare in banca.
+- In conferma il service crea righe su `credit_note_allocations` e registra su `payments` solo il netto effettivo.
+- Se il credito copre tutto, il documento puo` risultare saldato anche senza un nuovo `PaymentDocument`.
+
+## Verifica rapida note di credito
+- Selezionare una fattura aperta e una nota di credito dello stesso fornitore.
+- Controllare che il riepilogo mostri il netto ridotto.
+- Confermare e verificare che:
+  - la fattura abbia residuo ridotto o zero,
+  - la nota di credito abbia residuo disponibile ridotto,
+  - la cronologia pagamenti mostri solo l'eventuale netto bancario.

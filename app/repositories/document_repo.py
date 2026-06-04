@@ -402,6 +402,51 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
         )
         return items, total, page
 
+    def list_open_credit_notes_for_payment_ui(
+        self,
+        *,
+        q: Optional[str] = None,
+        limit: int = 200,
+    ) -> List[Document]:
+        query = (
+            self.session.query(Document)
+            .options(joinedload(Document.supplier), joinedload(Document.legal_entity))
+            .filter(
+                Document.document_type == "credit_note",
+                Document.is_paid == False,
+            )
+        )
+
+        search_text = (q or "").strip()
+        compact_search_text = _compact_search_value(search_text)
+        if search_text:
+            like_value = f"%{search_text}%"
+            compact_like_value = f"%{compact_search_text}%"
+            query = query.outerjoin(Supplier, Document.supplier_id == Supplier.id)
+            query = query.outerjoin(LegalEntity, Document.legal_entity_id == LegalEntity.id)
+
+            search_clauses = [
+                Document.document_number.ilike(like_value),
+                Supplier.name.ilike(like_value),
+                LegalEntity.name.ilike(like_value),
+            ]
+            if search_text.isdigit():
+                search_clauses.append(Document.id == int(search_text))
+            if compact_search_text:
+                search_clauses.extend(
+                    [
+                        _compact_search_expression(Document.document_number).like(compact_like_value),
+                        _compact_search_expression(Supplier.name).like(compact_like_value),
+                        _compact_search_expression(LegalEntity.name).like(compact_like_value),
+                    ]
+                )
+            query = query.filter(or_(*search_clauses))
+
+        query = query.order_by(Document.document_date.desc(), Document.id.desc())
+        if limit > 0:
+            query = query.limit(limit)
+        return query.all()
+
     def get_supplier_account_balance(self, supplier_id: int, legal_entity_id: Optional[int] = None) -> Dict:
         """Calcola estratto conto fornitore."""
         query = (

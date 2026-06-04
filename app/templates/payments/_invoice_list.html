@@ -39,6 +39,7 @@
                 data-due="{{ due_val_raw }}"
                 data-document-id="{{ doc.id }}"
                 data-document-label="{{ doc_number or ('Documento #' ~ doc.id) }}"
+                data-supplier-id="{{ doc.supplier_id or '' }}"
                 data-supplier-name="{{ supplier_name }}"
                 data-legal-entity-id="{{ doc.legal_entity_id or '' }}"
                 data-legal-entity-name="{{ legal_entity_name }}"

@@ -1,4 +1,4 @@
-Last updated: 2026-02-16
+Last updated: 2026-06-04
 
 # Architecture
 
@@ -55,7 +55,7 @@ Last updated: 2026-02-16
 - **Documenti di acquisto (SUPERTIPO)**
   - `Document`
     **Supertipo unificato** per tutti i documenti economici:
-    - `document_type`: discriminatore (`'invoice'`, `'f24'`, `'insurance'`, `'mav'`, `'cbill'`, `'receipt'`, `'rent'`, `'tax'`, `'other'`)
+    - `document_type`: discriminatore (`'invoice'`, `'credit_note'`, `'f24'`, `'insurance'`, `'mav'`, `'cbill'`, `'receipt'`, `'rent'`, `'tax'`, `'other'`)
     - Colonne comuni: supplier, legal_entity, date, importi, stato
     - Colonne specifiche per tipo (nullable): `invoice_type`, `f24_payment_code`, `insurance_policy_number`, ecc.
     - **Gestione copie fisiche**: campo `physical_copy_file_path` per il percorso relativo delle scansioni o dei documenti PDF caricati
@@ -90,6 +90,9 @@ Last updated: 2026-02-16
     PDF dei movimenti bancari (bonifici, MAV, assegni, ecc.).  
     **Novità:** ora ha `supplier_id` per facilitare riconciliazione.
     **Novità:** può memorizzare `bank_account_iban` (conto di uscita).
+  - `CreditNoteAllocation`
+    Compensazione applicata tra una `Document` di tipo `credit_note` e una fattura/documento da saldare.
+    Tiene separato il movimento bancario reale (`Payment`) dall'utilizzo del credito commerciale.
   - `PaymentDocumentLink`
     Tabella ponte M:N presente nello schema DB per allocazioni tra movimento bancario e più scadenze.
     Nota: il flusso web corrente usa soprattutto `payments.payment_document_id` e il documento condiviso di batch; la tabella resta comunque parte dello schema supportato.
@@ -121,6 +124,8 @@ Last updated: 2026-02-16
   - gestione anagrafiche, lookup P.IVA/CF, creazione se mancante.
 - `payment_repo`  
   - gestione `Payment` (scadenze), lettura/aggiornamento stato, cronologia pagamenti e supporto ai `PaymentDocument`.
+- `credit_note_allocation_repo`
+  - gestione `CreditNoteAllocation`, somma compensazioni per fattura e per nota di credito.
 - `delivery_note_repo`  
   - gestione `DeliveryNote` (DDT attesi da XML e reali da PDF, matching).
 - `category_repo`, `invoice_line_repo`, `vat_summary_repo`, `notes_repo`, `import_log_repo`  

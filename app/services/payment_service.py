@@ -14,7 +14,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import joinedload
 from werkzeug.utils import secure_filename
 
-from app.models import Document, Payment, PaymentDocument
+from app.models import CreditNoteAllocation, Document, Payment, PaymentDocument
 from app.services import scan_service, settings_service
 from app.services.bank_account_service import normalize_iban
 from app.services.dto import PaymentHistoryFilters
@@ -27,6 +27,195 @@ from app.services.payment_method_catalog import (
 from app.services.unit_of_work import UnitOfWork
 
 logger = logging.getLogger(__name__)
+
+
+_DECIMAL_ZERO = Decimal("0.00")
+def _to_decimal(value) -> Decimal:
+    if value in (None, ""):
+        return _DECIMAL_ZERO
+    try:
+        return Decimal(str(value))
+    except Exception:
+        return _DECIMAL_ZERO
+
+
+def _is_credit_note_document(document: Optional[Document]) -> bool:
+    if document is None:
+        return False
+    return (getattr(document, "document_type", None) or "").strip().lower() == "credit_note"
+
+
+def _quantize_amount(value: Decimal) -> Decimal:
+    return value.quantize(Decimal("0.01"))
+
+
+def _get_document_payment_totals(
+    uow: UnitOfWork,
+    document_ids: Sequence[int],
+) -> tuple[dict[int, list[tuple[str, Decimal]]], dict[int, Decimal], dict[int, Decimal]]:
+    doc_ids = [doc_id for doc_id in document_ids if doc_id]
+    if not doc_ids:
+        return {}, {}, {}
+
+    rows = (
+        uow.session.query(
+            Payment.document_id,
+            Payment.status,
+            Payment.paid_amount,
+        )
+        .filter(Payment.document_id.in_(doc_ids))
+        .all()
+    )
+
+    payments_by_document: dict[int, list[tuple[str, Decimal]]] = {}
+    for document_id, status, paid_amount in rows:
+        payments_by_document.setdefault(document_id, []).append(
+            ((status or "").strip().lower(), _to_decimal(paid_amount))
+        )
+
+    allocated_in = uow.credit_note_allocations.get_allocated_totals_by_invoice_ids(doc_ids)
+    allocated_out = uow.credit_note_allocations.get_allocated_totals_by_credit_note_ids(doc_ids)
+    return payments_by_document, allocated_in, allocated_out
+
+
+def _calculate_document_settlement_snapshot(
+    *,
+    document: Document,
+    payment_rows: Sequence[tuple[str, Decimal]],
+    allocated_in: Decimal = _DECIMAL_ZERO,
+    allocated_out: Decimal = _DECIMAL_ZERO,
+) -> dict[str, Decimal | str]:
+    gross_amount = _quantize_amount(_to_decimal(document.total_gross_amount or 0))
+    bank_paid_amount = _quantize_amount(sum((amount for _, amount in payment_rows), _DECIMAL_ZERO))
+    allocated_in = _quantize_amount(allocated_in)
+    allocated_out = _quantize_amount(allocated_out)
+
+    if _is_credit_note_document(document):
+        total_credit_amount = _quantize_amount(abs(gross_amount))
+        used_amount = allocated_out
+        remaining_amount = _quantize_amount(gross_amount + used_amount)
+        if total_credit_amount <= _DECIMAL_ZERO:
+            overview_status = "paid"
+        elif used_amount >= total_credit_amount:
+            overview_status = "paid"
+        elif used_amount > _DECIMAL_ZERO:
+            overview_status = "partial"
+        else:
+            overview_status = "unpaid"
+        return {
+            "gross_amount": gross_amount,
+            "bank_paid_amount": bank_paid_amount,
+            "allocated_amount": used_amount,
+            "settled_amount": used_amount,
+            "remaining_amount": remaining_amount,
+            "overview_status": overview_status,
+            "available_credit_amount": _quantize_amount(abs(remaining_amount)),
+        }
+
+    settled_amount = _quantize_amount(bank_paid_amount + allocated_in)
+    remaining_amount = _quantize_amount(gross_amount - settled_amount)
+    if remaining_amount < _DECIMAL_ZERO:
+        remaining_amount = _DECIMAL_ZERO
+
+    if gross_amount <= _DECIMAL_ZERO:
+        overview_status = "paid"
+    elif settled_amount >= gross_amount:
+        overview_status = "paid"
+    elif bank_paid_amount > _DECIMAL_ZERO or allocated_in > _DECIMAL_ZERO:
+        overview_status = "partial"
+    else:
+        overview_status = "unpaid"
+
+    return {
+        "gross_amount": gross_amount,
+        "bank_paid_amount": bank_paid_amount,
+        "allocated_amount": allocated_in,
+        "settled_amount": settled_amount,
+        "remaining_amount": remaining_amount,
+        "overview_status": overview_status,
+        "available_credit_amount": _DECIMAL_ZERO,
+    }
+
+
+def _apply_document_runtime_amounts(document: Document, snapshot: dict[str, Decimal | str]) -> None:
+    document.bank_paid_amount = float(snapshot["bank_paid_amount"])
+    document.credit_note_allocated_amount = float(snapshot["allocated_amount"])
+    document.paid_amount = float(snapshot["settled_amount"])
+    document.remaining_amount = float(snapshot["remaining_amount"])
+    document.payment_overview_status = str(snapshot["overview_status"])
+    if _is_credit_note_document(document):
+        document.credit_note_used_amount = float(snapshot["allocated_amount"])
+        document.credit_note_available_amount = float(snapshot["available_credit_amount"])
+
+
+def _allocate_credit_note_amounts(
+    *,
+    uow: UnitOfWork,
+    credit_notes: Sequence[Document],
+    invoice_balances: dict[int, Decimal],
+    notes: Optional[str] = None,
+) -> tuple[dict[int, Decimal], dict[int, Decimal], Decimal]:
+    allocations_by_invoice: dict[int, Decimal] = {invoice_id: _DECIMAL_ZERO for invoice_id in invoice_balances}
+    allocations_by_credit_note: dict[int, Decimal] = {credit_note.id: _DECIMAL_ZERO for credit_note in credit_notes}
+    total_allocated = _DECIMAL_ZERO
+    note_text = (notes or "").strip() or None
+
+    if not credit_notes:
+        return allocations_by_invoice, allocations_by_credit_note, total_allocated
+
+    existing_totals = uow.credit_note_allocations.get_allocated_totals_by_credit_note_ids([doc.id for doc in credit_notes])
+    ordered_invoice_ids = [invoice_id for invoice_id, amount in invoice_balances.items() if amount > _DECIMAL_ZERO]
+
+    for credit_note in credit_notes:
+        total_credit = _quantize_amount(abs(_to_decimal(credit_note.total_gross_amount or 0)))
+        already_allocated = _quantize_amount(existing_totals.get(credit_note.id, _DECIMAL_ZERO))
+        remaining_credit = _quantize_amount(total_credit - already_allocated)
+        if remaining_credit <= _DECIMAL_ZERO:
+            continue
+
+        for invoice_id in ordered_invoice_ids:
+            invoice_remaining = _quantize_amount(invoice_balances.get(invoice_id, _DECIMAL_ZERO))
+            if invoice_remaining <= _DECIMAL_ZERO:
+                continue
+            allocation_amount = _quantize_amount(min(remaining_credit, invoice_remaining))
+            if allocation_amount <= _DECIMAL_ZERO:
+                continue
+
+            allocation = CreditNoteAllocation(
+                credit_note_document_id=credit_note.id,
+                invoice_document_id=invoice_id,
+                allocated_amount=allocation_amount,
+                notes=note_text,
+            )
+            uow.credit_note_allocations.add(allocation)
+            allocations_by_invoice[invoice_id] = _quantize_amount(allocations_by_invoice[invoice_id] + allocation_amount)
+            allocations_by_credit_note[credit_note.id] = _quantize_amount(allocations_by_credit_note[credit_note.id] + allocation_amount)
+            invoice_balances[invoice_id] = _quantize_amount(invoice_remaining - allocation_amount)
+            remaining_credit = _quantize_amount(remaining_credit - allocation_amount)
+            total_allocated = _quantize_amount(total_allocated + allocation_amount)
+
+            if remaining_credit <= _DECIMAL_ZERO:
+                break
+
+    return allocations_by_invoice, allocations_by_credit_note, total_allocated
+
+
+def list_open_credit_notes_for_payment_ui() -> List[Document]:
+    with UnitOfWork() as uow:
+        credit_notes = (
+            uow.session.query(Document)
+            .options(joinedload(Document.supplier), joinedload(Document.legal_entity))
+            .filter(Document.document_type == "credit_note")
+            .order_by(Document.document_date.asc(), Document.id.asc())
+            .all()
+        )
+
+    attach_payment_amounts(credit_notes)
+    return [
+        credit_note
+        for credit_note in credit_notes
+        if abs(float(getattr(credit_note, "remaining_amount", 0) or 0)) > 0.004
+    ]
 
 
 def _is_mysql_deadlock_error(exc: OperationalError) -> bool:
@@ -90,7 +279,7 @@ def ensure_document_payment_records(
             payment.paid_date = effective_date
             payment.status = "paid"
 
-    document.is_paid = bool(payments) and all(p.status == "paid" for p in payments)
+    _update_document_paid_status(uow, document)
     return payments
 
 
@@ -267,8 +456,7 @@ def update_payment(
 
         document = uow.session.get(Document, payment.document_id)
         if document:
-            related = uow.payments.get_by_document_id(document.id)
-            document.is_paid = all(p.status == "paid" for p in related)
+            _update_document_paid_status(uow, document)
 
         uow.commit()
         return True, "Pagamento aggiornato."
@@ -303,55 +491,18 @@ def attach_payment_amounts(documents: Sequence[Document]) -> None:
         return
 
     with UnitOfWork() as uow:
-        rows = (
-            uow.session.query(
-                Payment.document_id,
-                Payment.status,
-                Payment.paid_amount,
-            )
-            .filter(Payment.document_id.in_(doc_ids))
-            .all()
-        )
-
-    payments_by_document: dict[int, list[tuple[str, float]]] = {}
-    for document_id, status, paid_amount in rows:
-        payments_by_document.setdefault(document_id, []).append(
-            (
-                (status or "").strip().lower(),
-                float(paid_amount or 0),
-            )
-        )
+        payments_by_document, allocated_in_totals, allocated_out_totals = _get_document_payment_totals(uow, doc_ids)
 
     for doc in documents:
         if not doc:
             continue
-        payment_rows = payments_by_document.get(doc.id, [])
-        paid = sum(amount for _, amount in payment_rows)
-        gross = float(doc.total_gross_amount or 0)
-        if not payment_rows and getattr(doc, "is_paid", False):
-            paid = gross
-        remaining = gross - paid
-        if remaining < 0 and not getattr(doc, "is_credit_note", False):
-            remaining = 0.0
-
-        if payment_rows:
-            statuses = [status for status, _ in payment_rows]
-            has_paid_signal = any(
-                status in {"paid", "partial"} or amount > 0
-                for status, amount in payment_rows
-            )
-            if statuses and all(status == "paid" for status in statuses):
-                overview_status = "paid"
-            elif has_paid_signal:
-                overview_status = "partial"
-            else:
-                overview_status = "unpaid"
-        else:
-            overview_status = "paid" if getattr(doc, "is_paid", False) else "unpaid"
-
-        doc.paid_amount = paid
-        doc.remaining_amount = remaining
-        doc.payment_overview_status = overview_status
+        snapshot = _calculate_document_settlement_snapshot(
+            document=doc,
+            payment_rows=payments_by_document.get(doc.id, []),
+            allocated_in=allocated_in_totals.get(doc.id, _DECIMAL_ZERO),
+            allocated_out=allocated_out_totals.get(doc.id, _DECIMAL_ZERO),
+        )
+        _apply_document_runtime_amounts(doc, snapshot)
 
 
 def get_payment_event_detail(payment_id: int) -> Optional[dict]:
@@ -548,8 +699,7 @@ def _create_batch_payment_legacy(
             if not document:
                 continue
 
-            related_payments = uow.payments.get_by_document_id(document_id)
-            document.is_paid = all(p.status == "paid" for p in related_payments)
+            _update_document_paid_status(uow, document)
 
         uow.commit()
 
@@ -562,170 +712,249 @@ def create_batch_payment_from_documents(
     notes: Optional[str],
     bank_account_iban: Optional[str] = None,
     payment_date: Optional[date] = None,
+    credit_note_document_ids: Optional[Sequence[int]] = None,
 ) -> dict:
-    """
-    Process batch payment for multiple documents.
-    Auto-creates Payment records if they don't exist.
-
-    Args:
-        file: Uploaded PDF file (or None)
-        document_allocations: List of dicts with document_id and amount
-        method: Payment method
-        notes: Optional notes
-
-    Returns:
-        Dict with success_count, error_count, and results list
-    """
+    """Registra un pagamento cumulativo e, se richiesto, compensa note di credito."""
     if not document_allocations:
         raise ValueError("Nessuna allocazione fornita per il pagamento cumulativo.")
 
     today = date.today()
     paid_date = payment_date or today
     cleaned_iban = normalize_iban(bank_account_iban)
+    selected_credit_note_ids: list[int] = []
+    seen_credit_note_ids: set[int] = set()
+    for raw_credit_note_id in credit_note_document_ids or []:
+        try:
+            credit_note_id = int(raw_credit_note_id)
+        except (TypeError, ValueError):
+            continue
+        if credit_note_id in seen_credit_note_ids:
+            continue
+        seen_credit_note_ids.add(credit_note_id)
+        selected_credit_note_ids.append(credit_note_id)
+
     results = []
 
     with UnitOfWork() as uow:
-        # Step 1: Create PaymentDocument if file provided
-        payment_document = None
-        if file and file.filename:
-            base_path = settings_service.get_payment_files_storage_path()
-            safe_name = secure_filename(file.filename) or f"batch_payment_{today.isoformat()}"
-            relative_path = scan_service.store_payment_document_file(
-                file=file,
-                base_path=base_path,
-                filename=safe_name,
-            )
-            payment_document = PaymentDocument(
-                file_name=safe_name,
-                file_path=relative_path,
-                payment_type=resolve_payment_document_type(method),
-                status="reconciled",
-                bank_account_iban=cleaned_iban or None,
-            )
-        else:
-            placeholder_name = f"batch_payment_{today.isoformat()}"
-            payment_document = PaymentDocument(
-                file_name=placeholder_name,
-                file_path=placeholder_name,
-                payment_type=resolve_payment_document_type(method),
-                status="reconciled",
-                bank_account_iban=cleaned_iban or None,
-            )
+        normalized_allocations: list[dict] = []
+        doc_ids: list[int] = []
+        for alloc in document_allocations:
+            doc_id = int(alloc["document_id"])
+            amount = _quantize_amount(_to_decimal(alloc["amount"]))
+            if amount <= _DECIMAL_ZERO:
+                continue
+            normalized_allocations.append({"document_id": doc_id, "amount": amount})
+            doc_ids.append(doc_id)
 
-        uow.session.add(payment_document)
-        uow.session.flush()
+        if not normalized_allocations:
+            raise ValueError("Inserisci almeno un importo > 0.")
+
+        documents = (
+            uow.session.query(Document)
+            .options(joinedload(Document.supplier), joinedload(Document.legal_entity))
+            .filter(Document.id.in_(doc_ids))
+            .all()
+        )
+        documents_by_id = {document.id: document for document in documents}
+        missing_doc_ids = [doc_id for doc_id in doc_ids if doc_id not in documents_by_id]
+        if missing_doc_ids:
+            raise ValueError(f"Documenti non trovati: {', '.join(str(doc_id) for doc_id in missing_doc_ids)}")
+
+        payments_by_document, allocated_in_totals, allocated_out_totals = _get_document_payment_totals(uow, doc_ids)
+
+        supplier_ids = set()
+        legal_entity_ids = set()
+        requested_bank_amounts: dict[int, Decimal] = {}
+        touched_documents: set[int] = set()
+
+        for alloc in normalized_allocations:
+            document = documents_by_id[alloc["document_id"]]
+            if _is_credit_note_document(document):
+                raise ValueError("Le note di credito vanno selezionate dal box dedicato, non dalla lista fatture.")
+
+            supplier_ids.add(document.supplier_id)
+            legal_entity_ids.add(document.legal_entity_id)
+            snapshot = _calculate_document_settlement_snapshot(
+                document=document,
+                payment_rows=payments_by_document.get(document.id, []),
+                allocated_in=allocated_in_totals.get(document.id, _DECIMAL_ZERO),
+                allocated_out=allocated_out_totals.get(document.id, _DECIMAL_ZERO),
+            )
+            current_remaining = _quantize_amount(snapshot["remaining_amount"])
+            requested_amount = alloc["amount"]
+            if current_remaining <= _DECIMAL_ZERO:
+                raise ValueError(f"Il documento {document.document_number or document.id} non ha piu residuo da saldare.")
+            if requested_amount > current_remaining:
+                raise ValueError(
+                    f"L'importo richiesto per il documento {document.document_number or document.id} supera il residuo disponibile."
+                )
+            requested_bank_amounts[document.id] = requested_amount
 
         if cleaned_iban:
             account = uow.bank_accounts.get_by_iban(cleaned_iban)
             if not account:
                 raise ValueError("IBAN non trovato.")
+            if len(legal_entity_ids) > 1:
+                raise ValueError("Seleziona documenti della stessa intestazione per usare un IBAN.")
+            if legal_entity_ids and account.legal_entity_id not in legal_entity_ids:
+                raise ValueError("IBAN non appartenente all'intestazione selezionata.")
+        else:
+            account = None
 
-        # Step 2: Get all Document IDs
-        doc_ids = [alloc["document_id"] for alloc in document_allocations]
-        doc_entities = {
-            row[1]
-            for row in (
-                uow.session.query(Document.id, Document.legal_entity_id)
-                .filter(Document.id.in_(doc_ids))
+        selected_credit_notes: list[Document] = []
+        credit_allocations_by_invoice: dict[int, Decimal] = {document_id: _DECIMAL_ZERO for document_id in requested_bank_amounts}
+        credit_applied_total = _DECIMAL_ZERO
+
+        if selected_credit_note_ids:
+            if len(supplier_ids) != 1 or len(legal_entity_ids) != 1:
+                raise ValueError("Per compensare note di credito seleziona fatture dello stesso fornitore e della stessa intestazione.")
+
+            credit_notes = (
+                uow.session.query(Document)
+                .options(joinedload(Document.supplier), joinedload(Document.legal_entity))
+                .filter(Document.id.in_(selected_credit_note_ids))
                 .all()
             )
-        }
-        if cleaned_iban:
-            if len(doc_entities) > 1:
-                raise ValueError("Seleziona documenti della stessa intestazione per usare un IBAN.")
-            if doc_entities and account.legal_entity_id not in doc_entities:
-                raise ValueError("IBAN non appartenente all'intestazione selezionata.")
+            credit_notes_by_id = {document.id: document for document in credit_notes}
+            missing_credit_note_ids = [doc_id for doc_id in selected_credit_note_ids if doc_id not in credit_notes_by_id]
+            if missing_credit_note_ids:
+                raise ValueError(
+                    f"Note di credito non trovate: {', '.join(str(doc_id) for doc_id in missing_credit_note_ids)}"
+                )
 
-        # Step 3: Fetch all Payment records for these Documents
-        payment_map = {}  # {document_id: [Payment, ...]}
-        payments = uow.payments.get_unpaid_by_document_ids(doc_ids)
-        for payment in payments:
-            if payment.document_id not in payment_map:
-                payment_map[payment.document_id] = []
-            payment_map[payment.document_id].append(payment)
+            selected_supplier_id = next(iter(supplier_ids))
+            selected_legal_entity_id = next(iter(legal_entity_ids))
+            for credit_note_id in selected_credit_note_ids:
+                credit_note = credit_notes_by_id[credit_note_id]
+                if not _is_credit_note_document(credit_note):
+                    raise ValueError("Sono selezionabili solo documenti di tipo nota di credito.")
+                if credit_note.supplier_id != selected_supplier_id:
+                    raise ValueError("Le note di credito selezionate devono appartenere allo stesso fornitore delle fatture.")
+                if credit_note.legal_entity_id != selected_legal_entity_id:
+                    raise ValueError("Le note di credito selezionate devono appartenere alla stessa intestazione delle fatture.")
+                selected_credit_notes.append(credit_note)
 
-        touched_documents = set()
+            bank_balances = {document_id: amount for document_id, amount in requested_bank_amounts.items()}
+            credit_allocations_by_invoice, _, credit_applied_total = _allocate_credit_note_amounts(
+                uow=uow,
+                credit_notes=selected_credit_notes,
+                invoice_balances=bank_balances,
+                notes=notes,
+            )
+            requested_bank_amounts = bank_balances
 
-        # Step 4: Process each document allocation
-        for alloc in document_allocations:
+        bank_payment_total = _quantize_amount(sum(requested_bank_amounts.values(), _DECIMAL_ZERO))
+
+        payment_document = None
+        if bank_payment_total > _DECIMAL_ZERO:
+            if file and file.filename:
+                base_path = settings_service.get_payment_files_storage_path()
+                safe_name = secure_filename(file.filename) or f"batch_payment_{today.isoformat()}"
+                relative_path = scan_service.store_payment_document_file(
+                    file=file,
+                    base_path=base_path,
+                    filename=safe_name,
+                )
+                payment_document = PaymentDocument(
+                    file_name=safe_name,
+                    file_path=relative_path,
+                    payment_type=resolve_payment_document_type(method),
+                    status="reconciled",
+                    bank_account_iban=cleaned_iban or None,
+                    uploaded_at=datetime.utcnow(),
+                )
+            else:
+                placeholder_name = f"batch_payment_{today.isoformat()}"
+                payment_document = PaymentDocument(
+                    file_name=placeholder_name,
+                    file_path=placeholder_name,
+                    payment_type=resolve_payment_document_type(method),
+                    status="reconciled",
+                    bank_account_iban=cleaned_iban or None,
+                    uploaded_at=datetime.utcnow(),
+                )
+            payment_document.supplier_id = next(iter(supplier_ids), None)
+            uow.session.add(payment_document)
+            uow.session.flush()
+        elif file and file.filename:
+            logger.info("Allegato pagamento ignorato: saldo interamente compensato da note di credito.")
+
+        unpaid_payments = uow.payments.get_unpaid_by_document_ids(doc_ids)
+        payment_map: dict[int, list[Payment]] = {}
+        for payment in unpaid_payments:
+            payment_map.setdefault(payment.document_id, []).append(payment)
+
+        for alloc in normalized_allocations:
             doc_id = alloc["document_id"]
-            amount = alloc["amount"]
+            document = documents_by_id[doc_id]
+            bank_amount = _quantize_amount(requested_bank_amounts.get(doc_id, _DECIMAL_ZERO))
 
             try:
-                # Get or create Payment record
-                if doc_id not in payment_map or len(payment_map[doc_id]) == 0:
-                    # Auto-create Payment record (edge case handling)
-                    document = uow.session.get(Document, doc_id)
-                    if not document:
-                        results.append({
-                            "document_id": doc_id,
-                            "success": False,
-                            "error": "Documento non trovato"
-                        })
-                        continue
+                payment = None
+                if bank_amount > _DECIMAL_ZERO:
+                    if doc_id not in payment_map or not payment_map[doc_id]:
+                        payment = _create_placeholder_payment(uow, document, method_code=method)
+                        payment_map.setdefault(doc_id, []).append(payment)
+                    else:
+                        payment = payment_map[doc_id][0]
 
-                    payment = Payment(
-                        document_id=doc_id,
-                        due_date=document.due_date or today,
-                        expected_amount=Decimal(str(amount)),
-                        status='unpaid',
-                    )
-                    uow.payments.add(payment)
-                    uow.session.flush()
-                else:
-                    # Use first unpaid/partial Payment
-                    payment = payment_map[doc_id][0]
+                    current_paid = _to_decimal(payment.paid_amount)
+                    new_paid = _quantize_amount(current_paid + bank_amount)
+                    payment.paid_date = paid_date
+                    payment.paid_amount = new_paid
+                    payment.payment_method = method
+                    payment.notes = notes
+                    payment.payment_document = payment_document
 
-                # Update Payment record
-                increment = Decimal(str(amount))
-                current_paid = Decimal(payment.paid_amount or 0)
-                new_paid = current_paid + increment
-
-                payment.paid_date = paid_date
-                payment.paid_amount = new_paid
-                payment.payment_method = method
-                payment.notes = notes
-                payment.payment_document = payment_document
-
-                # Set status
-                expected_amount = Decimal(payment.expected_amount or 0)
-                if expected_amount and new_paid >= expected_amount:
-                    payment.status = 'paid'
-                else:
-                    payment.status = 'partial'
+                    expected_amount = _quantize_amount(_to_decimal(payment.expected_amount))
+                    if expected_amount > _DECIMAL_ZERO and new_paid >= expected_amount:
+                        payment.status = "paid"
+                    else:
+                        payment.status = "partial"
 
                 touched_documents.add(doc_id)
-
                 results.append({
                     "document_id": doc_id,
                     "success": True,
-                    "payment_id": payment.id
+                    "payment_id": payment.id if payment else None,
+                    "credit_note_allocated_amount": float(credit_allocations_by_invoice.get(doc_id, _DECIMAL_ZERO)),
+                    "bank_paid_amount": float(bank_amount),
                 })
-
-            except Exception as e:
-                logger.error(f"Failed to process payment for doc {doc_id}: {e}")
+            except Exception as exc:
+                logger.exception("Failed to process payment for doc %s", doc_id)
                 results.append({
                     "document_id": doc_id,
                     "success": False,
-                    "error": str(e)
+                    "error": str(exc),
                 })
 
-        # Step 5: Update Document.is_paid flags
+        touched_documents.update(selected_credit_note_ids)
+
         for document_id in touched_documents:
             document = uow.session.get(Document, document_id)
             if document:
-                related_payments = uow.payments.get_by_document_id(document_id)
-                document.is_paid = all(p.status == 'paid' for p in related_payments)
+                _update_document_paid_status(uow, document)
 
         uow.commit()
 
-    success_count = len([r for r in results if r['success']])
-    error_count = len([r for r in results if not r['success']])
+    success_count = len([result for result in results if result["success"]])
+    error_count = len([result for result in results if not result["success"]])
+
+    logger.info(
+        "Pagamento multiplo registrato: documenti=%s compensato=%s netto=%s note_credito=%s",
+        success_count,
+        credit_applied_total,
+        bank_payment_total,
+        len(selected_credit_note_ids),
+    )
 
     return {
         "success_count": success_count,
         "error_count": error_count,
-        "results": results
+        "results": results,
+        "credit_note_applied_total": float(credit_applied_total),
+        "bank_payment_total": float(bank_payment_total),
+        "credit_note_count": len(selected_credit_note_ids),
     }
 
 
@@ -800,7 +1029,7 @@ def register_instant_payment_for_document(
             payment.status = "paid"
             payment.payment_document = payment_document
 
-        document.is_paid = all(p.status == "paid" for p in payments)
+        _update_document_paid_status(uow, document)
         uow.commit()
 
     return True, "Pagamento istantaneo registrato."
@@ -855,17 +1084,28 @@ def update_payment_method_for_document(
             time.sleep(0.15)
 
 def _update_document_paid_status(uow: UnitOfWork, document: Document):
-    """
-    Helper interno: ricalcola se la fattura e pagata totalmente.
-    """
-    payments = uow.payments.get_by_document_id(document.id)
-    if not payments:
-        document.is_paid = False
+    """Helper interno: ricalcola se il documento e` completamente regolato."""
+    if not document or not document.id:
         return
 
-    document.is_paid = all((p.status or "").strip().lower() == "paid" for p in payments)
+    payments_by_document, allocated_in_totals, allocated_out_totals = _get_document_payment_totals(uow, [document.id])
+    snapshot = _calculate_document_settlement_snapshot(
+        document=document,
+        payment_rows=payments_by_document.get(document.id, []),
+        allocated_in=allocated_in_totals.get(document.id, _DECIMAL_ZERO),
+        allocated_out=allocated_out_totals.get(document.id, _DECIMAL_ZERO),
+    )
 
-# --- FUNZIONE REINSERITA PER COMPATIBILITÀ DASHBOARD ---
+    if _is_credit_note_document(document):
+        document.is_paid = snapshot["available_credit_amount"] <= _DECIMAL_ZERO
+    else:
+        gross_amount = snapshot["gross_amount"]
+        if gross_amount <= _DECIMAL_ZERO:
+            document.is_paid = True
+        else:
+            document.is_paid = snapshot["remaining_amount"] <= _DECIMAL_ZERO
+
+
 def list_overdue_payments_for_ui() -> List[Document]:
     """
     Restituisce l'elenco delle fatture scadute e non pagate.

@@ -155,6 +155,22 @@ class Document(db.Model):
         foreign_keys="Payment.document_id",
     )
 
+    credit_note_allocations_issued = db.relationship(
+        "CreditNoteAllocation",
+        foreign_keys="CreditNoteAllocation.credit_note_document_id",
+        back_populates="credit_note_document",
+        lazy="dynamic",
+        cascade="all, delete-orphan",
+    )
+
+    credit_note_allocations_received = db.relationship(
+        "CreditNoteAllocation",
+        foreign_keys="CreditNoteAllocation.invoice_document_id",
+        back_populates="invoice_document",
+        lazy="dynamic",
+        cascade="all, delete-orphan",
+    )
+
     delivery_notes = db.relationship(
         "DeliveryNote",
         back_populates="document",

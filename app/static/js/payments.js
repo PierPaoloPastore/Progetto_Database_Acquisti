@@ -123,6 +123,7 @@ function bindInvoiceWorkspaceEvents() {
     const dateInput = document.getElementById("invoice-date");
     const chipRemove = document.getElementById("invoice-entity-chip-remove");
     const confirmSubmitButton = document.getElementById("payment-confirm-submit");
+    const creditNoteSelect = document.getElementById("credit-note-select");
 
     invoiceListContainer?.addEventListener("click", (event) => {
         const paginationLink = event.target.closest(".invoice-pagination a.page-link");
@@ -190,6 +191,10 @@ function bindInvoiceWorkspaceEvents() {
     });
     dateInput?.addEventListener("input", () => {
         applyVisibleFilters();
+    });
+
+    creditNoteSelect?.addEventListener("change", () => {
+        updateSelectionSummary();
     });
 
     confirmSubmitButton?.addEventListener("click", () => {
@@ -401,6 +406,7 @@ function upsertSelectionFromRow(row, options = {}) {
     const selection = {
         documentId,
         documentLabel: row.getAttribute("data-document-label") || `Documento #${documentId}`,
+        supplierId: row.getAttribute("data-supplier-id") || "",
         supplierName: row.getAttribute("data-supplier-name") || "Fornitore non disponibile",
         legalEntityId: row.getAttribute("data-legal-entity-id") || "",
         legalEntityName: row.getAttribute("data-legal-entity-name") || "",
@@ -578,6 +584,7 @@ function refreshInvoiceWorkspace() {
     applySelectionStateToVisibleRows();
     updateEntityFilterChip();
     updateBankAccounts();
+    updateCreditNoteSelect();
     applyVisibleFilters();
     reorderVisibleRows();
     updateSelectionSummary();
@@ -593,19 +600,99 @@ function getSelectedDocumentIds() {
     return getSelectionItems().map((item) => item.documentId).filter(Boolean);
 }
 
+function parseAmountValue(rawValue) {
+    const normalized = Number(String(rawValue || "").replace(",", "."));
+    return Number.isNaN(normalized) ? 0 : normalized;
+}
+
+function getSelectionSupplierContext(items = getSelectionItems()) {
+    const supplierIds = Array.from(new Set(items.map((item) => item.supplierId).filter(Boolean)));
+    const legalEntityIds = Array.from(new Set(items.map((item) => item.legalEntityId).filter(Boolean)));
+    return {
+        supplierIds,
+        legalEntityIds,
+        singleSupplierId: supplierIds.length === 1 ? supplierIds[0] : "",
+        singleEntityId: legalEntityIds.length === 1 ? legalEntityIds[0] : "",
+    };
+}
+
+function getSelectedCreditNoteOptions() {
+    const select = document.getElementById("credit-note-select");
+    if (!select) return [];
+    return Array.from(select.selectedOptions || []).filter((option) => option.value);
+}
+
+function getCreditNoteSelectionSummary(items = getSelectionItems()) {
+    const invoiceTotal = items.reduce((sum, item) => sum + parseAmountValue(item.amount), 0);
+    const options = getSelectedCreditNoteOptions();
+    const selectedCreditTotal = options.reduce((sum, option) => {
+        return sum + parseAmountValue(option.getAttribute("data-available-amount"));
+    }, 0);
+    const appliedCreditTotal = Math.min(invoiceTotal, selectedCreditTotal);
+    const netTotal = Math.max(0, invoiceTotal - appliedCreditTotal);
+    return {
+        creditNoteCount: options.length,
+        selectedCreditTotal,
+        appliedCreditTotal,
+        invoiceTotal,
+        netTotal,
+        options,
+    };
+}
+
+function updateCreditNoteSelect() {
+    const select = document.getElementById("credit-note-select");
+    const helper = document.getElementById("credit-note-helper-text");
+    if (!select) return;
+
+    const items = getSelectionItems();
+    const { supplierIds, legalEntityIds, singleSupplierId, singleEntityId } = getSelectionSupplierContext(items);
+    const hasCompatibleSelection = items.length > 0 && supplierIds.length === 1 && legalEntityIds.length === 1;
+    let hasChanges = false;
+
+    Array.from(select.options).forEach((option) => {
+        if (!option.value) return;
+        const supplierId = option.getAttribute("data-supplier-id") || "";
+        const entityId = option.getAttribute("data-legal-entity-id") || "";
+        const shouldShow = !items.length || (hasCompatibleSelection && supplierId === singleSupplierId && entityId === singleEntityId);
+        option.hidden = !shouldShow;
+        option.disabled = !shouldShow;
+        if (!shouldShow && option.selected) {
+            option.selected = false;
+            hasChanges = true;
+        }
+    });
+
+    if (helper) {
+        if (!items.length) {
+            helper.textContent = "Seleziona le fatture e, se serve, una o piu note di credito aperte.";
+        } else if (!hasCompatibleSelection) {
+            helper.textContent = "Le note di credito sono disponibili solo se le fatture selezionate appartengono allo stesso fornitore e alla stessa intestazione.";
+        } else {
+            helper.textContent = "Saranno usate automaticamente fino a coprire il residuo delle fatture selezionate.";
+        }
+    }
+
+    if (hasChanges) {
+        refreshSelect2(select);
+    }
+}
+
 function updateSelectionSummary() {
     const summaryCount = document.getElementById("payment-selected-count");
     const summaryTotal = document.getElementById("payment-selected-total");
+    const summaryCreditNotes = document.getElementById("payment-selected-credit-notes");
+    const summaryNetTotal = document.getElementById("payment-selected-net-total");
     const summarySuppliers = document.getElementById("payment-selected-suppliers");
     const items = getSelectionItems();
-    const total = items.reduce((sum, item) => {
-        const amount = Number(String(item.amount || "").replace(",", "."));
-        return sum + (Number.isNaN(amount) ? 0 : amount);
-    }, 0);
+    const total = items.reduce((sum, item) => sum + parseAmountValue(item.amount), 0);
     const supplierNames = Array.from(new Set(items.map((item) => item.supplierName).filter(Boolean)));
+    const creditSummary = getCreditNoteSelectionSummary(items);
 
     if (summaryCount) summaryCount.textContent = String(items.length);
     if (summaryTotal) summaryTotal.innerHTML = formatCurrency(total);
+    if (summaryCreditNotes) summaryCreditNotes.innerHTML = `Note di credito: ${formatCurrency(creditSummary.appliedCreditTotal)}`;
+    if (summaryNetTotal) summaryNetTotal.innerHTML = `Netto da versare: ${formatCurrency(creditSummary.netTotal)}`;
     if (summarySuppliers) {
         if (!supplierNames.length) {
             summarySuppliers.textContent = "Nessun fornitore selezionato";
@@ -620,10 +707,13 @@ function updateSelectionSummary() {
 function renderConfirmationModal() {
     const confirmCount = document.getElementById("payment-confirm-count");
     const confirmSupplierCount = document.getElementById("payment-confirm-supplier-count");
+    const confirmCreditCount = document.getElementById("payment-confirm-credit-count");
+    const confirmCreditTotal = document.getElementById("payment-confirm-credit-total");
     const confirmTotal = document.getElementById("payment-confirm-total");
     const confirmGroups = document.getElementById("payment-confirm-groups");
     const items = getSelectionItems();
     const groupedBySupplier = new Map();
+    const creditSummary = getCreditNoteSelectionSummary(items);
 
     items.forEach((item) => {
         const key = `${item.supplierName || "Fornitore non disponibile"}|${item.legalEntityName || ""}`;
@@ -637,20 +727,20 @@ function renderConfirmationModal() {
             });
         }
         const group = groupedBySupplier.get(key);
-        const amount = Number(String(item.amount || "").replace(",", "."));
-        group.total += Number.isNaN(amount) ? 0 : amount;
+        const amount = parseAmountValue(item.amount);
+        group.total += amount;
         group.count += 1;
         group.items.push(item);
     });
 
-    const total = Array.from(groupedBySupplier.values()).reduce((sum, group) => sum + group.total, 0);
-
     if (confirmCount) confirmCount.textContent = String(items.length);
     if (confirmSupplierCount) confirmSupplierCount.textContent = String(groupedBySupplier.size);
-    if (confirmTotal) confirmTotal.innerHTML = formatCurrency(total);
+    if (confirmCreditCount) confirmCreditCount.textContent = String(creditSummary.creditNoteCount);
+    if (confirmCreditTotal) confirmCreditTotal.innerHTML = formatCurrency(creditSummary.appliedCreditTotal);
+    if (confirmTotal) confirmTotal.innerHTML = formatCurrency(creditSummary.netTotal);
     if (!confirmGroups) return;
 
-    confirmGroups.innerHTML = Array.from(groupedBySupplier.values()).map((group) => `
+    const supplierGroupsHtml = Array.from(groupedBySupplier.values()).map((group) => `
         <details class="payment-confirm-item payment-confirm-group">
             <summary class="payment-confirm-item-header payment-confirm-toggle">
                 <div>
@@ -673,6 +763,31 @@ function renderConfirmationModal() {
             </div>
         </details>
     `).join("");
+
+    const creditNotesHtml = creditSummary.options.length ? `
+        <details class="payment-confirm-item payment-confirm-group">
+            <summary class="payment-confirm-item-header payment-confirm-toggle">
+                <div>
+                    <div class="payment-confirm-item-title">Note di credito selezionate</div>
+                    <div class="payment-confirm-item-meta">${escapeHtml(`${creditSummary.creditNoteCount} documenti`)}</div>
+                </div>
+                <div class="payment-confirm-item-header-right">
+                    <div class="payment-confirm-item-amount">${escapeHtml(formatCurrency(creditSummary.appliedCreditTotal))}</div>
+                    <div class="payment-confirm-toggle-hint">Dettaglio</div>
+                </div>
+            </summary>
+            <div class="payment-confirm-subitems">
+                ${creditSummary.options.map((option) => `
+                    <div class="payment-confirm-subitem">
+                        <span class="payment-confirm-subitem-label">${escapeHtml(option.textContent.trim())}</span>
+                        <span class="payment-confirm-subitem-amount">${escapeHtml(formatCurrency(option.getAttribute("data-available-amount")))}</span>
+                    </div>
+                `).join("")}
+            </div>
+        </details>
+    ` : "";
+
+    confirmGroups.innerHTML = supplierGroupsHtml + creditNotesHtml;
 }
 
 function prepareHiddenSelectionInputs(form) {

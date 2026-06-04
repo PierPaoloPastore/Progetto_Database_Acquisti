@@ -6,6 +6,7 @@ Espone i Repository per l'accesso ai dati.
 from .category_repo import CategoryRepository
 from .supplier_repo import SupplierRepository
 from .payment_repo import PaymentRepository
+from .credit_note_allocation_repo import CreditNoteAllocationRepository
 from .document_repo import DocumentRepository # <--- Nuova Classe
 from .bank_account_repo import BankAccountRepository
 
@@ -23,6 +24,7 @@ __all__ = [
     "CategoryRepository",
     "SupplierRepository",
     "PaymentRepository",
+    "CreditNoteAllocationRepository",
     "DocumentRepository",
     "BankAccountRepository",
     "create_import_log",

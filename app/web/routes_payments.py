@@ -286,6 +286,7 @@ def payment_index():
     if is_invoice_partial_request:
         return render_template("payments/_invoice_list.html", **invoice_template_context)
 
+    available_credit_notes = payment_service.list_open_credit_notes_for_payment_ui()
     payment_history, payment_history_total, history_page = list_paid_payments_page(
         filters=payment_history_filters,
         page=history_page,
@@ -324,6 +325,7 @@ def payment_index():
         has_payment_history_filters=payment_history_filters.has_filters,
         payment_history_total=payment_history_total,
         payment_history_pagination=history_pagination,
+        available_credit_notes=available_credit_notes,
         invoice_search_reset_url=url_for(
             "payments.payment_index",
             **payment_history_filters.to_query_params(),
@@ -657,6 +659,12 @@ def batch_payment():
         flash("Seleziona almeno un documento da pagare.", "warning")
         return redirect(url_for("payments.payment_index"))
 
+    selected_credit_note_ids = []
+    for raw_credit_note_id in request.form.getlist("credit_note_id"):
+        raw_credit_note_id = (raw_credit_note_id or "").strip()
+        if raw_credit_note_id.isdigit():
+            selected_credit_note_ids.append(int(raw_credit_note_id))
+
     # Build document allocations from amounts
     doc_allocations = []
     for doc_id in selected_doc_ids:
@@ -685,11 +693,19 @@ def batch_payment():
             notes=notes,
             bank_account_iban=bank_account_iban,
             payment_date=payment_date,
+            credit_note_document_ids=selected_credit_note_ids,
         )
 
         # Display results
         if result['success_count'] > 0:
-            flash(f"{result['success_count']} pagamenti registrati con successo.", "success")
+            net_amount = float(result.get('bank_payment_total') or 0)
+            credit_amount = float(result.get('credit_note_applied_total') or 0)
+            credit_count = int(result.get('credit_note_count') or 0)
+            message = f"{result['success_count']} documenti aggiornati. Netto versato: {net_amount:,.2f} euro".replace(',', 'X').replace('.', ',').replace('X', '.')
+            if credit_amount > 0:
+                credit_label = f"{credit_amount:,.2f} euro".replace(',', 'X').replace('.', ',').replace('X', '.')
+                message += f". Compensati {credit_label} con {credit_count} note di credito"
+            flash(message + '.', "success")
 
         if result['error_count'] > 0:
             for res in result['results']:
