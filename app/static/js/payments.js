@@ -616,6 +616,22 @@ function getSelectionSupplierContext(items = getSelectionItems()) {
     };
 }
 
+function ensureCreditNoteOptionCache(select) {
+    if (!select) return [];
+    if (!select._allCreditNoteOptions) {
+        select._allCreditNoteOptions = Array.from(select.options || [])
+            .filter((option) => option.value)
+            .map((option) => ({
+                value: option.value,
+                text: option.textContent,
+                supplierId: option.getAttribute("data-supplier-id") || "",
+                legalEntityId: option.getAttribute("data-legal-entity-id") || "",
+                availableAmount: option.getAttribute("data-available-amount") || "0.00",
+            }));
+    }
+    return select._allCreditNoteOptions;
+}
+
 function getSelectedCreditNoteOptions() {
     const select = document.getElementById("credit-note-select");
     if (!select) return [];
@@ -648,19 +664,24 @@ function updateCreditNoteSelect() {
     const items = getSelectionItems();
     const { supplierIds, legalEntityIds, singleSupplierId, singleEntityId } = getSelectionSupplierContext(items);
     const hasCompatibleSelection = items.length > 0 && supplierIds.length === 1 && legalEntityIds.length === 1;
-    let hasChanges = false;
+    const cachedOptions = ensureCreditNoteOptionCache(select);
+    const selectedValues = new Set(getSelectedCreditNoteOptions().map((option) => option.value));
 
-    Array.from(select.options).forEach((option) => {
-        if (!option.value) return;
-        const supplierId = option.getAttribute("data-supplier-id") || "";
-        const entityId = option.getAttribute("data-legal-entity-id") || "";
-        const shouldShow = !items.length || (hasCompatibleSelection && supplierId === singleSupplierId && entityId === singleEntityId);
-        option.hidden = !shouldShow;
-        option.disabled = !shouldShow;
-        if (!shouldShow && option.selected) {
-            option.selected = false;
-            hasChanges = true;
-        }
+    const visibleOptions = cachedOptions.filter((option) => {
+        if (!items.length) return true;
+        return hasCompatibleSelection && option.supplierId === singleSupplierId && option.legalEntityId === singleEntityId;
+    });
+
+    select.innerHTML = "";
+    visibleOptions.forEach((optionData) => {
+        const option = document.createElement("option");
+        option.value = optionData.value;
+        option.textContent = optionData.text;
+        option.setAttribute("data-supplier-id", optionData.supplierId);
+        option.setAttribute("data-legal-entity-id", optionData.legalEntityId);
+        option.setAttribute("data-available-amount", optionData.availableAmount);
+        option.selected = selectedValues.has(optionData.value);
+        select.appendChild(option);
     });
 
     if (helper) {
@@ -673,9 +694,7 @@ function updateCreditNoteSelect() {
         }
     }
 
-    if (hasChanges) {
-        refreshSelect2(select);
-    }
+    refreshSelect2(select);
 }
 
 function updateSelectionSummary() {
