@@ -80,12 +80,12 @@
                                             data-legal-entity-id="{{ credit_note.legal_entity_id or '' }}"
                                             data-available-amount="{{ '%.2f'|format(available_amount) }}"
                                         >
-                                            {{ credit_note.supplier.name if credit_note.supplier else 'Fornitore non disponibile' }} | {{ credit_note.document_number or ('Nota #' ~ credit_note.id) }} | {{ credit_note.document_date.strftime('%d/%m/%Y') if credit_note.document_date else 'Senza data' }} | residuo {{ available_amount|format_amount }} &euro;
+                                            Fornitore: {{ credit_note.supplier.name if credit_note.supplier else 'Fornitore non disponibile' }} | Intestazione: {{ credit_note.legal_entity.name if credit_note.legal_entity else 'Non disponibile' }} | {{ credit_note.document_number or ('Nota #' ~ credit_note.id) }} | {{ credit_note.document_date.strftime('%d/%m/%Y') if credit_note.document_date else 'Senza data' }} | residuo {{ available_amount|format_amount }} &euro;
                                         </option>
                                     {% endfor %}
                                 </select>
                                 <div class="form-text" id="credit-note-helper-text">
-                                    Seleziona solo note di credito dello stesso fornitore e della stessa intestazione delle fatture. Il sistema usera` automaticamente il residuo disponibile.
+                                    Seleziona solo note di credito dello stesso fornitore emittente e della stessa intestazione delle fatture. Il sistema usera` automaticamente il residuo disponibile.
                                 </div>
                             </div>
                             <div class="col-12">
