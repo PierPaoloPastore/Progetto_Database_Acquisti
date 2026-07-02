@@ -9,6 +9,39 @@
         <h1>Elenco Fornitori</h1>
     </div>
 
+    <div class="card shadow-sm mb-3">
+        <div class="card-header bg-white">
+            <h5 class="mb-0"><i class="bi bi-file-earmark-spreadsheet"></i> Report spese fornitori</h5>
+        </div>
+        <div class="card-body">
+            <form method="get" action="{{ url_for('suppliers.spending_report_csv') }}" class="row g-2 align-items-end">
+                <div class="col-md-5">
+                    <label for="report-legal-entity" class="form-label">Intestazione</label>
+                    <select id="report-legal-entity" name="legal_entity_id" class="form-select">
+                        <option value="">Tutte le intestazioni</option>
+                        {% for entity in legal_entities %}
+                            <option value="{{ entity.id }}">{{ entity.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="report-year" class="form-label">Anno</label>
+                    <select id="report-year" name="year" class="form-select">
+                        <option value="">Tutti gli anni</option>
+                        {% for year in years %}
+                            <option value="{{ year }}">{{ year }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <button type="submit" class="btn btn-success w-100">
+                        <i class="bi bi-download"></i> Scarica CSV per Excel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div class="collapse {% if open_new_form %}show{% endif %} mb-3" id="new-supplier-panel">
         <div class="card border-primary shadow-sm">
             <div class="card-header bg-white">

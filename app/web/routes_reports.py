@@ -14,6 +14,7 @@ from app.services.reporting_service import (
     get_status_counts,
     get_top_suppliers,
     list_document_types,
+    list_reporting_legal_entities,
     list_reporting_years,
 )
 from app.services.formatting_service import format_amount
@@ -27,16 +28,27 @@ def index():
     years = list_reporting_years()
     default_year = years[0] if years else date.today().year
     year = request.args.get("year", type=int) or default_year
+    legal_entity_id = request.args.get("legal_entity_id", type=int)
+    legal_entities = list_reporting_legal_entities()
+    valid_legal_entity_ids = {row["id"] for row in legal_entities}
+    if legal_entity_id not in valid_legal_entity_ids:
+        legal_entity_id = None
     doc_type_filter = request.args.get("type", "all")
     document_types = list_document_types(year)
     if doc_type_filter != "all" and doc_type_filter not in document_types:
         doc_type_filter = "all"
     type_options = _build_type_options(document_types)
 
-    monthly_report = get_monthly_totals(year, doc_type_filter)
-    status_counts = get_status_counts(year, doc_type_filter)
-    top_suppliers = get_top_suppliers(year, doc_type_filter, limit=10)
-    category_breakdown = get_category_breakdown(year, doc_type_filter, limit=10)
+    monthly_report = get_monthly_totals(
+        year, doc_type_filter, legal_entity_id=legal_entity_id
+    )
+    status_counts = get_status_counts(year, doc_type_filter, legal_entity_id)
+    suppliers = get_top_suppliers(
+        year, doc_type_filter, legal_entity_id=legal_entity_id
+    )
+    category_breakdown = get_category_breakdown(
+        year, doc_type_filter, legal_entity_id=legal_entity_id
+    )
 
     total_documents = monthly_report.total_documents
     total_net_value = monthly_report.total
@@ -53,6 +65,7 @@ def index():
             year - 1,
             doc_type_filter,
             include_top_suppliers=False,
+            legal_entity_id=legal_entity_id,
         )
         previous_year_total = previous_report.total
         if previous_year_total:
@@ -60,6 +73,8 @@ def index():
             delta_percent = (delta_amount / previous_year_total) * 100
 
     list_filters = {"year": year}
+    if legal_entity_id is not None:
+        list_filters["legal_entity_id"] = legal_entity_id
     if doc_type_filter != "all":
         list_filters["document_type"] = doc_type_filter
 
@@ -92,7 +107,7 @@ def index():
         )
 
     suppliers_rows = []
-    for row in top_suppliers:
+    for row in suppliers:
         percent = (row["total"] / total_net_value * 100) if total_net_value else 0
         avg_value = row["total"] / row["documents"] if row["documents"] else 0
         suppliers_rows.append(
@@ -108,6 +123,8 @@ def index():
         "reports/index.html",
         year=year,
         years=years,
+        legal_entities=legal_entities,
+        legal_entity_id=legal_entity_id,
         doc_type_filter=doc_type_filter,
         type_options=type_options,
         total_documents=total_documents,

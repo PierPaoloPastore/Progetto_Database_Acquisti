@@ -17,6 +17,15 @@
         </div>
         <form method="get" class="reports-filters">
             <div class="filters-item">
+                <label for="legal_entity_id" class="form-label small text-muted mb-1">Intestazione</label>
+                <select id="legal_entity_id" name="legal_entity_id" class="form-select form-select-sm">
+                    <option value="">Tutte le intestazioni</option>
+                    {% for entity in legal_entities %}
+                        <option value="{{ entity.id }}" {% if entity.id == legal_entity_id %}selected{% endif %}>{{ entity.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filters-item">
                 <label for="year" class="form-label small text-muted mb-1">Anno</label>
                 <select id="year" name="year" class="form-select form-select-sm">
                     {% if years %}
@@ -133,7 +142,7 @@
         <div class="card-header reports-card-header">
             <h5 class="mb-0">Spesa per categoria</h5>
             {% if not categories_empty %}
-                <span class="text-muted small">Top {{ category_rows|length|format_int }}</span>
+                <span class="text-muted small">{{ category_rows|length|format_int }} categorie</span>
             {% endif %}
         </div>
         <div class="card-body">
@@ -169,9 +178,9 @@
 
     <div class="card report-card shadow-sm">
         <div class="card-header reports-card-header">
-            <h5 class="mb-0">Top fornitori per importo</h5>
+            <h5 class="mb-0">Fornitori per importo</h5>
             {% if top_suppliers|length > 0 %}
-                <span class="text-muted small">Top {{ top_suppliers|length|format_int }}</span>
+                <span class="text-muted small">{{ top_suppliers|length|format_int }} fornitori</span>
             {% endif %}
         </div>
         <div class="card-body">

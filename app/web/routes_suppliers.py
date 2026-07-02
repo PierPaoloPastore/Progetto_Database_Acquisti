@@ -8,13 +8,29 @@ Comprende:
 
 from __future__ import annotations
 
-from flask import Blueprint, render_template, redirect, request, url_for, flash
+import csv
+import io
+
+from flask import (
+    Blueprint,
+    Response,
+    flash,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 
 from app.services import (
     create_supplier,
     list_suppliers_with_stats,
     get_supplier_detail,
     update_supplier,
+)
+from app.services.reporting_service import (
+    get_supplier_spending_report,
+    list_reporting_legal_entities,
+    list_reporting_years,
 )
 
 suppliers_bp = Blueprint("suppliers", __name__)
@@ -32,10 +48,68 @@ def list_view():
     """
     search_term = request.args.get("q") or None
     suppliers_stats = list_suppliers_with_stats(search_term=search_term)
+    legal_entities = list_reporting_legal_entities()
+    years = list_reporting_years()
     return render_template(
         "suppliers/list.html",
         suppliers_stats=suppliers_stats,
         search_term=search_term or "",
+        legal_entities=legal_entities,
+        years=years,
+    )
+
+
+@suppliers_bp.get("/spending-report.csv")
+def spending_report_csv():
+    """Esporta le spese aggregate di tutti i fornitori per intestazione/anno."""
+    legal_entity_id = request.args.get("legal_entity_id", type=int)
+    year = request.args.get("year", type=int)
+    legal_entities = list_reporting_legal_entities()
+    entity_by_id = {row["id"]: row["name"] for row in legal_entities}
+    if legal_entity_id not in entity_by_id:
+        legal_entity_id = None
+
+    rows = get_supplier_spending_report(
+        legal_entity_id=legal_entity_id,
+        year=year,
+    )
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=";", lineterminator="\r\n")
+    writer.writerow(
+        [
+            "Intestazione",
+            "Anno",
+            "Fornitore",
+            "Partita IVA",
+            "Codice fiscale",
+            "Numero documenti",
+            "Spesa totale",
+        ]
+    )
+    entity_name = entity_by_id.get(legal_entity_id, "Tutte")
+    for row in rows:
+        writer.writerow(
+            [
+                entity_name,
+                year or "Tutti",
+                row["name"],
+                row["vat_number"] or "",
+                row["fiscal_code"] or "",
+                row["documents"],
+                f'{row["total"]:.2f}'.replace(".", ","),
+            ]
+        )
+
+    filename_parts = ["spese_fornitori"]
+    if legal_entity_id:
+        filename_parts.append(str(legal_entity_id))
+    if year:
+        filename_parts.append(str(year))
+    filename = "_".join(filename_parts) + ".csv"
+    return Response(
+        "\ufeff" + output.getvalue(),
+        content_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
