@@ -264,7 +264,7 @@ def _run_import_paths_locked(
                             invoice_dto.file_name,
                             None,
                             summary,
-                            reason="Duplicato nello stesso batch per identita documento",
+                            reason="Fattura gia presente, saltata",
                             stage="batch_postcheck",
                         )
                         continue
@@ -281,9 +281,18 @@ def _run_import_paths_locked(
                             invoice_dto.file_name,
                             existing_doc.id,
                             summary,
-                            reason="Duplicato per identita documento (fornitore/intestatario/numero/data/importo)",
+                            reason="Fattura gia presente, saltata",
                             stage="postcheck",
                         )
+                        create_import_log(
+                            file_name=invoice_dto.file_name,
+                            file_hash=invoice_dto.file_hash,
+                            import_source=import_source,
+                            status="skipped",
+                            message="Fattura gia presente, saltata",
+                            document_id=existing_doc.id,
+                        )
+                        uow.commit()
                         continue
 
                     # Document

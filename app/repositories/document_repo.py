@@ -109,6 +109,40 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
             .first()
         )
 
+    def find_existing_by_supplier_number_date(
+        self,
+        *,
+        document_type: str,
+        supplier_id: int,
+        document_number: Optional[str],
+        document_date: Optional[date],
+    ) -> Optional[Document]:
+        """
+        Cerca duplicati contabili indipendenti dal nome file.
+
+        La query usa le colonne indicizzate supplier_id, document_number e
+        document_date; il confronto normalizzato sul numero copre differenze
+        minori di spazi, slash o separatori.
+        """
+        normalized_number = _normalize_document_identity_value(document_number)
+        if not normalized_number or document_date is None:
+            return None
+
+        candidates = (
+            self.session.query(Document)
+            .filter(
+                Document.document_type == document_type,
+                Document.supplier_id == supplier_id,
+                Document.document_date == document_date,
+            )
+            .order_by(Document.id.asc())
+            .all()
+        )
+        for candidate in candidates:
+            if _normalize_document_identity_value(candidate.document_number) == normalized_number:
+                return candidate
+        return None
+
     def find_existing_fatturapa_document(
         self,
         *,
@@ -133,6 +167,15 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
             return None
 
         document_type = _fatturapa_document_type(getattr(invoice_dto, "tipo_documento", None))
+        existing_by_identity = self.find_existing_by_supplier_number_date(
+            document_type=document_type,
+            supplier_id=supplier_id,
+            document_number=invoice_dto.invoice_number,
+            document_date=document_date,
+        )
+        if existing_by_identity:
+            return existing_by_identity
+
         expected_total = _normalize_decimal_for_match(invoice_dto.total_gross_amount)
         if document_type == "credit_note" and expected_total is not None and expected_total > 0:
             expected_total = -expected_total
