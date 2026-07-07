@@ -16,6 +16,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const summarySkipped = document.getElementById("import-summary-skipped");
     const summaryWarnings = document.getElementById("import-summary-warnings");
     const summaryErrors = document.getElementById("import-summary-errors");
+    const summaryNarrative = document.getElementById("import-summary-narrative");
     const summaryReport = document.getElementById("import-summary-report");
     const summaryReportPath = document.getElementById("import-summary-report-path");
     const summaryReportLink = document.getElementById("import-summary-report-link");
@@ -154,9 +155,30 @@ document.addEventListener("DOMContentLoaded", () => {
         if (summaryErrorsBody) {
             summaryErrorsBody.innerHTML = "";
         }
+        if (summaryNarrative) {
+            summaryNarrative.classList.add("d-none");
+            summaryNarrative.textContent = "";
+        }
     };
 
-    const renderSummary = (summary, errorDetails) => {
+    const buildNarrative = (summary) => {
+        if (summary.narrative) return summary.narrative;
+        const total = Number(summary.total_files || 0);
+        const imported = Number(summary.imported || 0);
+        const skipped = Number(summary.skipped || 0);
+        const warnings = Number(summary.warnings || 0);
+        const errors = Number(summary.errors || 0);
+        if (!total) return "Non ho trovato file XML o P7M da importare.";
+        if (imported === 0 && skipped > 0 && errors === 0 && warnings === 0) {
+            return `Ho letto ${total} file, ma non ho inserito nuovi documenti: risultano gia presenti o duplicati.`;
+        }
+        if (imported === 0 && errors > 0) {
+            return `Ho letto ${total} file, ma non ho inserito nuovi documenti. Ci sono ${errors} errori da controllare.`;
+        }
+        return `Ho letto ${total} file: ${imported} inseriti, ${skipped} saltati, ${warnings} warning, ${errors} errori.`;
+    };
+
+    const renderSummary = (summary, details) => {
         if (!summaryCard) {
             return;
         }
@@ -166,6 +188,10 @@ document.addEventListener("DOMContentLoaded", () => {
         if (summarySkipped) summarySkipped.textContent = summary.skipped;
         if (summaryWarnings) summaryWarnings.textContent = summary.warnings || 0;
         if (summaryErrors) summaryErrors.textContent = summary.errors;
+        if (summaryNarrative) {
+            summaryNarrative.textContent = buildNarrative(summary);
+            summaryNarrative.classList.remove("d-none");
+        }
         if (summaryReport && summaryReportPath) {
             if (summary.report_path) {
                 summaryReportPath.textContent = summary.report_path;
@@ -185,28 +211,31 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         if (summaryErrorsList && summaryErrorsBody) {
-            if (errorDetails.length > 0) {
+            if (details.length > 0) {
                 summaryErrorsList.classList.remove("d-none");
                 summaryErrorsBody.innerHTML = "";
-                errorDetails.slice(0, ERROR_LIST_LIMIT).forEach((item) => {
+                details.slice(0, ERROR_LIST_LIMIT).forEach((item) => {
                     const row = document.createElement("tr");
                     const fileCell = document.createElement("td");
+                    const statusCell = document.createElement("td");
                     const stageCell = document.createElement("td");
                     const msgCell = document.createElement("td");
                     fileCell.textContent = item.file_name || "-";
+                    statusCell.textContent = item.status || "-";
                     stageCell.textContent = item.stage || "-";
                     msgCell.textContent = item.message || "Errore";
                     row.appendChild(fileCell);
+                    row.appendChild(statusCell);
                     row.appendChild(stageCell);
                     row.appendChild(msgCell);
                     summaryErrorsBody.appendChild(row);
                 });
-                if (errorDetails.length > ERROR_LIST_LIMIT) {
+                if (details.length > ERROR_LIST_LIMIT) {
                     const row = document.createElement("tr");
                     const cell = document.createElement("td");
-                    cell.colSpan = 3;
+                    cell.colSpan = 4;
                     cell.className = "text-muted";
-                    cell.textContent = `Mostrati i primi ${ERROR_LIST_LIMIT} errori.`;
+                    cell.textContent = `Mostrati i primi ${ERROR_LIST_LIMIT} dettagli.`;
                     row.appendChild(cell);
                     summaryErrorsBody.appendChild(row);
                 }
@@ -309,10 +338,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             updateProgress(batches.length, batches.length, 0);
-            renderSummary(
-                aggregate,
-                aggregate.details.filter((item) => item.status === "error" || item.status === "warning")
-            );
+            renderSummary(aggregate, aggregate.details || []);
         } catch (error) {
             showError("Errore durante l'import batch.");
         } finally {
@@ -362,10 +388,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
                 const data = await response.json();
                 stopBusyProgress("Import cartella server completato.");
-                renderSummary(
-                    data,
-                    (data.details || []).filter((item) => item.status === "error" || item.status === "warning")
-                );
+                renderSummary(data, data.details || []);
             } catch (error) {
                 showError("Errore durante l'import da cartella server.");
             } finally {

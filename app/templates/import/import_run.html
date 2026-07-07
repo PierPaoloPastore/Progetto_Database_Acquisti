@@ -55,6 +55,7 @@
             Risultati import batch
         </div>
         <div class="card-body">
+            <div id="import-summary-narrative" class="alert alert-secondary d-none"></div>
             <ul class="list-group list-group-flush mb-3">
                 <li class="list-group-item">File totali: <strong id="import-summary-total">0</strong></li>
                 <li class="list-group-item text-success">Importati con successo: <strong id="import-summary-imported">0</strong></li>
@@ -71,12 +72,13 @@
                    rel="noopener">Apri report CSV</a>
             </p>
             <div id="import-summary-errors-list" class="d-none">
-                <h5>Dettaglio errori/warning:</h5>
+                <h5>Dettaglio file:</h5>
                 <div class="table-responsive scrollable-list">
                     <table class="table table-sm table-striped">
                         <thead>
                             <tr>
                                 <th>File</th>
+                                <th>Esito</th>
                                 <th>Fase</th>
                                 <th>Messaggio</th>
                             </tr>
@@ -94,6 +96,9 @@
             Risultati ultimo import
         </div>
         <div class="card-body">
+            {% if summary.narrative %}
+            <div class="alert alert-secondary">{{ summary.narrative }}</div>
+            {% endif %}
             <ul class="list-group list-group-flush mb-3">
                 <li class="list-group-item">File totali: <strong>{{ summary.total_files }}</strong></li>
                 <li class="list-group-item text-success">Importati con successo: <strong>{{ summary.imported }}</strong></li>

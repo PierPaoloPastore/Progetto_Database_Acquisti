@@ -347,6 +347,7 @@ def _run_import_paths_locked(
     report_path = _write_import_report(summary, import_source, logger)
     if report_path:
         summary["report_path"] = report_path
+    summary["narrative"] = _build_import_narrative(summary)
 
     log_structured_event(
         action="run_import_completed",
@@ -359,6 +360,47 @@ def _run_import_paths_locked(
     )
 
     return summary
+
+
+def _build_import_narrative(summary: Dict) -> str:
+    total = int(summary.get("total_files") or 0)
+    processed = int(summary.get("processed") or 0)
+    imported = int(summary.get("imported") or 0)
+    skipped = int(summary.get("skipped") or 0)
+    warnings = int(summary.get("warnings") or 0)
+    errors = int(summary.get("errors") or 0)
+    details = summary.get("details") or []
+
+    if total == 0:
+        return "Non ho trovato file XML o P7M da importare nella sorgente selezionata."
+    if imported > 0 and errors == 0 and warnings == 0:
+        if skipped:
+            return (
+                f"Ho letto {total} file e ne ho inseriti {imported}. "
+                f"Gli altri {skipped} erano gia presenti o duplicati nel batch."
+            )
+        return f"Ho letto {total} file e li ho importati tutti correttamente."
+    if imported == 0:
+        if skipped and not errors and not warnings:
+            duplicate_count = sum(1 for item in details if item.get("status") == "skipped")
+            return (
+                f"Ho letto {total} file, ma non ho inserito nuovi documenti: "
+                f"{duplicate_count or skipped} risultano gia presenti o duplicati."
+            )
+        if errors:
+            return (
+                f"Ho letto {total} file, ma non ho inserito nuovi documenti. "
+                f"Ci sono {errors} errori da controllare nel dettaglio."
+            )
+        if warnings:
+            return (
+                f"Ho letto {total} file: nessun documento completo inserito, "
+                f"ma {warnings} file hanno generato documenti incompleti da rivedere."
+            )
+    return (
+        f"Ho processato {processed} file su {total}: {imported} inseriti, "
+        f"{skipped} saltati, {warnings} warning, {errors} errori."
+    )
 
 
 def _normalize_import_identity_value(value: Optional[str]) -> str:

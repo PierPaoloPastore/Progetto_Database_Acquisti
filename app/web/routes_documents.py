@@ -667,7 +667,7 @@ def review_list_view():
     if not filters.doc_status:
         filters.doc_status = "pending_physical_copy"
 
-    documents = doc_service.search_documents(filters=filters, limit=300, document_type=None)
+    documents = doc_service.search_documents(filters=filters, limit=None, document_type=None)
     documents = sorted(
         documents,
         key=lambda d: (d.document_date or date.min, d.id),

@@ -586,6 +586,7 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
             due_date=effective_due_date,
             file_name=invoice_dto.file_name,
             import_source=import_source,
+            imported_at=datetime.utcnow(),
             note=getattr(invoice_dto, "note", None),
         )
         
