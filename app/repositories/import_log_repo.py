@@ -7,7 +7,7 @@ Gestisce le operazioni di lettura/creazione dei log di import dei file XML.
 from typing import List, Optional
 
 from app.extensions import db
-from app.models import ImportLog
+from app.models import Document, ImportLog
 
 
 def get_import_log_by_id(log_id: int) -> Optional[ImportLog]:
@@ -60,7 +60,13 @@ def find_document_by_file_hash(file_hash: str) -> Optional[int]:
     Restituisce None se il file_hash non è mai stato importato con successo.
     """
     import_log = get_import_log_by_file_hash(file_hash)
-    return import_log.document_id if import_log else None
+    if not import_log or not import_log.document_id:
+        return None
+
+    document = Document.query.get(import_log.document_id)
+    if document is None:
+        return None
+    return document.id
 
 
 def create_import_log(**kwargs) -> ImportLog:
