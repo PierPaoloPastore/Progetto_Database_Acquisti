@@ -11,9 +11,11 @@ import os
 import re
 import shutil
 import tempfile
+import threading
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
 from datetime import date, datetime
+from decimal import Decimal
 
 from lxml import etree
 from flask import current_app
@@ -31,6 +33,9 @@ from app.repositories.import_log_repo import create_import_log, find_document_by
 from app.services.unit_of_work import UnitOfWork
 from app.services.logging import log_structured_event
 from app.services import settings_service
+
+
+_IMPORT_RUN_LOCK = threading.Lock()
 
 
 def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = None) -> Dict:
@@ -100,6 +105,25 @@ def _run_import_paths(
     logger,
     validate_xsd: bool,
 ) -> Dict:
+    with _IMPORT_RUN_LOCK:
+        return _run_import_paths_locked(
+            xml_files=xml_files,
+            import_source=import_source,
+            archive_base=archive_base,
+            legal_entity_id=legal_entity_id,
+            logger=logger,
+            validate_xsd=validate_xsd,
+        )
+
+
+def _run_import_paths_locked(
+    xml_files: List[Path],
+    import_source: str,
+    archive_base: Path,
+    legal_entity_id: Optional[int],
+    logger,
+    validate_xsd: bool,
+) -> Dict:
     summary = {
         "folder": import_source,
         "total_files": len(xml_files),
@@ -117,6 +141,8 @@ def _run_import_paths(
         _log_error_scan(logger, import_source, summary)
 
     forced_legal_entity_id = legal_entity_id
+    seen_file_hashes: set[str] = set()
+    seen_document_keys: set[tuple] = set()
 
     for xml_path in xml_files:
         file_name = xml_path.name
@@ -136,6 +162,18 @@ def _run_import_paths(
             continue
 
         file_hash = _compute_file_hash(xml_path)
+        if file_hash in seen_file_hashes:
+            _log_skip(
+                logger,
+                file_name,
+                None,
+                summary,
+                reason="Duplicato nello stesso batch per file_hash",
+                stage="batch_precheck",
+            )
+            continue
+        seen_file_hashes.add(file_hash)
+
         existing_by_hash = find_document_by_file_hash(file_hash)
         if existing_by_hash:
             _log_skip(
@@ -215,6 +253,22 @@ def _run_import_paths(
                     supplier = uow.suppliers.get_or_create_from_dto(invoice_dto.supplier)
                     supplier_id = supplier.id
 
+                    document_key = _build_import_document_key(
+                        invoice_dto=invoice_dto,
+                        supplier_id=supplier_id,
+                        legal_entity_id=current_legal_entity_id,
+                    )
+                    if document_key and document_key in seen_document_keys:
+                        _log_skip(
+                            logger,
+                            invoice_dto.file_name,
+                            None,
+                            summary,
+                            reason="Duplicato nello stesso batch per identita documento",
+                            stage="batch_postcheck",
+                        )
+                        continue
+
                     # Duplicati per file sorgente o identita contabile
                     existing_doc = uow.documents.find_existing_fatturapa_document(
                         invoice_dto=invoice_dto,
@@ -261,6 +315,8 @@ def _run_import_paths(
                     )
 
                     uow.commit()
+                    if document_key:
+                        seen_document_keys.add(document_key)
 
                     _log_success(
                         logger,
@@ -294,6 +350,43 @@ def _run_import_paths(
     )
 
     return summary
+
+
+def _normalize_import_identity_value(value: Optional[str]) -> str:
+    if not value:
+        return ""
+    return re.sub(r"[^0-9a-z]+", "", value.lower())
+
+
+def _normalize_import_amount(value: Optional[object]) -> Optional[str]:
+    if value is None:
+        return None
+    try:
+        return str(Decimal(str(value)).quantize(Decimal("0.01")))
+    except Exception:
+        return None
+
+
+def _build_import_document_key(
+    *,
+    invoice_dto: InvoiceDTO,
+    supplier_id: int,
+    legal_entity_id: Optional[int],
+) -> Optional[tuple]:
+    number = _normalize_import_identity_value(invoice_dto.invoice_number)
+    if not number or invoice_dto.invoice_date is None:
+        return None
+    tipo_documento = (getattr(invoice_dto, "tipo_documento", None) or "").upper()
+    document_type = "credit_note" if tipo_documento == "TD04" else "invoice"
+    amount = _normalize_import_amount(invoice_dto.total_gross_amount)
+    return (
+        document_type,
+        supplier_id,
+        legal_entity_id,
+        number,
+        invoice_dto.invoice_date,
+        amount,
+    )
 
 
 def _extract_header_data(xml_path: Path, *, logger=None) -> Dict:

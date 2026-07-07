@@ -21,6 +21,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const summaryReportLink = document.getElementById("import-summary-report-link");
     const summaryErrorsList = document.getElementById("import-summary-errors-list");
     const summaryErrorsBody = document.getElementById("import-summary-errors-body");
+    let importSubmitting = false;
 
     if (!form || !fileInput) {
         return;
@@ -69,6 +70,22 @@ document.addEventListener("DOMContentLoaded", () => {
             serverFolderInput.disabled = disabled;
         }
         fileInput.disabled = disabled;
+    };
+
+    const lockSubmitButton = (button, message) => {
+        if (button) {
+            button.disabled = true;
+            button.dataset.originalHtml = button.innerHTML;
+            button.innerHTML = `<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> ${message}`;
+        }
+    };
+
+    const unlockSubmitButton = (button) => {
+        if (!button) return;
+        button.disabled = false;
+        if (button.dataset.originalHtml) {
+            button.innerHTML = button.dataset.originalHtml;
+        }
     };
 
     const updateProgress = (index, total, count) => {
@@ -224,8 +241,17 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     form.addEventListener("submit", async (event) => {
+        if (importSubmitting) {
+            event.preventDefault();
+            return;
+        }
+        importSubmitting = true;
+        lockSubmitButton(submitBtn, "Importazione...");
+
         const files = Array.from(fileInput.files || []);
         if (files.length === 0) {
+            importSubmitting = false;
+            unlockSubmitButton(submitBtn);
             return;
         }
 
@@ -233,6 +259,8 @@ document.addEventListener("DOMContentLoaded", () => {
         const tooLarge = files.filter((file) => file.size > SERVER_LIMIT_BYTES);
         if (tooLarge.length > 0) {
             alert(`Alcuni file superano il limite di ${Math.round(SERVER_LIMIT_BYTES / (1024 * 1024))}MB.`);
+            importSubmitting = false;
+            unlockSubmitButton(submitBtn);
             return;
         }
 
@@ -288,19 +316,27 @@ document.addEventListener("DOMContentLoaded", () => {
         } catch (error) {
             showError("Errore durante l'import batch.");
         } finally {
+            importSubmitting = false;
             toggleDisabled(false);
+            unlockSubmitButton(submitBtn);
         }
     });
 
     if (serverForm) {
         serverForm.addEventListener("submit", async (event) => {
+            if (importSubmitting) {
+                event.preventDefault();
+                return;
+            }
             if (serverFolderInput && !serverFolderInput.value.trim()) {
                 event.preventDefault();
                 alert("Inserisci un percorso server valido.");
                 return;
             }
             event.preventDefault();
+            importSubmitting = true;
             toggleDisabled(true);
+            lockSubmitButton(serverBtn, "Importazione...");
             resetSummary();
             if (summaryServer) {
                 summaryServer.classList.add("d-none");
@@ -333,7 +369,9 @@ document.addEventListener("DOMContentLoaded", () => {
             } catch (error) {
                 showError("Errore durante l'import da cartella server.");
             } finally {
+                importSubmitting = false;
                 toggleDisabled(false);
+                unlockSubmitButton(serverBtn);
             }
         });
     }
