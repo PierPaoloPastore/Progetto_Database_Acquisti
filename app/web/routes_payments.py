@@ -712,6 +712,8 @@ def batch_payment():
                 if not res['success']:
                     flash(f"Errore per documento {res['document_id']}: {res['error']}", "danger")
 
+    except payment_service.DuplicatePaymentSubmissionError as exc:
+        flash(str(exc), "warning")
     except Exception as exc:  # pragma: no cover - logging/flash only
         flash(f"Errore durante il pagamento cumulativo: {exc}", "danger")
 

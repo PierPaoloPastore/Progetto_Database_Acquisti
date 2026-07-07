@@ -19,6 +19,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const rowCheckboxes = document.querySelectorAll(".schedule-select");
     const sortHeaders = document.querySelectorAll("[data-sort]");
     const toolbar = document.querySelector("[data-schedule-toolbar]");
+    let schedulePrintInProgress = false;
 
     if (!rows.length || (!searchInput && !statusSelect)) return;
 
@@ -419,6 +420,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         if (action === "print") {
+            if (schedulePrintInProgress || target.disabled) return;
             const ids = selectedRows.map((row) => row.getAttribute("data-doc-id")).filter(Boolean);
             const form = document.getElementById("schedule-print-form");
             const input = document.getElementById("schedule-print-ids");
@@ -427,6 +429,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 return;
             }
             input.value = ids.join(",");
+            schedulePrintInProgress = true;
+            target.disabled = true;
+            target.dataset.originalHtml = target.innerHTML;
+            target.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Generazione...';
 
             const formData = new FormData(form);
             fetch(form.action, {
@@ -470,6 +476,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 })
                 .catch((error) => {
                     alert(error?.message || "Errore durante la generazione del PDF.");
+                })
+                .finally(() => {
+                    schedulePrintInProgress = false;
+                    target.disabled = false;
+                    target.innerHTML = target.dataset.originalHtml || '<i class="bi bi-printer"></i> Stampa come PDF';
                 });
             return;
         }

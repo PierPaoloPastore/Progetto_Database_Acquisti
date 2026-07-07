@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import List, Optional, Sequence
 
@@ -30,6 +30,13 @@ logger = logging.getLogger(__name__)
 
 
 _DECIMAL_ZERO = Decimal("0.00")
+_DUPLICATE_PAYMENT_WINDOW_SECONDS = 15
+
+
+class DuplicatePaymentSubmissionError(ValueError):
+    """Segnala un submit di pagamento probabilmente gia registrato."""
+
+
 def _to_decimal(value) -> Decimal:
     if value in (None, ""):
         return _DECIMAL_ZERO
@@ -47,6 +54,74 @@ def _is_credit_note_document(document: Optional[Document]) -> bool:
 
 def _quantize_amount(value: Decimal) -> Decimal:
     return value.quantize(Decimal("0.01"))
+
+
+def _same_optional_text(left: Optional[str], right: Optional[str]) -> bool:
+    return (left or "").strip() == (right or "").strip()
+
+
+def _has_recent_duplicate_payment_submission(
+    uow: UnitOfWork,
+    *,
+    document_amounts: dict[int, Decimal],
+    paid_date: date,
+    method: Optional[str],
+    bank_account_iban: Optional[str],
+) -> bool:
+    """Rileva un pagamento uguale registrato pochi secondi prima."""
+    bank_doc_amounts = {
+        document_id: _quantize_amount(amount)
+        for document_id, amount in document_amounts.items()
+        if _quantize_amount(amount) > _DECIMAL_ZERO
+    }
+    if not bank_doc_amounts:
+        return False
+
+    since = datetime.utcnow() - timedelta(seconds=_DUPLICATE_PAYMENT_WINDOW_SECONDS)
+    recent_payments = uow.payments.list_recent_paid_by_documents(
+        list(bank_doc_amounts.keys()),
+        paid_date=paid_date,
+        since=since,
+    )
+    recent_by_doc: dict[int, list[Payment]] = {}
+    for payment in recent_payments:
+        recent_by_doc.setdefault(payment.document_id, []).append(payment)
+
+    for document_id, requested_amount in bank_doc_amounts.items():
+        matching_payment = False
+        for payment in recent_by_doc.get(document_id, []):
+            if method and payment.payment_method != method:
+                continue
+            payment_document = payment.payment_document
+            if not _same_optional_text(
+                bank_account_iban,
+                payment_document.bank_account_iban if payment_document else None,
+            ):
+                continue
+            if _quantize_amount(_to_decimal(payment.paid_amount)) >= requested_amount:
+                matching_payment = True
+                break
+        if not matching_payment:
+            return False
+
+    return True
+
+
+def _has_recent_duplicate_credit_allocation(
+    uow: UnitOfWork,
+    *,
+    invoice_document_ids: Sequence[int],
+    credit_note_document_ids: Sequence[int],
+) -> bool:
+    if not invoice_document_ids or not credit_note_document_ids:
+        return False
+    since = datetime.utcnow() - timedelta(seconds=_DUPLICATE_PAYMENT_WINDOW_SECONDS)
+    recent_allocations = uow.credit_note_allocations.list_recent_by_documents(
+        invoice_document_ids=list(invoice_document_ids),
+        credit_note_document_ids=list(credit_note_document_ids),
+        since=since,
+    )
+    return bool(recent_allocations)
 
 
 def _get_document_payment_totals(
@@ -753,6 +828,7 @@ def create_batch_payment_from_documents(
             uow.session.query(Document)
             .options(joinedload(Document.supplier), joinedload(Document.legal_entity))
             .filter(Document.id.in_(doc_ids))
+            .with_for_update()
             .all()
         )
         documents_by_id = {document.id: document for document in documents}
@@ -806,6 +882,15 @@ def create_batch_payment_from_documents(
         credit_applied_total = _DECIMAL_ZERO
 
         if selected_credit_note_ids:
+            if _has_recent_duplicate_credit_allocation(
+                uow,
+                invoice_document_ids=list(requested_bank_amounts.keys()),
+                credit_note_document_ids=selected_credit_note_ids,
+            ):
+                raise DuplicatePaymentSubmissionError(
+                    "Compensazione gia registrata pochi secondi fa. Aggiorna la pagina per vedere lo stato aggiornato."
+                )
+
             if len(supplier_ids) != 1 or len(legal_entity_ids) != 1:
                 raise ValueError("Per compensare note di credito seleziona fatture dello stesso fornitore e della stessa intestazione.")
 
@@ -844,6 +929,17 @@ def create_batch_payment_from_documents(
             requested_bank_amounts = bank_balances
 
         bank_payment_total = _quantize_amount(sum(requested_bank_amounts.values(), _DECIMAL_ZERO))
+
+        if _has_recent_duplicate_payment_submission(
+            uow,
+            document_amounts=requested_bank_amounts,
+            paid_date=paid_date,
+            method=method,
+            bank_account_iban=cleaned_iban or None,
+        ):
+            raise DuplicatePaymentSubmissionError(
+                "Richiesta gia registrata pochi secondi fa. Aggiorna la pagina per vedere lo stato aggiornato."
+            )
 
         payment_document = None
         if bank_payment_total > _DECIMAL_ZERO:

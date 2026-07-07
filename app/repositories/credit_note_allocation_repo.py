@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import Decimal
 from typing import Dict, List
 
@@ -26,6 +27,26 @@ class CreditNoteAllocationRepository(SqlAlchemyRepository[CreditNoteAllocation])
             self.session.query(CreditNoteAllocation)
             .filter(CreditNoteAllocation.invoice_document_id == document_id)
             .order_by(CreditNoteAllocation.allocated_at.asc(), CreditNoteAllocation.id.asc())
+            .all()
+        )
+
+    def list_recent_by_documents(
+        self,
+        *,
+        invoice_document_ids: List[int],
+        credit_note_document_ids: List[int],
+        since: datetime,
+    ) -> List[CreditNoteAllocation]:
+        if not invoice_document_ids or not credit_note_document_ids:
+            return []
+        return (
+            self.session.query(CreditNoteAllocation)
+            .filter(
+                CreditNoteAllocation.invoice_document_id.in_(invoice_document_ids),
+                CreditNoteAllocation.credit_note_document_id.in_(credit_note_document_ids),
+                CreditNoteAllocation.allocated_at >= since,
+            )
+            .order_by(CreditNoteAllocation.allocated_at.desc(), CreditNoteAllocation.id.desc())
             .all()
         )
 

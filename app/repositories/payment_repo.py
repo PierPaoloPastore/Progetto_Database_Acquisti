@@ -49,6 +49,30 @@ class PaymentRepository(SqlAlchemyRepository[Payment]):
             .all()
         )
 
+    def list_recent_paid_by_documents(
+        self,
+        document_ids: List[int],
+        *,
+        paid_date: date,
+        since: datetime,
+    ) -> List[Payment]:
+        """Restituisce pagamenti recenti usati per bloccare submit duplicati."""
+        if not document_ids:
+            return []
+        return (
+            self.session.query(Payment)
+            .outerjoin(PaymentDocument, Payment.payment_document_id == PaymentDocument.id)
+            .options(joinedload(Payment.payment_document))
+            .filter(
+                Payment.document_id.in_(document_ids),
+                Payment.status.in_(["paid", "partial"]),
+                Payment.paid_date == paid_date,
+                Payment.updated_at >= since,
+            )
+            .order_by(Payment.updated_at.desc(), Payment.id.desc())
+            .all()
+        )
+
     @staticmethod
     def _parse_search_date(value: str) -> Optional[date]:
         for pattern in ("%d/%m/%Y", "%Y-%m-%d"):

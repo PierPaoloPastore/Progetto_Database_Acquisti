@@ -7,6 +7,7 @@ const paymentUiState = {
     confirmModal: null,
     invoiceFetchController: null,
     invoiceLoading: false,
+    paymentSubmitting: false,
 };
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -210,6 +211,10 @@ function bindPaymentFormSubmission(form) {
     form.addEventListener("submit", (event) => {
         if (paymentUiState.bypassConfirmation) {
             paymentUiState.bypassConfirmation = false;
+            if (!lockPaymentSubmitButton(form)) {
+                event.preventDefault();
+                return;
+            }
             prepareHiddenSelectionInputs(form);
             return;
         }
@@ -219,6 +224,10 @@ function bindPaymentFormSubmission(form) {
         }
 
         if (!paymentUiState.confirmModal) {
+            if (!lockPaymentSubmitButton(form)) {
+                event.preventDefault();
+                return;
+            }
             prepareHiddenSelectionInputs(form);
             return;
         }
@@ -227,6 +236,23 @@ function bindPaymentFormSubmission(form) {
         renderConfirmationModal();
         paymentUiState.confirmModal.show();
     });
+}
+
+function lockPaymentSubmitButton(form) {
+    if (paymentUiState.paymentSubmitting) {
+        return false;
+    }
+    paymentUiState.paymentSubmitting = true;
+
+    const submitButton = form.querySelector('button[type="submit"]');
+    const confirmSubmitButton = document.getElementById("payment-confirm-submit");
+    [submitButton, confirmSubmitButton].forEach((button) => {
+        if (!button) return;
+        button.disabled = true;
+        button.dataset.originalHtml = button.innerHTML;
+        button.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Registrazione...';
+    });
+    return true;
 }
 
 function submitInvoiceSearch() {
