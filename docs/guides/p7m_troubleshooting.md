@@ -174,6 +174,36 @@ WHERE status = 'error'
   AND created_at < DATE_SUB(NOW(), INTERVAL 30 DAY);
 ```
 
+### Cancellare documenti importati per rifare un test
+
+Se cancelli manualmente righe da `documents`, pulisci prima i riferimenti in
+`import_logs`. Altrimenti un futuro import puo' saltare i file per `file_hash`
+anche se il documento non esiste piu'.
+
+Comando consigliato quando hai gia' gli ID dei documenti da rimuovere:
+
+```sql
+UPDATE import_logs
+SET document_id = NULL
+WHERE document_id IN (...);
+
+DELETE FROM documents
+WHERE id IN (...);
+```
+
+Se vuoi eliminare anche lo storico dei log invece di scollegarlo:
+
+```sql
+DELETE FROM import_logs
+WHERE document_id IN (...);
+
+DELETE FROM documents
+WHERE id IN (...);
+```
+
+Nota: l'app ora ignora i log orfani, ma tenere `import_logs` coerente rende i
+report import piu' leggibili.
+
 ### Monitoring
 
 Verifica gli errori recenti:
