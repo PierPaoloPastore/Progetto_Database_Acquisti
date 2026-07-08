@@ -9,6 +9,7 @@ Benvenuto nel centro documentazione del Gestionale Acquisti. Usa questo indice c
 - Guide
   - [Troubleshooting import P7M](guides/p7m_troubleshooting.md)
   - [UI Pagamenti (scroll/compattazione)](guides/payments_ui.md)
+  - [Export CBI / SEPA XML](guides/cbi_export.md)
 - Aggiornamenti recenti
   - [Aggiornamenti 2025-12-30](updates/2025-12-30.md)
   - [Aggiornamenti 2026-02-14](updates/2026-02-14.md)

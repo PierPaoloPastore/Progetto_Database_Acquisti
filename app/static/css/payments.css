@@ -606,7 +606,12 @@
 .schedule-bulk-bar .bulk-actions {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 0.5rem;
+}
+
+.schedule-bulk-bar .schedule-cbi-account {
+    width: min(100%, 22rem);
 }
 
 .schedule-callout {

@@ -10,8 +10,9 @@ from pathlib import Path
 from flask import Blueprint, request, redirect, url_for, flash, render_template, jsonify, current_app, send_file
 from sqlalchemy.orm import joinedload
 
-from app.models import Document
+from app.models import BankAccount, Document
 from app.services import payment_service, ocr_service, settings_service, list_all_bank_accounts
+from app.services.cbi_export_service import CbiExportError, generate_cbi_xml
 from app.services.document_service import mark_documents_as_programmed, unmark_documents_as_programmed
 from app.services.pdf_service import render_pdf_from_html
 from app.services.settings_service import get_setting
@@ -431,6 +432,7 @@ def schedule_view():
         schedule_rows=schedule_rows,
         legal_entity_groups=legal_entity_groups,
         summary=summary,
+        bank_accounts=list_all_bank_accounts(),
         today=today,
         soon_limit=soon_limit,
         soon_days=soon_days,
@@ -438,6 +440,81 @@ def schedule_view():
         range_30_limit=range_30_limit,
         updated_at=updated_at,
     )
+
+@payments_bp.route("/schedule/cbi", methods=["POST"], endpoint="schedule_cbi")
+def schedule_cbi():
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+    ids = _parse_document_ids_arg(request.form.get("document_ids"))
+    bank_account_iban = (request.form.get("bank_account_iban") or "").strip()
+    profile_code = (request.form.get("profile_code") or "generic_pain001").strip()
+
+    if not ids:
+        message = "Seleziona almeno un documento."
+        if is_ajax:
+            return jsonify({"ok": False, "message": message}), 400
+        flash(message, "warning")
+        return redirect(request.referrer or url_for("payments.schedule_view"))
+
+    if not bank_account_iban:
+        message = "Seleziona il conto ordinante per generare il file CBI."
+        if is_ajax:
+            return jsonify({"ok": False, "message": message}), 400
+        flash(message, "warning")
+        return redirect(request.referrer or url_for("payments.schedule_view"))
+
+    with UnitOfWork() as uow:
+        documents = (
+            uow.session.query(Document)
+            .options(joinedload(Document.supplier), joinedload(Document.legal_entity))
+            .filter(
+                Document.is_paid == False,
+                Document.id.in_(ids),
+            )
+            .all()
+        )
+        debtor_account = (
+            uow.session.query(BankAccount)
+            .options(joinedload(BankAccount.legal_entity))
+            .filter(BankAccount.iban == bank_account_iban)
+            .first()
+        )
+
+    if not documents:
+        message = "Nessun documento valido da esportare."
+        if is_ajax:
+            return jsonify({"ok": False, "message": message}), 400
+        flash(message, "warning")
+        return redirect(request.referrer or url_for("payments.schedule_view"))
+
+    if not debtor_account:
+        message = "Conto ordinante non trovato."
+        if is_ajax:
+            return jsonify({"ok": False, "message": message}), 400
+        flash(message, "warning")
+        return redirect(request.referrer or url_for("payments.schedule_view"))
+
+    payment_service.attach_payment_amounts(documents)
+    documents.sort(key=lambda doc: (doc.due_date or date.max, doc.id))
+
+    try:
+        export_result = generate_cbi_xml(
+            documents=documents,
+            debtor_account=debtor_account,
+            profile_code=profile_code,
+        )
+    except CbiExportError as exc:
+        if is_ajax:
+            return jsonify({"ok": False, "message": str(exc)}), 400
+        flash(str(exc), "warning")
+        return redirect(request.referrer or url_for("payments.schedule_view"))
+
+    return send_file(
+        io.BytesIO(export_result.xml_bytes),
+        mimetype="application/xml",
+        as_attachment=True,
+        download_name=export_result.filename,
+    )
+
 
 @payments_bp.route("/schedule/print", methods=["POST"], endpoint="schedule_print")
 def schedule_print():

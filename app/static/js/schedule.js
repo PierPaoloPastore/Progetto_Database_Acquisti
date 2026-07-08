@@ -15,11 +15,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const bulkCount = bulkBar?.querySelector("[data-bulk-count]");
     const bulkTotal = bulkBar?.querySelector("[data-bulk-total]");
     const paymentIndexUrl = bulkBar?.getAttribute("data-payment-index-url") || "/payments/";
+    const cbiAccountSelect = document.getElementById("schedule-cbi-bank-account");
     const selectAllCheckboxes = document.querySelectorAll(".schedule-select-all");
     const rowCheckboxes = document.querySelectorAll(".schedule-select");
     const sortHeaders = document.querySelectorAll("[data-sort]");
     const toolbar = document.querySelector("[data-schedule-toolbar]");
     let schedulePrintInProgress = false;
+    let scheduleCbiInProgress = false;
 
     if (!rows.length || (!searchInput && !statusSelect)) return;
 
@@ -481,6 +483,79 @@ document.addEventListener("DOMContentLoaded", () => {
                     schedulePrintInProgress = false;
                     target.disabled = false;
                     target.innerHTML = target.dataset.originalHtml || '<i class="bi bi-printer"></i> Stampa come PDF';
+                });
+            return;
+        }
+
+        if (action === "cbi") {
+            if (scheduleCbiInProgress || target.disabled) return;
+            const ids = selectedRows.map((row) => row.getAttribute("data-doc-id")).filter(Boolean);
+            const bankAccountIban = cbiAccountSelect?.value || "";
+            const form = document.getElementById("schedule-cbi-form");
+            const idsInput = document.getElementById("schedule-cbi-ids");
+            const bankAccountInput = document.getElementById("schedule-cbi-bank-account-hidden");
+
+            if (!bankAccountIban) {
+                alert("Seleziona il conto ordinante per generare il file CBI.");
+                cbiAccountSelect?.focus();
+                return;
+            }
+            if (!form || !idsInput || !bankAccountInput) {
+                alert("Generazione CBI non disponibile.");
+                return;
+            }
+
+            idsInput.value = ids.join(",");
+            bankAccountInput.value = bankAccountIban;
+            scheduleCbiInProgress = true;
+            target.disabled = true;
+            target.dataset.originalHtml = target.innerHTML;
+            target.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Generazione...';
+
+            fetch(form.action, {
+                method: "POST",
+                headers: {
+                    "X-Requested-With": "XMLHttpRequest",
+                    "Accept": "application/xml, application/json",
+                },
+                credentials: "same-origin",
+                body: new FormData(form),
+            })
+                .then(async (response) => {
+                    const contentType = response.headers.get("content-type") || "";
+                    if (!response.ok) {
+                        if (contentType.includes("application/json")) {
+                            const data = await response.json().catch(() => null);
+                            throw new Error(data?.message || "Errore durante la generazione del file CBI.");
+                        }
+                        throw new Error("Errore durante la generazione del file CBI.");
+                    }
+
+                    if (!contentType.includes("xml")) {
+                        throw new Error("Risposta XML non valida.");
+                    }
+
+                    const blob = await response.blob();
+                    const disposition = response.headers.get("content-disposition") || "";
+                    const match = disposition.match(/filename="?([^"]+)"?/i);
+                    const filename = match?.[1] || `cbi_generico_${new Date().toISOString().slice(0, 10)}.xml`;
+
+                    const url = window.URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = filename;
+                    document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+                    window.URL.revokeObjectURL(url);
+                })
+                .catch((error) => {
+                    alert(error?.message || "Errore durante la generazione del file CBI.");
+                })
+                .finally(() => {
+                    scheduleCbiInProgress = false;
+                    target.disabled = false;
+                    target.innerHTML = target.dataset.originalHtml || '<i class="bi bi-file-earmark-text"></i> Genera CBI';
                 });
             return;
         }

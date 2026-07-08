@@ -209,6 +209,15 @@
                     Totale residuo: <strong data-bulk-total>0,00 &euro;</strong>
                 </div>
                 <div class="bulk-actions">
+                    <select id="schedule-cbi-bank-account" class="form-select form-select-sm schedule-cbi-account" aria-label="Conto ordinante CBI">
+                        <option value="">Conto ordinante</option>
+                        {% for account in bank_accounts %}
+                            <option value="{{ account.iban }}">
+                                {{ account.name }} - {{ account.iban }}
+                                {% if account.legal_entity %} ({{ account.legal_entity.name }}){% endif %}
+                            </option>
+                        {% endfor %}
+                    </select>
                     <button type="button" class="btn btn-sm btn-outline-secondary" data-bulk-action="print">
                         <i class="bi bi-printer"></i> Stampa come PDF
                     </button>
@@ -221,7 +230,7 @@
                     <button type="button" class="btn btn-sm btn-outline-secondary" data-bulk-action="export">
                         <i class="bi bi-download"></i> Esporta CSV
                     </button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" disabled title="TODO">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bulk-action="cbi" data-cbi-url="{{ url_for('payments.schedule_cbi') }}">
                         <i class="bi bi-file-earmark-text"></i> Genera CBI
                     </button>
                 </div>
@@ -317,6 +326,11 @@
             {% endif %}
             <form id="schedule-print-form" method="post" action="{{ url_for('payments.schedule_print') }}" class="d-none">
                 <input type="hidden" name="document_ids" id="schedule-print-ids">
+            </form>
+            <form id="schedule-cbi-form" method="post" action="{{ url_for('payments.schedule_cbi') }}" class="d-none">
+                <input type="hidden" name="document_ids" id="schedule-cbi-ids">
+                <input type="hidden" name="bank_account_iban" id="schedule-cbi-bank-account-hidden">
+                <input type="hidden" name="profile_code" value="generic_pain001">
             </form>
         </div>
     </div>
