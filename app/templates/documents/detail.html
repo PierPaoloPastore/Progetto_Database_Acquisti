@@ -644,14 +644,13 @@
                                                         </div>
                                                     </div>
                                                     {% if can_detach_payment %}
-                                                        <form method="post"
-                                                              action="{{ url_for('documents.detach_payment_view', document_id=invoice.id, payment_id=p.id) }}"
-                                                              onsubmit="return confirm('Staccare il pagamento #{{ p.id }} da questo documento?');">
-                                                            <input type="hidden" name="confirm_text" value="" data-doc-edit-confirm>
-                                                            <button type="submit" class="btn btn-sm btn-outline-danger" data-doc-edit disabled>
-                                                                <i class="bi bi-link-45deg"></i> Stacca pagamento
-                                                            </button>
-                                                        </form>
+                                                        <button type="submit"
+                                                                class="btn btn-sm btn-outline-danger"
+                                                                form="detach-payment-form-{{ p.id }}"
+                                                                data-doc-edit
+                                                                disabled>
+                                                            <i class="bi bi-link-45deg"></i> Stacca pagamento
+                                                        </button>
                                                     {% else %}
                                                         <span class="badge bg-light text-dark border">Solo scadenza</span>
                                                     {% endif %}
@@ -684,6 +683,19 @@
         </button>
     </div>
 </div>
+
+{% for p in payments %}
+    {% set can_detach_payment = p.payment_document_id or p.paid_date or p.paid_amount or p.status in ['paid', 'partial'] %}
+    {% if can_detach_payment %}
+        <form id="detach-payment-form-{{ p.id }}"
+              method="post"
+              action="{{ url_for('documents.detach_payment_view', document_id=invoice.id, payment_id=p.id) }}"
+              class="d-none"
+              onsubmit="return confirm('Staccare il pagamento #{{ p.id }} da questo documento?');">
+            <input type="hidden" name="confirm_text" value="" data-doc-edit-confirm>
+        </form>
+    {% endif %}
+{% endfor %}
 
 <div class="modal fade" id="xmlPreviewModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
