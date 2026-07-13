@@ -8,16 +8,22 @@
 
 {% block content %}
 <div class="container-fluid reports-page">
-    <div class="reports-header">
-        <div class="reports-title">
-            <h1 class="h3 mb-1">Reportistica</h1>
-            <div class="reports-context">
-                Dati riferiti a <strong>{{ total_documents|format_int }}</strong> documenti - Ultimo aggiornamento: {{ last_updated }}
-            </div>
+    <h1 class="visually-hidden" data-nav-title>Reportistica</h1>
+
+    <section class="reports-hero" aria-labelledby="reports-title">
+        <div class="reports-hero-copy">
+            <div class="reports-eyebrow">Reportistica</div>
+            <h2 id="reports-title">Sintesi acquisti {{ year }}</h2>
+            <p>
+                Valori aggregati su <strong>{{ total_documents|format_int }}</strong> documenti
+                {% if legal_entity_id %}per l'intestazione selezionata{% else %}su tutte le intestazioni{% endif %}
+                {% if doc_type_filter != 'all' %} e sul tipo documento filtrato{% endif %}.
+                Aggiornato il {{ last_updated }}.
+            </p>
         </div>
-        <form method="get" class="reports-filters">
+        <form method="get" class="reports-filters" aria-label="Filtri reportistica">
             <div class="filters-item">
-                <label for="legal_entity_id" class="form-label small text-muted mb-1">Intestazione</label>
+                <label for="legal_entity_id" class="form-label">Intestazione</label>
                 <select id="legal_entity_id" name="legal_entity_id" class="form-select form-select-sm">
                     <option value="">Tutte le intestazioni</option>
                     {% for entity in legal_entities %}
@@ -26,7 +32,7 @@
                 </select>
             </div>
             <div class="filters-item">
-                <label for="year" class="form-label small text-muted mb-1">Anno</label>
+                <label for="year" class="form-label">Anno</label>
                 <select id="year" name="year" class="form-select form-select-sm">
                     {% if years %}
                         {% for y in years %}
@@ -38,7 +44,7 @@
                 </select>
             </div>
             <div class="filters-item">
-                <label for="type" class="form-label small text-muted mb-1">Tipo</label>
+                <label for="type" class="form-label">Tipo</label>
                 <select id="type" name="type" class="form-select form-select-sm">
                     {% for opt in type_options %}
                         <option value="{{ opt.value }}" {% if opt.value == doc_type_filter %}selected{% endif %}>{{ opt.label }}</option>
@@ -46,176 +52,220 @@
                 </select>
             </div>
             <div class="filters-actions">
-                <button type="submit" class="btn btn-sm btn-primary">Aggiorna</button>
+                <button type="submit" class="btn btn-sm btn-primary">
+                    <i class="bi bi-funnel"></i> Aggiorna
+                </button>
             </div>
         </form>
-    </div>
+    </section>
 
-    <div class="row g-3 reports-kpis">
-        <div class="col-sm-6 col-lg-3">
-            <div class="card report-card report-card-link">
-                <div class="card-body position-relative">
-                    <div class="kpi-label">Totale netto</div>
-                    <div class="kpi-value">&euro; {{ total_net }}</div>
-                    <div class="kpi-sub">
-                        {% if delta_amount is not none and delta_percent is not none %}
-                            <span class="report-delta {% if delta_percent < 0 %}is-negative{% else %}is-positive{% endif %}">
-                                {{ "+" if delta_percent > 0 else "" }}{{ delta_percent|round(1) }}% ({{ delta_amount }})
-                            </span>
-                            <span class="text-muted">vs {{ year - 1 }}</span>
-                        {% else %}
-                            <span class="text-muted">Delta n/d</span>
-                        {% endif %}
-                    </div>
-                    <a class="stretched-link" href="{{ links.total_net }}" aria-label="Vai ai documenti"></a>
-                </div>
-            </div>
-        </div>
-        <div class="col-sm-6 col-lg-3">
-            <div class="card report-card report-card-link">
-                <div class="card-body position-relative">
-                    <div class="kpi-label">Documenti</div>
-                    <div class="kpi-value">{{ total_documents|format_int }}</div>
-                    <div class="kpi-sub">Media &euro; {{ average_per_document }}</div>
-                    <a class="stretched-link" href="{{ links.documents }}" aria-label="Vai ai documenti"></a>
-                </div>
-            </div>
-        </div>
-        <div class="col-sm-6 col-lg-3">
-            <div class="card report-card">
-                <div class="card-body">
-                    <div class="kpi-label">Da revisionare</div>
-                    <div class="kpi-value">{{ pending_count|format_int }}</div>
-                    <div class="kpi-sub">
-                        <a class="btn btn-sm btn-outline-primary" href="{{ links.pending }}">Vedi documenti</a>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-sm-6 col-lg-3">
-            <div class="card report-card report-card-link">
-                <div class="card-body position-relative">
-                    <div class="kpi-label">Verificati</div>
-                    <div class="kpi-value">{{ verified_count|format_int }}</div>
-                    <div class="kpi-sub">{{ verified_percent|round(1) }}% del totale</div>
-                    <a class="stretched-link" href="{{ links.verified }}" aria-label="Vai ai documenti"></a>
-                </div>
-            </div>
-        </div>
-    </div>
+    <section class="reports-kpi-grid" aria-label="Indicatori principali">
+        <a class="report-kpi report-kpi-link" href="{{ links.total_net }}">
+            <span class="kpi-label">Totale netto</span>
+            <span class="kpi-value">&euro; {{ total_net }}</span>
+            <span class="kpi-sub">
+                {% if delta_amount is not none and delta_percent is not none %}
+                    <span class="report-delta {% if delta_percent < 0 %}is-negative{% else %}is-positive{% endif %}">
+                        {{ "+" if delta_percent > 0 else "" }}{{ delta_percent|round(1) }}%
+                    </span>
+                    <span>vs {{ year - 1 }} ({{ delta_amount }})</span>
+                {% else %}
+                    <span>Delta anno precedente non disponibile</span>
+                {% endif %}
+            </span>
+        </a>
+        <a class="report-kpi report-kpi-link" href="{{ links.documents }}">
+            <span class="kpi-label">Documenti</span>
+            <span class="kpi-value">{{ total_documents|format_int }}</span>
+            <span class="kpi-sub">Media &euro; {{ average_per_document }} per documento</span>
+        </a>
+        <a class="report-kpi report-kpi-link is-warning" href="{{ links.pending }}">
+            <span class="kpi-label">Da revisionare</span>
+            <span class="kpi-value">{{ pending_count|format_int }}</span>
+            <span class="kpi-sub">Apri i documenti con verifica pendente</span>
+        </a>
+        <a class="report-kpi report-kpi-link is-success" href="{{ links.verified }}">
+            <span class="kpi-label">Verificati</span>
+            <span class="kpi-value">{{ verified_count|format_int }}</span>
+            <span class="kpi-sub">{{ verified_percent|round(1) }}% del totale filtrato</span>
+        </a>
+    </section>
 
-    <div class="card report-card shadow-sm mb-3">
-        <div class="card-header reports-card-header">
-            <div>
-                <h5 class="mb-1">Totale netto per mese</h5>
-                <div class="text-muted small">Media mensile: &euro; {{ chart.avg_label }}</div>
-            </div>
-            <div class="reports-badges">
-                <span class="badge text-bg-light">Max {{ chart.max_label }} - &euro; {{ chart.max_total }}</span>
-                <span class="badge text-bg-light">Min {{ chart.min_label }} - &euro; {{ chart.min_total }}</span>
-            </div>
-        </div>
-        <div class="card-body">
-            <div class="reports-note small text-muted">Valori negativi in rosso.</div>
-            <div class="reports-chart">
-                <svg viewBox="0 0 {{ chart.width }} {{ chart.height + 28 }}" class="w-100" role="img" aria-label="Totale netto per mese">
-                    <line x1="0" y1="{{ chart.base_y }}" x2="{{ chart.width }}" y2="{{ chart.base_y }}" class="chart-axis"></line>
-                    {% for bar in chart.bars %}
-                        <rect
-                            class="chart-bar {% if bar.is_negative %}chart-negative{% endif %} {% if bar.is_max %}chart-peak{% endif %} {% if bar.is_min %}chart-low{% endif %}"
-                            x="{{ bar.x }}"
-                            y="{{ bar.y }}"
-                            width="{{ bar.width }}"
-                            height="{{ bar.height }}"
-                            rx="4"
-                        >
-                            <title>{{ bar.tooltip }}</title>
-                        </rect>
-                        <text x="{{ bar.x + (bar.width / 2) }}" y="{{ chart.base_y + 16 }}" text-anchor="middle" class="chart-label">{{ bar.label }}</text>
-                    {% endfor %}
-                </svg>
-            </div>
-        </div>
-    </div>
+    <section class="reports-layout reports-layout-main">
+        <article class="report-panel report-panel-wide" aria-labelledby="monthly-heading">
+            <header class="reports-card-header">
+                <div>
+                    <h3 id="monthly-heading">Andamento mensile</h3>
+                    <p>Media mensile: &euro; {{ chart.avg_label }}</p>
+                </div>
+                <div class="reports-badges" aria-label="Massimo e minimo mensile">
+                    <span class="badge text-bg-light">Max {{ chart.max_label }} - &euro; {{ chart.max_total }}</span>
+                    <span class="badge text-bg-light">Min {{ chart.min_label }} - &euro; {{ chart.min_total }}</span>
+                </div>
+            </header>
 
-    <div class="card report-card shadow-sm mb-3">
-        <div class="card-header reports-card-header">
-            <h5 class="mb-0">Spesa per categoria</h5>
-            {% if not categories_empty %}
-                <span class="text-muted small">{{ category_rows|length|format_int }} categorie</span>
-            {% endif %}
-        </div>
-        <div class="card-body">
-            {% if categories_empty %}
-                <div class="reports-empty">
-                    <div class="empty-title">Nessuna spesa per categoria</div>
-                    <div class="empty-text">Le categorie non risultano assegnate.</div>
-                    <a class="btn btn-sm btn-primary" href="{{ links.uncategorized }}">Assegna categorie</a>
+            {% if chart.has_data %}
+                <div class="reports-chart" role="img" aria-label="Totale netto per mese">
+                    <svg viewBox="0 0 {{ chart.width }} {{ chart.height + 40 }}" class="w-100" aria-hidden="true" focusable="false">
+                        <line x1="0" y1="{{ chart.base_y }}" x2="{{ chart.width }}" y2="{{ chart.base_y }}" class="chart-axis"></line>
+                        {% for bar in chart.bars %}
+                            <g class="chart-month">
+                                <rect
+                                    class="chart-bar {% if bar.is_negative %}chart-negative{% endif %} {% if bar.is_max %}chart-peak{% endif %} {% if bar.is_min %}chart-low{% endif %}"
+                                    x="{{ bar.x }}"
+                                    y="{{ bar.y }}"
+                                    width="{{ bar.width }}"
+                                    height="{{ bar.height }}"
+                                    rx="5"
+                                >
+                                    <title>{{ bar.tooltip }}</title>
+                                </rect>
+                                <text x="{{ bar.x + (bar.width / 2) }}" y="{{ chart.base_y + 22 }}" text-anchor="middle" class="chart-label">{{ bar.label }}</text>
+                            </g>
+                        {% endfor %}
+                    </svg>
+                </div>
+                <div class="reports-chart-caption">
+                    Le barre rosse indicano valori negativi. Passa sopra una barra per mese, documenti e top fornitore.
                 </div>
             {% else %}
-                <div class="category-list">
-                    {% for row in category_rows %}
-                        <div class="category-row position-relative">
-                            <div class="category-main">
-                                <div>
-                                    <div class="category-name">{{ row.name }}</div>
-                                    <div class="category-meta">Quota {{ row.percent|round(1) }}%</div>
-                                </div>
-                                <div class="category-amount">&euro; {{ row.total|format_amount }}</div>
-                            </div>
-                            <div class="category-progress">
-                                <div class="progress">
-                                    <div class="progress-bar" role="progressbar" style="width: {{ row.percent|round(1) }}%" aria-valuenow="{{ row.percent|round(1) }}" aria-valuemin="0" aria-valuemax="100"></div>
-                                </div>
-                            </div>
-                            <a class="stretched-link" href="{{ row.url }}" aria-label="Apri categoria {{ row.name }}"></a>
-                        </div>
-                    {% endfor %}
+                <div class="reports-empty">
+                    <div class="empty-title">Nessun andamento mensile</div>
+                    <div class="empty-text">Non ci sono valori per i filtri selezionati.</div>
                 </div>
             {% endif %}
-        </div>
-    </div>
+        </article>
 
-    <div class="card report-card shadow-sm">
-        <div class="card-header reports-card-header">
-            <h5 class="mb-0">Fornitori per importo</h5>
-            {% if top_suppliers|length > 0 %}
-                <span class="text-muted small">{{ top_suppliers|length|format_int }} fornitori</span>
+        <aside class="report-panel report-insights" aria-labelledby="insights-heading">
+            <header class="reports-card-header compact">
+                <h3 id="insights-heading">Lettura rapida</h3>
+            </header>
+            {% if report_insights %}
+                <ul class="insight-list">
+                    {% for insight in report_insights %}
+                        <li>
+                            <i class="bi {{ insight.icon }}" aria-hidden="true"></i>
+                            <span>{{ insight.text }}</span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <div class="reports-empty compact">
+                    <div class="empty-text">Non ci sono ancora dati sufficienti per generare insight.</div>
+                </div>
             {% endif %}
-        </div>
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-sm align-middle report-table">
-                    <thead>
-                        <tr>
-                            <th>Fornitore</th>
-                            <th class="text-end">Totale</th>
-                            <th class="text-end">% sul totale</th>
-                            <th class="text-end">Media &euro;/doc</th>
-                            <th class="text-end">Documenti</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for row in top_suppliers %}
-                            <tr class="report-row position-relative">
-                                <td>
-                                    {{ row.name }}
-                                    <a class="stretched-link" href="{{ row.url }}" aria-label="Apri documenti di {{ row.name }}"></a>
-                                </td>
-                                <td class="text-end">&euro; {{ row.total|format_amount }}</td>
-                                <td class="text-end">{{ row.percent|round(1) }}%</td>
-                                <td class="text-end">&euro; {{ row.avg|format_amount }}</td>
-                                <td class="text-end">{{ row.documents|format_int }}</td>
-                            </tr>
-                        {% else %}
-                            <tr>
-                                <td colspan="5" class="text-center text-muted">Nessun dato disponibile.</td>
-                            </tr>
+        </aside>
+    </section>
+
+    <section class="reports-layout">
+        <article class="report-panel" aria-labelledby="category-heading">
+            <header class="reports-card-header">
+                <div>
+                    <h3 id="category-heading">Composizione per categoria</h3>
+                    <p>Distribuzione della spesa categorizzata.</p>
+                </div>
+                {% if category_donut.has_data %}
+                    <span class="text-muted small">{{ category_donut.category_count|format_int }} categorie</span>
+                {% endif %}
+            </header>
+
+            {% if category_donut.has_data %}
+                <div class="category-donut-layout">
+                    <div class="category-donut" style="background: conic-gradient({{ category_donut.gradient }});" role="img" aria-label="Grafico donut spesa per categoria">
+                        <div class="category-donut-hole">
+                            <span class="donut-total">&euro; {{ category_donut.total_label }}</span>
+                            <span class="donut-label">totale rappresentato</span>
+                        </div>
+                    </div>
+                    <ul class="category-legend">
+                        {% for row in category_donut.segments %}
+                            <li>
+                                <span class="legend-swatch" style="background-color: {{ row.color }};" aria-hidden="true"></span>
+                                <div class="legend-main">
+                                    {% if row.url %}
+                                        <a href="{{ row.url }}">{{ row.name }}</a>
+                                    {% else %}
+                                        <span>{{ row.name }}</span>
+                                    {% endif %}
+                                    <small>
+                                        &euro; {{ row.total_label }} - {{ row.percent_label }}
+                                        {% if row.is_other and row.children_count %} su {{ row.children_count }} categorie{% endif %}
+                                    </small>
+                                </div>
+                            </li>
                         {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
+                    </ul>
+                </div>
+            {% else %}
+                <div class="reports-empty">
+                    <div class="empty-title">Nessuna spesa categorizzata</div>
+                    <div class="empty-text">Le categorie non risultano assegnate o hanno totale pari a zero.</div>
+                    <a class="btn btn-sm btn-primary" href="{{ links.uncategorized }}">Assegna categorie</a>
+                </div>
+            {% endif %}
+        </article>
+
+        <article class="report-panel" aria-labelledby="suppliers-heading">
+            <header class="reports-card-header">
+                <div>
+                    <h3 id="suppliers-heading">Fornitori per importo</h3>
+                    <p>Classifica per peso sulla spesa filtrata.</p>
+                </div>
+                {% if top_suppliers|length > 0 %}
+                    <span class="text-muted small">{{ top_suppliers|length|format_int }} fornitori</span>
+                {% endif %}
+            </header>
+
+            {% if top_suppliers %}
+                <div class="supplier-ranking" role="list">
+                    {% for row in top_suppliers[:10] %}
+                        <a class="supplier-rank-card {% if row.rank <= 3 %}is-top{% endif %}" href="{{ row.url }}" role="listitem">
+                            <span class="supplier-rank">#{{ row.rank }}</span>
+                            <span class="supplier-info">
+                                <span class="supplier-name">{{ row.name }}</span>
+                                <span class="supplier-meta">{{ row.documents|format_int }} documenti - media &euro; {{ row.avg|format_amount }}</span>
+                            </span>
+                            <span class="supplier-values">
+                                <span class="supplier-total">&euro; {{ row.total|format_amount }}</span>
+                                <span class="supplier-share">
+                                    <span class="share-bar" aria-hidden="true"><span style="width: {{ row.share_percent|round(1) }}%"></span></span>
+                                    <span>{{ row.percent|round(1) }}%</span>
+                                </span>
+                            </span>
+                        </a>
+                    {% endfor %}
+                </div>
+
+                {% if top_suppliers|length > 10 %}
+                    <details class="supplier-more">
+                        <summary>Mostra tutti i fornitori</summary>
+                        <div class="supplier-ranking" role="list">
+                            {% for row in top_suppliers[10:] %}
+                                <a class="supplier-rank-card" href="{{ row.url }}" role="listitem">
+                                    <span class="supplier-rank">#{{ row.rank }}</span>
+                                    <span class="supplier-info">
+                                        <span class="supplier-name">{{ row.name }}</span>
+                                        <span class="supplier-meta">{{ row.documents|format_int }} documenti - media &euro; {{ row.avg|format_amount }}</span>
+                                    </span>
+                                    <span class="supplier-values">
+                                        <span class="supplier-total">&euro; {{ row.total|format_amount }}</span>
+                                        <span class="supplier-share">
+                                            <span class="share-bar" aria-hidden="true"><span style="width: {{ row.share_percent|round(1) }}%"></span></span>
+                                            <span>{{ row.percent|round(1) }}%</span>
+                                        </span>
+                                    </span>
+                                </a>
+                            {% endfor %}
+                        </div>
+                    </details>
+                {% endif %}
+            {% else %}
+                <div class="reports-empty">
+                    <div class="empty-title">Nessun fornitore nel periodo</div>
+                    <div class="empty-text">Modifica i filtri o verifica che ci siano documenti registrati.</div>
+                </div>
+            {% endif %}
+        </article>
+    </section>
 </div>
 {% endblock %}

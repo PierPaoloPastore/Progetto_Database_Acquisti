@@ -22,6 +22,15 @@ from app.services.formatting_service import format_amount
 
 reports_bp = Blueprint("reports", __name__, url_prefix="/reports")
 
+_DONUT_COLORS = [
+    "#1f6f43",
+    "#0d6efd",
+    "#7c3aed",
+    "#b7791f",
+    "#0f766e",
+    "#b42318",
+]
+
 
 @reports_bp.get("/")
 def index():
@@ -114,10 +123,19 @@ def index():
             {
                 **row,
                 "percent": percent,
+                "share_percent": min(max(abs(percent), 0), 100),
                 "avg": avg_value,
                 "url": _list_url(supplier_id=row["supplier_id"]),
+                "rank": len(suppliers_rows) + 1,
             }
         )
+
+    category_donut = _build_category_donut(category_rows)
+    report_insights = _build_report_insights(
+        category_donut=category_donut,
+        suppliers_rows=suppliers_rows,
+        chart=chart,
+    )
 
     return render_template(
         "reports/index.html",
@@ -143,6 +161,8 @@ def index():
         chart=chart,
         top_suppliers=suppliers_rows,
         category_rows=category_rows,
+        category_donut=category_donut,
+        report_insights=report_insights,
         categories_empty=len(category_rows) == 0,
     )
 
@@ -153,22 +173,26 @@ def _build_monthly_chart(report) -> dict:
     counts = report.counts
     top_suppliers = report.top_suppliers or [None] * 12
     max_value = max((abs(v) for v in values), default=0) or 1
+    has_negative = any(value < 0 for value in values)
 
-    bar_width = 24
-    gap = 8
-    top_padding = 4
-    chart_height = 110
+    bar_width = 28
+    gap = 10
+    top_padding = 10
+    chart_height = 150
     chart_width = gap + (bar_width + gap) * len(labels)
-    base_y = top_padding + chart_height
+    positive_height = int(chart_height * 0.68) if has_negative else chart_height
+    negative_height = chart_height - positive_height if has_negative else 0
+    base_y = top_padding + positive_height
 
     bars = []
     max_total = max(values) if values else 0
     min_total = min(values) if values else 0
     for idx, label in enumerate(labels):
         value = values[idx] if idx < len(values) else 0
-        height = int((abs(value) / max_value) * chart_height)
+        available_height = negative_height if value < 0 else positive_height
+        height = int((abs(value) / max_value) * available_height)
         x = gap + idx * (bar_width + gap)
-        y = base_y - height
+        y = base_y if value < 0 else base_y - height
         top_supplier = top_suppliers[idx] if idx < len(top_suppliers) else None
         top_supplier_label = "n/d"
         if top_supplier:
@@ -189,10 +213,11 @@ def _build_monthly_chart(report) -> dict:
                 "is_max": value == max_total,
                 "is_min": value == min_total,
                 "is_negative": value < 0,
+                "raw_value": value,
                 "x": x,
                 "y": y,
                 "width": bar_width,
-                "height": height,
+                "height": max(height, 1) if value else 0,
             }
         )
 
@@ -204,6 +229,7 @@ def _build_monthly_chart(report) -> dict:
         "height": chart_height,
         "base_y": base_y,
         "bars": bars,
+        "has_data": any(value != 0 for value in values),
         "max_value": _format_amount(max_value),
         "max_label": labels[max_idx],
         "max_total": _format_amount(max_total),
@@ -215,6 +241,139 @@ def _build_monthly_chart(report) -> dict:
 
 def _format_amount(value: float) -> str:
     return format_amount(value)
+
+
+def _build_category_donut(category_rows: list[dict], max_slices: int = 6) -> dict:
+    positive_rows = [
+        {
+            **row,
+            "total": float(row.get("total") or 0),
+        }
+        for row in category_rows
+        if float(row.get("total") or 0) > 0
+    ]
+    positive_total = sum(row["total"] for row in positive_rows)
+    if not positive_rows or positive_total <= 0:
+        return {
+            "has_data": False,
+            "segments": [],
+            "gradient": "",
+            "total": 0,
+            "total_label": _format_amount(0),
+            "category_count": 0,
+        }
+
+    top_limit = max_slices
+    if len(positive_rows) > max_slices:
+        top_limit = max(1, max_slices - 1)
+
+    visible_rows = positive_rows[:top_limit]
+    extra_rows = positive_rows[top_limit:]
+    if extra_rows:
+        visible_rows.append(
+            {
+                "name": "Altre categorie",
+                "total": sum(row["total"] for row in extra_rows),
+                "url": None,
+                "category_id": None,
+                "children_count": len(extra_rows),
+            }
+        )
+
+    segments = []
+    cursor = 0.0
+    gradient_parts = []
+    for idx, row in enumerate(visible_rows):
+        value = float(row["total"])
+        percent = (value / positive_total * 100) if positive_total else 0
+        start = cursor
+        end = 100.0 if idx == len(visible_rows) - 1 else cursor + percent
+        color = _DONUT_COLORS[idx % len(_DONUT_COLORS)]
+        cursor = end
+        gradient_parts.append(f"{color} {start:.4f}% {end:.4f}%")
+        segments.append(
+            {
+                **row,
+                "color": color,
+                "percent": percent,
+                "percent_label": _format_percent(percent),
+                "total_label": _format_amount(value),
+                "is_other": row.get("category_id") is None,
+            }
+        )
+
+    return {
+        "has_data": True,
+        "segments": segments,
+        "gradient": ", ".join(gradient_parts),
+        "total": positive_total,
+        "total_label": _format_amount(positive_total),
+        "category_count": len(positive_rows),
+    }
+
+
+def _build_report_insights(
+    *,
+    category_donut: dict,
+    suppliers_rows: list[dict],
+    chart: dict,
+) -> list[dict]:
+    insights = []
+
+    segments = category_donut.get("segments") or []
+    if segments:
+        top_category = segments[0]
+        insights.append(
+            {
+                "icon": "bi-pie-chart",
+                "text": (
+                    f"{top_category['name']} rappresenta "
+                    f"il {top_category['percent_label']} della spesa categorizzata."
+                ),
+            }
+        )
+        first_three = segments[:3]
+        if len(first_three) >= 2:
+            top_three_percent = sum(float(row.get("percent") or 0) for row in first_three)
+            insights.append(
+                {
+                    "icon": "bi-layers",
+                    "text": (
+                        f"Le prime {len(first_three)} categorie concentrano "
+                        f"il {_format_percent(top_three_percent)} del totale categorizzato."
+                    ),
+                }
+            )
+
+    if suppliers_rows:
+        top_supplier = suppliers_rows[0]
+        insights.append(
+            {
+                "icon": "bi-building",
+                "text": (
+                    f"{top_supplier['name']} pesa per il "
+                    f"{_format_percent(top_supplier.get('percent') or 0)} della spesa filtrata."
+                ),
+            }
+        )
+
+    if chart.get("has_data"):
+        insights.append(
+            {
+                "icon": "bi-calendar3",
+                "text": (
+                    f"{chart['max_label']} e' il mese con la spesa piu' alta "
+                    f"(EUR {chart['max_total']})."
+                ),
+            }
+        )
+
+    return insights
+
+
+def _format_percent(value: float) -> str:
+    return f"{float(value or 0):.1f}%".replace(".", ",")
+
 
 def _build_type_options(document_types: list[str]) -> list[dict]:
     labels = {
