@@ -61,7 +61,7 @@
 
     <section class="reports-kpi-grid" aria-label="Indicatori principali">
         <a class="report-kpi report-kpi-link" href="{{ links.total_net }}">
-            <span class="kpi-label">Totale netto</span>
+            <span class="kpi-label">Totale lordo</span>
             <span class="kpi-value">&euro; {{ total_net }}</span>
             <span class="kpi-sub">
                 {% if delta_amount is not none and delta_percent is not none %}
@@ -105,7 +105,7 @@
             </header>
 
             {% if chart.has_data %}
-                <div class="reports-chart" role="img" aria-label="Totale netto per mese">
+                <div class="reports-chart" role="img" aria-label="Totale lordo per mese">
                     <svg viewBox="0 0 {{ chart.width }} {{ chart.height + 40 }}" class="w-100" aria-hidden="true" focusable="false">
                         <line x1="0" y1="{{ chart.base_y }}" x2="{{ chart.width }}" y2="{{ chart.base_y }}" class="chart-axis"></line>
                         {% for bar in chart.bars %}
@@ -196,6 +196,24 @@
                         {% endfor %}
                     </ul>
                 </div>
+                {% if category_donut.other_rows %}
+                    <details class="category-other-details">
+                        <summary>
+                            <span>Mostra categorie raggruppate</span>
+                            <small>{{ category_donut.other_rows|length|format_int }} categorie in "Altre categorie"</small>
+                        </summary>
+                        <div class="category-other-list">
+                            {% for row in category_donut.other_rows %}
+                                <a class="category-other-row" href="{{ row.url }}">
+                                    <span class="category-other-name">{{ row.name }}</span>
+                                    <span class="category-other-values">
+                                        &euro; {{ row.total_label }} <span>{{ row.percent_label }}</span>
+                                    </span>
+                                </a>
+                            {% endfor %}
+                        </div>
+                    </details>
+                {% endif %}
             {% else %}
                 <div class="reports-empty">
                     <div class="empty-title">Nessuna spesa categorizzata</div>
@@ -217,8 +235,9 @@
             </header>
 
             {% if top_suppliers %}
-                <div class="supplier-ranking" role="list">
-                    {% for row in top_suppliers[:10] %}
+                <div class="supplier-scroll" tabindex="0" aria-label="Classifica fornitori scorrevole">
+                    <div class="supplier-ranking" role="list">
+                    {% for row in top_suppliers %}
                         <a class="supplier-rank-card {% if row.rank <= 3 %}is-top{% endif %}" href="{{ row.url }}" role="listitem">
                             <span class="supplier-rank">#{{ row.rank }}</span>
                             <span class="supplier-info">
@@ -234,31 +253,8 @@
                             </span>
                         </a>
                     {% endfor %}
+                    </div>
                 </div>
-
-                {% if top_suppliers|length > 10 %}
-                    <details class="supplier-more">
-                        <summary>Mostra tutti i fornitori</summary>
-                        <div class="supplier-ranking" role="list">
-                            {% for row in top_suppliers[10:] %}
-                                <a class="supplier-rank-card" href="{{ row.url }}" role="listitem">
-                                    <span class="supplier-rank">#{{ row.rank }}</span>
-                                    <span class="supplier-info">
-                                        <span class="supplier-name">{{ row.name }}</span>
-                                        <span class="supplier-meta">{{ row.documents|format_int }} documenti - media &euro; {{ row.avg|format_amount }}</span>
-                                    </span>
-                                    <span class="supplier-values">
-                                        <span class="supplier-total">&euro; {{ row.total|format_amount }}</span>
-                                        <span class="supplier-share">
-                                            <span class="share-bar" aria-hidden="true"><span style="width: {{ row.share_percent|round(1) }}%"></span></span>
-                                            <span>{{ row.percent|round(1) }}%</span>
-                                        </span>
-                                    </span>
-                                </a>
-                            {% endfor %}
-                        </div>
-                    </details>
-                {% endif %}
             {% else %}
                 <div class="reports-empty">
                     <div class="empty-title">Nessun fornitore nel periodo</div>

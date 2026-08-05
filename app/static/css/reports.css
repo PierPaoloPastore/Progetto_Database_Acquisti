@@ -530,10 +530,88 @@
     color: #64748b;
 }
 
+.category-other-details {
+    margin-top: 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #fafbfc;
+}
+
+.category-other-details summary {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.75rem 0.85rem;
+    cursor: pointer;
+    color: #1f2d3d;
+    font-weight: 700;
+}
+
+.category-other-details summary small {
+    color: #64748b;
+    font-weight: 500;
+}
+
+.category-other-details summary:focus-visible,
+.supplier-scroll:focus-visible {
+    outline: 3px solid rgba(13, 110, 253, 0.25);
+    outline-offset: 2px;
+}
+
+.category-other-list {
+    display: flex;
+    flex-direction: column;
+    max-height: 18rem;
+    overflow-y: auto;
+    border-top: 1px solid #e2e8f0;
+}
+
+.category-other-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.65rem 0.85rem;
+    color: inherit;
+    text-decoration: none;
+}
+
+.category-other-row:hover,
+.category-other-row:focus-visible {
+    color: inherit;
+    background: #f1f5f9;
+}
+
+.category-other-name {
+    min-width: 0;
+    font-weight: 650;
+    overflow-wrap: anywhere;
+}
+
+.category-other-values {
+    flex: 0 0 auto;
+    color: #1f2d3d;
+    font-weight: 700;
+    text-align: right;
+}
+
+.category-other-values span {
+    display: block;
+    color: #64748b;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
 .supplier-ranking {
     display: flex;
     flex-direction: column;
     gap: 0.65rem;
+}
+
+.supplier-scroll {
+    max-height: 34rem;
+    overflow-y: auto;
+    padding-right: 0.25rem;
+    scrollbar-gutter: stable;
 }
 
 .supplier-rank-card {
@@ -707,5 +785,19 @@
 
     .supplier-share {
         justify-content: flex-start;
+    }
+
+    .category-other-details summary,
+    .category-other-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .category-other-values {
+        text-align: left;
+    }
+
+    .supplier-scroll {
+        max-height: 28rem;
     }
 }

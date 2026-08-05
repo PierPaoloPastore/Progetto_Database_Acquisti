@@ -185,17 +185,17 @@
                     </div>
                     <div class="col-md-4">
                         <label for="document_date" class="form-label fw-bold">Data documento</label>
-                        <input type="date" id="document_date" name="document_date" class="form-control"
+                        <input type="date" id="document_date" name="document_date" class="form-control" min="1990-01-01"
                                value="{{ form_data.get('document_date', '') }}">
                     </div>
                     <div class="col-md-4">
                         <label for="registration_date" class="form-label fw-bold">Data registrazione</label>
-                        <input type="date" id="registration_date" name="registration_date" class="form-control"
+                        <input type="date" id="registration_date" name="registration_date" class="form-control" min="1990-01-01"
                                value="{{ form_data.get('registration_date', '') }}">
                     </div>
                     <div class="col-md-4">
                         <label for="due_date" class="form-label fw-bold">Scadenza</label>
-                        <input type="date" id="due_date" name="due_date" class="form-control"
+                        <input type="date" id="due_date" name="due_date" class="form-control" min="1990-01-01"
                                value="{{ form_data.get('due_date', '') }}">
                     </div>
                     <div class="col-md-4">
@@ -241,12 +241,12 @@
                     <div class="row g-3">
                         <div class="col-md-3">
                             <label for="f24_period_from" class="form-label fw-bold">Periodo dal</label>
-                            <input type="date" id="f24_period_from" name="f24_period_from" class="form-control"
+                            <input type="date" id="f24_period_from" name="f24_period_from" class="form-control" min="1990-01-01"
                                    value="{{ form_data.get('f24_period_from', '') }}">
                         </div>
                         <div class="col-md-3">
                             <label for="f24_period_to" class="form-label fw-bold">Periodo al</label>
-                            <input type="date" id="f24_period_to" name="f24_period_to" class="form-control"
+                            <input type="date" id="f24_period_to" name="f24_period_to" class="form-control" min="1990-01-01"
                                    value="{{ form_data.get('f24_period_to', '') }}">
                         </div>
                         <div class="col-md-3">
@@ -272,12 +272,12 @@
                         </div>
                         <div class="col-md-4">
                             <label for="insurance_coverage_start" class="form-label fw-bold">Copertura dal</label>
-                            <input type="date" id="insurance_coverage_start" name="insurance_coverage_start" class="form-control"
+                            <input type="date" id="insurance_coverage_start" name="insurance_coverage_start" class="form-control" min="1990-01-01"
                                    value="{{ form_data.get('insurance_coverage_start', '') }}">
                         </div>
                         <div class="col-md-4">
                             <label for="insurance_coverage_end" class="form-label fw-bold">Copertura al</label>
-                            <input type="date" id="insurance_coverage_end" name="insurance_coverage_end" class="form-control"
+                            <input type="date" id="insurance_coverage_end" name="insurance_coverage_end" class="form-control" min="1990-01-01"
                                    value="{{ form_data.get('insurance_coverage_end', '') }}">
                         </div>
                         <div class="col-md-4">

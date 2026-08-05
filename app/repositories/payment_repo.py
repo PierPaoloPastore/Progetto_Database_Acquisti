@@ -6,7 +6,7 @@ from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import List, Optional
 
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, case, func, or_
 from sqlalchemy.orm import joinedload
 
 from app.models import Document, LegalEntity, Payment, PaymentDocument, Supplier
@@ -154,7 +154,7 @@ class PaymentRepository(SqlAlchemyRepository[Payment]):
 
         return query.filter(or_(*search_filters))
 
-    def search_paid_history_page(
+    def _build_paid_history_query(
         self,
         *,
         q: str | None = None,
@@ -162,28 +162,22 @@ class PaymentRepository(SqlAlchemyRepository[Payment]):
         date_to=None,
         bank_account_iban: str | None = None,
         payment_method: str | None = None,
-        page: int = 1,
-        page_size: int = 50,
-    ) -> tuple[List[Payment], int, int]:
-        """Restituisce una pagina della cronologia pagamenti con filtri avanzati."""
-        if page < 1:
-            page = 1
-        if page_size < 1:
-            page_size = 50
-
+        include_options: bool = True,
+    ):
         query = (
             self.session.query(Payment)
             .join(Document, Payment.document_id == Document.id)
             .outerjoin(Supplier, Document.supplier_id == Supplier.id)
             .outerjoin(LegalEntity, Document.legal_entity_id == LegalEntity.id)
             .outerjoin(PaymentDocument, Payment.payment_document_id == PaymentDocument.id)
-            .options(
+            .filter(Payment.status.in_(["paid", "partial"]))
+        )
+        if include_options:
+            query = query.options(
                 joinedload(Payment.document).joinedload(Document.supplier),
                 joinedload(Payment.document).joinedload(Document.legal_entity),
                 joinedload(Payment.payment_document),
             )
-            .filter(Payment.status.in_(["paid", "partial"]))
-        )
 
         if date_from is not None:
             query = query.filter(Payment.paid_date >= date_from)
@@ -207,6 +201,34 @@ class PaymentRepository(SqlAlchemyRepository[Payment]):
         if search_text:
             query = self._apply_history_search(query, search_text)
 
+        return query
+
+    def search_paid_history_page(
+        self,
+        *,
+        q: str | None = None,
+        date_from=None,
+        date_to=None,
+        bank_account_iban: str | None = None,
+        payment_method: str | None = None,
+        page: int = 1,
+        page_size: int = 50,
+    ) -> tuple[List[Payment], int, int]:
+        """Restituisce una pagina della cronologia pagamenti con filtri avanzati."""
+        if page < 1:
+            page = 1
+        if page_size < 1:
+            page_size = 50
+
+        query = self._build_paid_history_query(
+            q=q,
+            date_from=date_from,
+            date_to=date_to,
+            bank_account_iban=bank_account_iban,
+            payment_method=payment_method,
+            include_options=True,
+        )
+
         total = query.order_by(None).count()
         if total:
             max_page = (total - 1) // page_size + 1
@@ -221,3 +243,114 @@ class PaymentRepository(SqlAlchemyRepository[Payment]):
             .all()
         )
         return items, total, page
+
+    def search_paid_history_events_page(
+        self,
+        *,
+        q: str | None = None,
+        date_from=None,
+        date_to=None,
+        bank_account_iban: str | None = None,
+        payment_method: str | None = None,
+        page: int = 1,
+        page_size: int = 50,
+    ) -> tuple[List[List[Payment]], int, int]:
+        """Restituisce una pagina di eventi: batch aggregati e pagamenti singoli."""
+        if page < 1:
+            page = 1
+        if page_size < 1:
+            page_size = 50
+
+        query = self._build_paid_history_query(
+            q=q,
+            date_from=date_from,
+            date_to=date_to,
+            bank_account_iban=bank_account_iban,
+            payment_method=payment_method,
+            include_options=False,
+        )
+
+        group_payment_document_id = Payment.payment_document_id.label("payment_document_id")
+        group_single_payment_id = case(
+            (Payment.payment_document_id.is_(None), Payment.id),
+            else_=None,
+        ).label("single_payment_id")
+        event_paid_date = func.max(Payment.paid_date).label("event_paid_date")
+        event_updated_at = func.max(Payment.updated_at).label("event_updated_at")
+        event_payment_id = func.max(Payment.id).label("event_payment_id")
+
+        grouped_query = (
+            query.with_entities(
+                group_payment_document_id,
+                group_single_payment_id,
+                event_paid_date,
+                event_updated_at,
+                event_payment_id,
+            )
+            .group_by(group_payment_document_id, group_single_payment_id)
+        )
+
+        total = grouped_query.order_by(None).count()
+        if total:
+            max_page = (total - 1) // page_size + 1
+            page = min(page, max_page)
+        else:
+            page = 1
+
+        event_rows = (
+            grouped_query.order_by(
+                event_paid_date.desc(),
+                event_updated_at.desc(),
+                event_payment_id.desc(),
+            )
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+            .all()
+        )
+        payment_document_ids = [
+            row.payment_document_id for row in event_rows if row.payment_document_id is not None
+        ]
+        single_payment_ids = [
+            row.single_payment_id for row in event_rows if row.single_payment_id is not None
+        ]
+        if not payment_document_ids and not single_payment_ids:
+            return [], total, page
+
+        related_query = (
+            self.session.query(Payment)
+            .options(
+                joinedload(Payment.document).joinedload(Document.supplier),
+                joinedload(Payment.document).joinedload(Document.legal_entity),
+                joinedload(Payment.payment_document),
+            )
+            .filter(Payment.status.in_(["paid", "partial"]))
+        )
+        related_filters = []
+        if payment_document_ids:
+            related_filters.append(Payment.payment_document_id.in_(payment_document_ids))
+        if single_payment_ids:
+            related_filters.append(Payment.id.in_(single_payment_ids))
+        related_payments = (
+            related_query.filter(or_(*related_filters))
+            .order_by(Payment.paid_date.desc(), Payment.updated_at.desc(), Payment.id.desc())
+            .all()
+        )
+
+        by_document_id: dict[int, list[Payment]] = {}
+        by_single_id: dict[int, list[Payment]] = {}
+        for payment in related_payments:
+            if payment.payment_document_id:
+                by_document_id.setdefault(payment.payment_document_id, []).append(payment)
+            else:
+                by_single_id[payment.id] = [payment]
+
+        events = []
+        for row in event_rows:
+            if row.payment_document_id is not None:
+                payments = by_document_id.get(row.payment_document_id, [])
+            else:
+                payments = by_single_id.get(row.single_payment_id, [])
+            if payments:
+                events.append(payments)
+
+        return events, total, page

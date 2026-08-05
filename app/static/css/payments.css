@@ -129,6 +129,38 @@
     min-width: 0;
 }
 
+.payment-history-batch-row {
+    cursor: default;
+}
+
+.payment-history-toggle {
+    color: #0f172a;
+}
+
+.payment-history-toggle .bi {
+    transition: transform 0.15s ease;
+}
+
+.payment-history-toggle[aria-expanded="true"] .bi {
+    transform: rotate(90deg);
+}
+
+.payment-history-subrow td {
+    background: #f8fbff;
+}
+
+.payment-history-subpayments {
+    padding: 0.75rem 1rem;
+    border-top: 1px solid #dbeafe;
+    border-bottom: 1px solid #dbeafe;
+    background: #f8fbff;
+}
+
+.payment-history-subpayments .table {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+}
+
 .filter-chips {
     display: flex;
     flex-wrap: wrap;

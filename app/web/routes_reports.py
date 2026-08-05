@@ -269,7 +269,19 @@ def _build_category_donut(category_rows: list[dict], max_slices: int = 6) -> dic
 
     visible_rows = positive_rows[:top_limit]
     extra_rows = positive_rows[top_limit:]
+    other_rows = []
     if extra_rows:
+        other_rows = [
+            {
+                **row,
+                "percent": (float(row["total"]) / positive_total * 100) if positive_total else 0,
+                "percent_label": _format_percent(
+                    (float(row["total"]) / positive_total * 100) if positive_total else 0
+                ),
+                "total_label": _format_amount(float(row["total"])),
+            }
+            for row in extra_rows
+        ]
         visible_rows.append(
             {
                 "name": "Altre categorie",
@@ -309,6 +321,7 @@ def _build_category_donut(category_rows: list[dict], max_slices: int = 6) -> dic
         "total": positive_total,
         "total_label": _format_amount(positive_total),
         "category_count": len(positive_rows),
+        "other_rows": other_rows,
     }
 
 

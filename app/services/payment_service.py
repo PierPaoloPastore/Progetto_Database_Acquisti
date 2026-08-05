@@ -542,13 +542,14 @@ def list_paid_payments_page(
     filters: Optional[PaymentHistoryFilters] = None,
     page: int = 1,
     page_size: int = 50,
-) -> tuple[List[Payment], int, int]:
+) -> tuple[List[dict], int, int]:
     """
-    Restituisce una pagina dei pagamenti eseguiti (stato paid/partial).
+    Restituisce una pagina della cronologia pagamenti.
+    I movimenti dello stesso documento di pagamento sono aggregati in un evento.
     """
     active_filters = filters or PaymentHistoryFilters()
     with UnitOfWork() as uow:
-        return uow.payments.search_paid_history_page(
+        event_groups, total, page = uow.payments.search_paid_history_events_page(
             q=active_filters.q,
             date_from=active_filters.date_from,
             date_to=active_filters.date_to,
@@ -557,6 +558,57 @@ def list_paid_payments_page(
             page=page,
             page_size=page_size,
         )
+        return [_build_payment_history_event(group) for group in event_groups], total, page
+
+
+def _build_payment_history_event(payments: Sequence[Payment]) -> dict:
+    ordered_payments = sorted(
+        payments,
+        key=lambda item: (
+            item.paid_date or date.min,
+            item.updated_at or datetime.min,
+            item.id or 0,
+        ),
+        reverse=True,
+    )
+    representative = ordered_payments[0]
+    payment_document = representative.payment_document
+    supplier_names = []
+    legal_entity_names = []
+    document_ids = set()
+    for payment in ordered_payments:
+        document = payment.document
+        if not document:
+            continue
+        document_ids.add(document.id)
+        if document.supplier and document.supplier.name not in supplier_names:
+            supplier_names.append(document.supplier.name)
+        if document.legal_entity and document.legal_entity.name not in legal_entity_names:
+            legal_entity_names.append(document.legal_entity.name)
+
+    total_paid = float(sum(_to_decimal(payment.paid_amount) for payment in ordered_payments))
+    statuses = {(payment.status or "").strip().lower() for payment in ordered_payments}
+    event_status = "partial" if "partial" in statuses else (representative.status or "paid")
+    event_id = (
+        f"doc-{payment_document.id}"
+        if payment_document
+        else f"payment-{representative.id}"
+    )
+    return {
+        "event_id": event_id,
+        "payment": representative,
+        "payment_document": payment_document,
+        "related_payments": ordered_payments,
+        "is_batch": len(ordered_payments) > 1,
+        "total_paid": total_paid,
+        "documents_count": len(document_ids),
+        "supplier_names": supplier_names,
+        "legal_entity_names": legal_entity_names,
+        "status": event_status,
+        "paid_date": representative.paid_date,
+        "updated_at": representative.updated_at,
+        "payment_method": representative.payment_method,
+    }
 
 
 def attach_payment_amounts(documents: Sequence[Document]) -> None:

@@ -279,7 +279,7 @@
                         </div>
                     </div>
                     <div class="d-flex align-items-center gap-2 flex-wrap">
-                        <span class="badge bg-light text-dark">{{ payment_history_total|format_int }} movimenti</span>
+                        <span class="badge bg-light text-dark">{{ payment_history_total|format_int }} voci</span>
                         <span class="text-muted small">
                             {{ payment_history_pagination.start_item }}-{{ payment_history_pagination.end_item }} visualizzati
                         </span>
@@ -305,15 +305,30 @@
                             </tr>
                         </thead>
                         <tbody>
-                                {% for payment in payment_history %}
+                                {% for event in payment_history %}
+                                {% set payment = event.payment %}
                                 {% set invoice = payment.document %}
-                                {% set payment_document = payment.payment_document %}
-                                {% set raw_method = payment.payment_method or '' %}
-                                {% set method_label = payment_method_labels.get(raw_method) or raw_method or (payment.payment_document.payment_type if payment.payment_document else '') %}
-                                <tr>
-                                    <td>{{ payment.paid_date.strftime('%d/%m/%Y') if payment.paid_date else (payment.updated_at.strftime('%d/%m/%Y') if payment.updated_at else '-') }}</td>
+                                {% set payment_document = event.payment_document %}
+                                {% set raw_method = event.payment_method or '' %}
+                                {% set method_label = payment_method_labels.get(raw_method) or raw_method or (payment_document.payment_type if payment_document else '') %}
+                                {% set collapse_id = 'payment-history-' ~ event.event_id %}
+                                <tr class="{% if event.is_batch %}payment-history-batch-row{% endif %}">
+                                    <td>{{ event.paid_date.strftime('%d/%m/%Y') if event.paid_date else (event.updated_at.strftime('%d/%m/%Y') if event.updated_at else '-') }}</td>
                                     <td>
-                                        {% if invoice %}
+                                        {% if event.is_batch %}
+                                            <button
+                                                type="button"
+                                                class="btn btn-link btn-sm p-0 text-decoration-none fw-bold payment-history-toggle"
+                                                data-bs-toggle="collapse"
+                                                data-bs-target="#{{ collapse_id }}"
+                                                aria-expanded="false"
+                                                aria-controls="{{ collapse_id }}"
+                                            >
+                                                <i class="bi bi-chevron-right"></i>
+                                                Batch pagamento #{{ payment_document.id if payment_document else payment.id }}
+                                            </button>
+                                            <div class="text-muted small">{{ event.documents_count|format_int }} documenti collegati</div>
+                                        {% elif invoice %}
                                             <div class="fw-bold">{{ invoice.document_number or ('Documento #' ~ invoice.id) }}</div>
                                             {% if invoice.id %}
                                                 <div class="text-muted small">ID {{ invoice.id }}</div>
@@ -323,7 +338,12 @@
                                         {% endif %}
                                     </td>
                                     <td>
-                                        {% if invoice and invoice.supplier %}
+                                        {% if event.is_batch %}
+                                            <div class="fw-bold">{{ event.supplier_names|join(', ') if event.supplier_names else 'Fornitori non disponibili' }}</div>
+                                            {% if event.legal_entity_names %}
+                                                <div class="text-muted small">{{ event.legal_entity_names|join(', ') }}</div>
+                                            {% endif %}
+                                        {% elif invoice and invoice.supplier %}
                                             <a href="{{ url_for('suppliers.detail_view', supplier_id=invoice.supplier_id) }}" class="text-decoration-none fw-bold">
                                                 {{ invoice.supplier.name }}
                                             </a>
@@ -334,7 +354,7 @@
                                             <span class="text-muted">-</span>
                                         {% endif %}
                                     </td>
-                                    <td class="text-end">{{ (payment.paid_amount if payment.paid_amount is not none else 0)|format_amount }} &euro;</td>
+                                    <td class="text-end">{{ event.total_paid|format_amount }} &euro;</td>
                                     <td>{{ method_label or 'N/D' }}</td>
                                     <td>
                                         {% if payment_document and payment_document.bank_account_iban %}
@@ -344,7 +364,7 @@
                                         {% endif %}
                                     </td>
                                     <td>
-                                        <span class="status-badge status-{{ payment.status }}">{{ payment.status }}</span>
+                                        <span class="status-badge status-{{ event.status }}">{{ event.status }}</span>
                                     </td>
                                     <td class="text-end">
                                         <a href="{{ url_for('payments.payment_detail_view', payment_id=payment.id) }}" class="btn btn-sm btn-outline-primary">
@@ -352,6 +372,69 @@
                                         </a>
                                     </td>
                                 </tr>
+                                {% if event.is_batch %}
+                                    <tr class="payment-history-subrow">
+                                        <td colspan="8" class="p-0">
+                                            <div class="collapse" id="{{ collapse_id }}">
+                                                <div class="payment-history-subpayments">
+                                                    <div class="table-responsive">
+                                                        <table class="table table-sm mb-0 align-middle">
+                                                            <thead>
+                                                                <tr>
+                                                                    <th>Documento</th>
+                                                                    <th>Fornitore</th>
+                                                                    <th class="text-end">Pagato</th>
+                                                                    <th>Stato</th>
+                                                                    <th class="text-end">Azioni</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {% for subpayment in event.related_payments %}
+                                                                    {% set subdoc = subpayment.document %}
+                                                                    <tr>
+                                                                        <td>
+                                                                            {% if subdoc %}
+                                                                                <div class="fw-semibold">{{ subdoc.document_number or ('Documento #' ~ subdoc.id) }}</div>
+                                                                                <small class="text-muted">ID {{ subdoc.id }}</small>
+                                                                            {% else %}
+                                                                                <span class="text-muted">Documento non disponibile</span>
+                                                                            {% endif %}
+                                                                        </td>
+                                                                        <td>
+                                                                            {% if subdoc and subdoc.supplier %}
+                                                                                <a href="{{ url_for('suppliers.detail_view', supplier_id=subdoc.supplier_id) }}" class="text-decoration-none">
+                                                                                    {{ subdoc.supplier.name }}
+                                                                                </a>
+                                                                                {% if subdoc.legal_entity %}
+                                                                                    <div class="text-muted small">{{ subdoc.legal_entity.name }}</div>
+                                                                                {% endif %}
+                                                                            {% else %}
+                                                                                <span class="text-muted">-</span>
+                                                                            {% endif %}
+                                                                        </td>
+                                                                        <td class="text-end">{{ (subpayment.paid_amount if subpayment.paid_amount is not none else 0)|format_amount }} &euro;</td>
+                                                                        <td>
+                                                                            <span class="status-badge status-{{ subpayment.status }}">{{ subpayment.status }}</span>
+                                                                        </td>
+                                                                        <td class="text-end">
+                                                                            {% if subdoc %}
+                                                                                <a href="{{ url_for('documents.detail_view', document_id=subdoc.id) }}" class="btn btn-sm btn-outline-secondary">
+                                                                                    <i class="bi bi-box-arrow-up-right"></i> Apri documento
+                                                                                </a>
+                                                                            {% else %}
+                                                                                <span class="text-muted">-</span>
+                                                                            {% endif %}
+                                                                        </td>
+                                                                    </tr>
+                                                                {% endfor %}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% endif %}
                             {% else %}
                                 <tr>
                                     <td colspan="8" class="text-center py-5 text-muted">
