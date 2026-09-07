@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 
 _DECIMAL_ZERO = Decimal("0.00")
 _DUPLICATE_PAYMENT_WINDOW_SECONDS = 15
+_UNSET = object()
 
 
 class DuplicatePaymentSubmissionError(ValueError):
@@ -488,15 +489,28 @@ def delete_payment(payment_id: int) -> bool:
 def update_payment(
     payment_id: int,
     *,
-    paid_date: Optional[date] = None,
-    paid_amount: Optional[float] = None,
-    payment_method: Optional[str] = None,
-    notes: Optional[str] = None,
+    due_date=_UNSET,
+    expected_amount=_UNSET,
+    paid_date=_UNSET,
+    paid_amount=_UNSET,
+    payment_terms=_UNSET,
+    payment_method=_UNSET,
+    bank_account_iban=_UNSET,
+    notes=_UNSET,
 ) -> tuple[bool, str]:
     """
     Aggiorna dati principali di un pagamento e ricalcola lo stato del documento.
     """
-    cleaned_method = normalize_payment_method_code(payment_method)
+    cleaned_method = (
+        normalize_payment_method_code(payment_method)
+        if payment_method is not _UNSET
+        else None
+    )
+    cleaned_iban = (
+        normalize_iban(bank_account_iban)
+        if bank_account_iban is not _UNSET
+        else None
+    )
 
     def _parse_amount(value: Optional[float | str]) -> Optional[Decimal]:
         if value in (None, ""):
@@ -511,14 +525,57 @@ def update_payment(
         if not payment:
             return False, "Pagamento non trovato."
 
-        if paid_date:
+        if due_date is not _UNSET:
+            payment.due_date = due_date
+        if expected_amount is not _UNSET:
+            payment.expected_amount = _parse_amount(expected_amount)
+        if paid_date is not _UNSET:
             payment.paid_date = paid_date
-        if paid_amount is not None:
+        if paid_amount is not _UNSET:
             payment.paid_amount = _parse_amount(paid_amount)
-        if cleaned_method:
+        if payment_terms is not _UNSET:
+            payment.payment_terms = (payment_terms or "").strip() or None
+        if payment_method is not _UNSET:
             payment.payment_method = cleaned_method
-        if notes is not None:
-            payment.notes = notes.strip() or None
+            if payment.payment_document:
+                mapped_type = resolve_payment_document_type(cleaned_method)
+                if mapped_type:
+                    payment.payment_document.payment_type = mapped_type
+        if bank_account_iban is not _UNSET:
+            payment_document = payment.payment_document
+            if cleaned_iban:
+                account = uow.bank_accounts.get_by_iban(cleaned_iban)
+                if not account:
+                    return False, "IBAN non trovato."
+
+                document = uow.session.get(Document, payment.document_id)
+                if (
+                    document
+                    and document.legal_entity_id
+                    and account.legal_entity_id != document.legal_entity_id
+                ):
+                    return False, "IBAN non appartenente all'intestazione del documento."
+
+                if payment_document is None:
+                    placeholder_name = f"payment_{payment_id}_{date.today().isoformat()}"
+                    payment_document = PaymentDocument(
+                        supplier_id=document.supplier_id if document else None,
+                        file_name=placeholder_name,
+                        file_path=placeholder_name,
+                        payment_type=resolve_payment_document_type(payment.payment_method),
+                        status="reconciled",
+                        bank_account_iban=cleaned_iban,
+                        uploaded_at=datetime.utcnow(),
+                    )
+                    uow.session.add(payment_document)
+                    uow.session.flush()
+                    payment.payment_document = payment_document
+                else:
+                    payment_document.bank_account_iban = cleaned_iban
+            elif payment_document is not None:
+                payment_document.bank_account_iban = None
+        if notes is not _UNSET:
+            payment.notes = (notes or "").strip() or None
 
         expected_amount = Decimal(payment.expected_amount or 0)
         paid_value = Decimal(payment.paid_amount or 0)

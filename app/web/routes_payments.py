@@ -681,30 +681,51 @@ def edit_payment_view(payment_id: int):
         flash("Conferma non valida. Modifica annullata.", "warning")
         return redirect(url_for("payments.payment_detail_view", payment_id=payment_id))
 
-    paid_date = None
-    date_str = (request.form.get("paid_date") or "").strip()
-    if date_str:
+    def _parse_optional_date(field_name: str, label: str):
+        raw_value = (request.form.get(field_name) or "").strip()
+        if not raw_value:
+            return None
         try:
-            paid_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+            return datetime.strptime(raw_value, "%Y-%m-%d").date()
         except ValueError:
-            flash("Data pagamento non valida.", "warning")
-            return redirect(url_for("payments.payment_detail_view", payment_id=payment_id))
+            flash(f"{label} non valida.", "warning")
+            return False
 
-    paid_amount = (request.form.get("paid_amount") or "").replace(",", ".")
-    if paid_amount == "":
-        paid_amount_value = None
-    else:
+    def _parse_optional_amount(field_name: str, label: str):
+        raw_value = (request.form.get(field_name) or "").replace(",", ".").strip()
+        if raw_value == "":
+            return None
         try:
-            paid_amount_value = float(paid_amount)
+            return float(raw_value)
         except ValueError:
-            flash("Importo non valido.", "warning")
-            return redirect(url_for("payments.payment_detail_view", payment_id=payment_id))
+            flash(f"{label} non valido.", "warning")
+            return False
+
+    due_date = _parse_optional_date("due_date", "Data scadenza")
+    if due_date is False:
+        return redirect(url_for("payments.payment_detail_view", payment_id=payment_id))
+
+    paid_date = _parse_optional_date("paid_date", "Data pagamento")
+    if paid_date is False:
+        return redirect(url_for("payments.payment_detail_view", payment_id=payment_id))
+
+    expected_amount_value = _parse_optional_amount("expected_amount", "Importo previsto")
+    if expected_amount_value is False:
+        return redirect(url_for("payments.payment_detail_view", payment_id=payment_id))
+
+    paid_amount_value = _parse_optional_amount("paid_amount", "Importo pagato")
+    if paid_amount_value is False:
+        return redirect(url_for("payments.payment_detail_view", payment_id=payment_id))
 
     ok, message = update_payment(
         payment_id,
+        due_date=due_date,
+        expected_amount=expected_amount_value,
         paid_date=paid_date,
         paid_amount=paid_amount_value,
+        payment_terms=request.form.get("payment_terms"),
         payment_method=request.form.get("payment_method") or None,
+        bank_account_iban=request.form.get("bank_account_iban"),
         notes=request.form.get("notes") or None,
     )
     flash(message, "success" if ok else "danger")
@@ -894,6 +915,7 @@ def payment_detail_view(payment_id: int):
     detail["payment_method_label"] = method_label
     detail["payment_confirm_label"] = f"Pagamento #{payment_id}"
     detail["payment_method_choices"] = list_payment_method_choices()
+    detail["bank_accounts"] = list_all_bank_accounts()
     has_payment_file = False
     if payment_document and payment_document.file_path:
         base_path = settings_service.get_payment_files_storage_path()

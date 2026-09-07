@@ -57,6 +57,15 @@
                         <dt class="col-5 text-muted">Metodo</dt>
                         <dd class="col-7">{{ payment_method_label or '-' }}</dd>
 
+                        <dt class="col-5 text-muted">IBAN</dt>
+                        <dd class="col-7">
+                            {% if payment_document and payment_document.bank_account_iban %}
+                                <span class="font-monospace small">{{ payment_document.bank_account_iban }}</span>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </dd>
+
                         <dt class="col-5 text-muted">Note</dt>
                         <dd class="col-7">{{ payment.notes or '-' }}</dd>
                     </dl>
@@ -178,6 +187,14 @@
                         <input type="hidden" name="confirm_text" id="payment-edit-confirm-text" value="">
                         <div class="row g-2">
                             <div class="col-md-4">
+                                <label class="form-label small fw-bold">Data scadenza</label>
+                                <input type="date" name="due_date" class="form-control form-control-sm" value="{{ payment.due_date }}" data-payment-edit disabled>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold">Importo previsto</label>
+                                <input type="number" step="0.01" name="expected_amount" class="form-control form-control-sm text-end" value="{{ payment.expected_amount if payment.expected_amount is not none else '' }}" data-payment-edit disabled>
+                            </div>
+                            <div class="col-md-4">
                                 <label class="form-label small fw-bold">Data pagamento</label>
                                 <input type="date" name="paid_date" class="form-control form-control-sm" value="{{ payment.paid_date }}" data-payment-edit disabled>
                             </div>
@@ -193,6 +210,25 @@
                                         <option value="{{ code }}" {% if payment.payment_method == code %}selected{% endif %}>{{ code }} - {{ label }}</option>
                                     {% endfor %}
                                 </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold">IBAN conto ordinante</label>
+                                <select name="bank_account_iban" class="form-select form-select-sm js-select2" data-payment-edit disabled>
+                                    <option value="">Nessun IBAN</option>
+                                    {% for account in bank_accounts %}
+                                        <option
+                                            value="{{ account.iban }}"
+                                            data-legal-entity-id="{{ account.legal_entity_id }}"
+                                            {% if payment_document and payment_document.bank_account_iban == account.iban %}selected{% endif %}
+                                        >
+                                            {{ account.name }} - {{ account.iban }} - {{ account.legal_entity.name if account.legal_entity else 'N/D' }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold">Termini pagamento</label>
+                                <input type="text" name="payment_terms" class="form-control form-control-sm" value="{{ payment.payment_terms or '' }}" data-payment-edit disabled>
                             </div>
                             <div class="col-12">
                                 <label class="form-label small fw-bold">Note</label>
