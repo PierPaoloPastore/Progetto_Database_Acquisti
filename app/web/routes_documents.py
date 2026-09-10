@@ -77,6 +77,7 @@ _LIST_QUERY_KEYS = {
     "physical_copy_status",
     "payment_status",
     "category_id",
+    "category_ids",
     "category_unassigned",
     "amount_operator",
     "amount_value",
@@ -238,6 +239,8 @@ def _build_document_filter_context(
     if filters.legal_entity_id:
         entity_name = legal_entity_lookup.get(filters.legal_entity_id, f"ID {filters.legal_entity_id}")
         _add_chip(f"Intestatario: {entity_name}", ["legal_entity_id"])
+    if filters.category_ids:
+        _add_chip("Categorie: " + ", ".join(map(str, filters.category_ids)), ["category_ids"])
     if filters.category_id:
         _add_chip(f"Categoria: ID {filters.category_id}", ["category_id"])
     if filters.category_unassigned:
@@ -292,6 +295,7 @@ def _build_document_filter_context(
             filters.legal_entity_id,
             filters.accounting_year,
             filters.category_id,
+            filters.category_ids,
             filters.category_unassigned,
             filters.doc_status,
             filters.payment_status,

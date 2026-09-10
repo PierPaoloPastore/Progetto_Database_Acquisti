@@ -8,7 +8,7 @@ import io
 from datetime import date, datetime
 
 
-from flask import Response, Blueprint, render_template, request, url_for
+from flask import abort, Response, Blueprint, render_template, request, url_for
 
 from app.services.reporting_service import (
     get_category_breakdown,
@@ -46,24 +46,26 @@ def index():
     if legal_entity_id not in valid_legal_entity_ids:
         legal_entity_id = None
     doc_type_filter = request.args.get("type", "all")
-    document_types = list_document_types(year)
+    date_from, date_to = _parse_report_dates()
+    document_types = list_document_types(None if date_from else year)
     if doc_type_filter != "all" and doc_type_filter not in document_types:
         doc_type_filter = "all"
     type_options = _build_type_options(document_types)
     categories = list_all_categories()
-    category_id = request.args.get("category_id", type=int)
-    if category_id not in {category.id for category in categories}:
-        category_id = None
+    valid_categories = {category.id for category in categories}
+    category_ids = sorted(set(request.args.getlist("category_id", type=int)) & valid_categories)
+    scope = dict(legal_entity_id=legal_entity_id, category_id=category_ids or None,
+                 date_from=date_from, date_to=date_to)
 
     monthly_report = get_monthly_totals(
-        year, doc_type_filter, legal_entity_id=legal_entity_id, category_id=category_id
+        year, doc_type_filter, **scope
     )
-    status_counts = get_status_counts(year, doc_type_filter, legal_entity_id, category_id)
+    status_counts = get_status_counts(year, doc_type_filter, **scope)
     suppliers = get_top_suppliers(
-        year, doc_type_filter, legal_entity_id=legal_entity_id, category_id=category_id
+        year, doc_type_filter, **scope
     )
     category_breakdown = get_category_breakdown(
-        year, doc_type_filter, legal_entity_id=legal_entity_id, category_id=category_id
+        year, doc_type_filter, **scope
     )
 
     total_documents = monthly_report.total_documents
@@ -76,13 +78,13 @@ def index():
     previous_year_total = None
     delta_amount = None
     delta_percent = None
-    if (year - 1) in years:
+    if not date_from and (year - 1) in years:
         previous_report = get_monthly_totals(
             year - 1,
             doc_type_filter,
             include_top_suppliers=False,
             legal_entity_id=legal_entity_id,
-            category_id=category_id,
+            category_id=category_ids or None,
         )
         previous_year_total = previous_report.total
         if previous_year_total:
@@ -91,14 +93,19 @@ def index():
 
     if request.args.get("format") == "csv":
         return _export_csv(
-            year, doc_type_filter, legal_entity_id, category_id,
+            year, doc_type_filter, legal_entity_id, category_ids,
             monthly_report, status_counts, suppliers, category_breakdown,
-            previous_year_total,
+            previous_year_total, date_from, date_to,
+            entity_name=next((row["name"] for row in legal_entities
+                              if row["id"] == legal_entity_id), "Tutte le intestazioni"),
+            category_names=[category.name for category in categories
+                            if category.id in category_ids],
         )
 
-    list_filters = {"year": year}
-    if category_id is not None:
-        list_filters["category_id"] = category_id
+    list_filters = ({"date_from": date_from.isoformat(), "date_to": date_to.isoformat()}
+                    if date_from else {"date_from": f"{year}-01-01", "date_to": f"{year}-12-31"})
+    if category_ids:
+        list_filters["category_ids"] = ",".join(map(str, category_ids))
     if legal_entity_id is not None:
         list_filters["legal_entity_id"] = legal_entity_id
     if doc_type_filter != "all":
@@ -159,7 +166,10 @@ def index():
         year=year,
         years=years,
         categories=categories,
-        category_id=category_id,
+        category_ids=category_ids,
+        date_from=date_from.isoformat() if date_from else "",
+        date_to=date_to.isoformat() if date_to else "",
+        period_label=f"{date_from:%d/%m/%Y} – {date_to:%d/%m/%Y}" if date_from else str(year),
         legal_entities=legal_entities,
         legal_entity_id=legal_entity_id,
         doc_type_filter=doc_type_filter,
@@ -186,8 +196,23 @@ def index():
     )
 
 
+def _parse_report_dates():
+    raw_from = request.args.get("date_from", "")
+    raw_to = request.args.get("date_to", "")
+    if not raw_from and not raw_to:
+        return None, None
+    try:
+        start, end = date.fromisoformat(raw_from), date.fromisoformat(raw_to)
+    except ValueError:
+        abort(400, description="Inserisci entrambe le date Da e A in formato valido.")
+    if start > end:
+        abort(400, description="La data Da deve precedere o coincidere con la data A.")
+    return start, end
+
+
 def _export_csv(year, doc_type, entity_id, category_id, monthly, statuses,
-                suppliers, categories, previous_total):
+                suppliers, categories, previous_total, date_from=None, date_to=None,
+                *, entity_name=None, category_names=None):
     output = io.StringIO(newline="")
     writer = csv.writer(output, delimiter=";", lineterminator="\r\n")
 
@@ -200,35 +225,78 @@ def _export_csv(year, doc_type, entity_id, category_id, monthly, statuses,
             else value for value in values
         ])
 
-    write("Anno", "Tipo documento", "ID intestazione", "ID categoria")
-    write(year, doc_type, entity_id or "Tutte", category_id or "Tutte")
-    write("Sezione", "Voce", "Numero documenti", "Importo EUR")
-    write("Riepilogo", "Totale lordo documenti", monthly.total_documents, monthly.total)
-    write("Riepilogo", "Media per documento", "",
-          monthly.total / monthly.total_documents if monthly.total_documents else 0.0)
+    month_names = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
+                   "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"]
+    type_label = next(option["label"] for option in _build_type_options([doc_type])
+                      if option["value"] == doc_type)
+    start = date_from or date(year, 1, 1)
+    end = date_to or date(year, 12, 31)
+    write("REPORT ACQUISTI")
+    write("Periodo", f"{start:%d/%m/%Y} - {end:%d/%m/%Y}")
+    write("Tipo documento", type_label)
+    write("Intestazione", entity_name or (f"Intestazione {entity_id}" if entity_id else "Tutte le intestazioni"))
+    selected_names = category_names if category_names is not None else [f"Categoria {item}" for item in category_id]
+    write("Categorie selezionate", ", ".join(selected_names) or "Tutte le categorie")
+    write("Criterio categorie", "Documenti contenenti almeno una delle categorie selezionate; totali riferiti all'intero documento.")
+    write("Valuta", "EUR - importi in euro")
+    write()
+    write("RIEPILOGO")
+    write("Indicatore", "Valore", "Unita")
+    write("Numero documenti", monthly.total_documents, "documenti")
+    write("Totale lordo documenti", monthly.total, "EUR")
+    write("Media per documento",
+          monthly.total / monthly.total_documents if monthly.total_documents else 0.0, "EUR")
     if previous_total is not None:
-        write("Confronto", str(year - 1), "", previous_total)
-        write("Confronto", "Differenza EUR", "", monthly.total - previous_total)
+        write(f"Totale lordo anno {year - 1}", previous_total, "EUR")
+        write("Variazione rispetto all'anno precedente", monthly.total - previous_total, "EUR")
+        if previous_total:
+            write("Variazione percentuale", (monthly.total - previous_total) / previous_total * 100, "%")
+    write()
+    write("ANDAMENTO MENSILE")
+    write("Mese", "Numero documenti", "Totale lordo (EUR)", "Media per documento (EUR)",
+          "Fornitore principale", "Totale fornitore principale (EUR)")
     for month, (value, count) in enumerate(zip(monthly.values, monthly.counts), 1):
-        write("Mese", f"{year}-{month:02d}", count, value)
+        period = monthly.periods[month - 1] if monthly.periods else f"{year}-{month:02d}"
+        label = f"{month_names[int(period[5:]) - 1]} {period[:4]}"
         top = monthly.top_suppliers[month - 1]
-        if top:
-            write("Primo fornitore " + f"{year}-{month:02d}", top["name"], "", top["total"])
+        write(label, count, value, value / count if count else 0.0,
+              top["name"] if top else "", top["total"] if top else "")
+    write("TOTALE PERIODO", monthly.total_documents, monthly.total)
+    write()
+    write("STATO DOCUMENTI")
+    write("Stato", "Numero documenti")
+    status_labels = {"pending_physical_copy": "Da revisionare", "verified": "Verificati", "archived": "Archiviati"}
     for status, count in statuses.items():
-        write("Stato documento", status, count, "")
+        write(status_labels.get(status, status), count)
+    write()
+    write("SPESA PER FORNITORE")
+    write("Fornitore", "Numero documenti", "Totale lordo (EUR)", "Media per documento (EUR)")
     for row in suppliers:
-        write("Fornitore", row["name"], row["documents"], row["total"])
+        write(row["name"], row["documents"], row["total"],
+              row["total"] / row["documents"] if row["documents"] else 0.0)
+    if not suppliers:
+        write("Nessun fornitore nel periodo selezionato")
+    write()
+    write("SPESA PER CATEGORIA")
+    write("Categoria", "Totale righe (EUR)")
     for row in categories.rows:
-        write("Categoria (importi righe)", row["name"], "", row["total"])
-    write("Categorie", "Totale righe incluse quelle senza categoria", "", categories.total)
+        write(row["name"], row["total"])
+    if not categories.rows:
+        write("Nessuna categoria assegnata nel periodo selezionato")
+    write("Righe senza categoria", categories.total - sum(row["total"] for row in categories.rows))
+    write("TOTALE RIGHE", categories.total)
+    write("Nota", "Gli importi per categoria si riferiscono alle righe dei documenti e possono differire dai totali lordi.")
+    filename = f"reportistica_{start:%Y-%m-%d}_{end:%Y-%m-%d}.csv"
     return Response(
         "\ufeff" + output.getvalue(), content_type="text/csv; charset=utf-8",
-        headers={"Content-Disposition": f'attachment; filename="reportistica_{year}.csv"'},
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
 def _build_monthly_chart(report) -> dict:
     labels = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"]
+    if report.periods:
+        labels = [f"{labels[int(period[5:]) - 1]} {period[:4]}" for period in report.periods]
     values = report.values
     counts = report.counts
     top_suppliers = report.top_suppliers or [None] * 12
@@ -281,7 +349,7 @@ def _build_monthly_chart(report) -> dict:
             }
         )
 
-    avg_value = report.total / 12 if report.total else 0
+    avg_value = report.total / len(values) if values else 0
     max_idx = values.index(max_total) if values else 0
     min_idx = values.index(min_total) if values else 0
     return {

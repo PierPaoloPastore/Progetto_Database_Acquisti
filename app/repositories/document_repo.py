@@ -223,9 +223,12 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
         min_total: Optional[Decimal] = None,
         max_total: Optional[Decimal] = None,
         limit: Optional[int] = 200,
+        category_ids: tuple[int, ...] = (),
     ) -> List[Document]:
         """Ricerca documenti avanzata."""
         query = self.session.query(Document)
+        if category_ids:
+            query = query.filter(Document.invoice_lines.any(DocumentLine.category_id.in_(category_ids)))
         category_filter_applied = False
         line_filter_applied = False
 

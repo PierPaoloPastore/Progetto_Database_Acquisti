@@ -154,6 +154,7 @@ def search_documents(
             legal_entity_id=filters.legal_entity_id,
             accounting_year=filters.accounting_year,
             category_id=filters.category_id,
+            category_ids=filters.category_ids,
             category_unassigned=filters.category_unassigned,
             min_total=filters.min_total,
             max_total=filters.max_total,

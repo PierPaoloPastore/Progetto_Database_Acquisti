@@ -1,4 +1,5 @@
 <form id="documents-filters-form" class="documents-filters" method="GET" action="{{ filters_action }}">
+    {% if filters.category_ids %}<input type="hidden" name="category_ids" value="{{ filters.category_ids|join(',') }}">{% endif %}
     <div class="filters-primary">
         <div>
             <label class="form-label fw-bold small">Cerca</label>

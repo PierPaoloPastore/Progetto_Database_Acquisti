@@ -11,7 +11,7 @@ from sqlalchemy import func
 
 from app.models import Category, Document, DocumentLine, LegalEntity, Supplier
 from app.services.unit_of_work import UnitOfWork
-from app.repositories.reporting_repo import filter_report_category
+from app.repositories.reporting_repo import filter_report_category, filter_report_period
 
 
 @dataclass
@@ -22,6 +22,7 @@ class MonthlyReport:
     total: float
     total_documents: int
     top_suppliers: List[dict | None]
+    periods: List[str] | None = None
 
 
 @dataclass
@@ -113,34 +114,43 @@ def get_monthly_totals(
     doc_type_filter: str,
     include_top_suppliers: bool = True,
     legal_entity_id: int | None = None,
-    category_id: int | None = None,
+    category_id: int | list[int] | tuple[int, ...] | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
 ) -> MonthlyReport:
     if not year:
         year = date.today().year
 
-    values = [0.0] * 12
-    counts = [0] * 12
-    top_suppliers: List[dict | None] = [None] * 12
+    start = date_from or date(year, 1, 1)
+    end = date_to or date(year, 12, 31)
+    first_month = start.year * 12 + start.month - 1
+    last_month = end.year * 12 + end.month - 1
+    periods = [f"{month // 12:04d}-{month % 12 + 1:02d}"
+               for month in range(first_month, last_month + 1)]
+    values = [0.0] * len(periods)
+    counts = [0] * len(periods)
+    top_suppliers: List[dict | None] = [None] * len(periods)
+    month_key = func.year(Document.document_date) * 12 + func.month(Document.document_date) - 1
     with UnitOfWork() as uow:
         query = (
             uow.session.query(
-                func.month(Document.document_date),
+                month_key,
                 func.coalesce(func.sum(Document.total_gross_amount), 0),
                 func.count(Document.id),
             )
             .filter(Document.document_date.isnot(None))
-            .filter(func.year(Document.document_date) == year)
         )
+        query = filter_report_period(query, year, date_from, date_to)
         query = _apply_report_filters(query, doc_type_filter, legal_entity_id, category_id)
         rows = (
-            query.group_by(func.month(Document.document_date))
-            .order_by(func.month(Document.document_date))
+            query.group_by(month_key)
+            .order_by(month_key)
             .all()
         )
 
     for month, total, count in rows:
-        idx = int(month) - 1
-        if 0 <= idx < 12:
+        idx = int(month) - first_month
+        if 0 <= idx < len(periods):
             values[idx] = float(total or 0)
             counts[idx] = int(count or 0)
 
@@ -148,26 +158,26 @@ def get_monthly_totals(
         with UnitOfWork() as uow:
             top_query = (
                 uow.session.query(
-                    func.month(Document.document_date),
+                    month_key,
                     Supplier.name,
                     func.coalesce(func.sum(Document.total_gross_amount), 0),
                 )
                 .join(Supplier, Supplier.id == Document.supplier_id)
                 .filter(Document.document_date.isnot(None))
-                .filter(func.year(Document.document_date) == year)
             )
+            top_query = filter_report_period(top_query, year, date_from, date_to)
             top_query = _apply_report_filters(
                 top_query, doc_type_filter, legal_entity_id, category_id
             )
             top_rows = (
-                top_query.group_by(func.month(Document.document_date), Supplier.id, Supplier.name)
-                .order_by(func.month(Document.document_date), func.sum(Document.total_gross_amount).desc())
+                top_query.group_by(month_key, Supplier.id, Supplier.name)
+                .order_by(month_key, func.sum(Document.total_gross_amount).desc())
                 .all()
             )
 
         for month, name, total in top_rows:
-            idx = int(month) - 1
-            if 0 <= idx < 12 and top_suppliers[idx] is None:
+            idx = int(month) - first_month
+            if 0 <= idx < len(periods) and top_suppliers[idx] is None:
                 top_suppliers[idx] = {
                     "name": name,
                     "total": float(total or 0),
@@ -182,6 +192,7 @@ def get_monthly_totals(
         total=total_sum,
         total_documents=total_documents,
         top_suppliers=top_suppliers,
+        periods=periods,
     )
 
 
@@ -189,14 +200,16 @@ def get_status_counts(
     year: int,
     doc_type_filter: str,
     legal_entity_id: int | None = None,
-    category_id: int | None = None,
+    category_id: int | list[int] | tuple[int, ...] | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
 ) -> dict[str, int]:
     with UnitOfWork() as uow:
         query = (
             uow.session.query(Document.doc_status, func.count(Document.id))
             .filter(Document.document_date.isnot(None))
-            .filter(func.year(Document.document_date) == year)
         )
+        query = filter_report_period(query, year, date_from, date_to)
         query = _apply_report_filters(query, doc_type_filter, legal_entity_id, category_id)
         rows = query.group_by(Document.doc_status).all()
     counts = {"pending_physical_copy": 0, "verified": 0, "archived": 0}
@@ -211,7 +224,9 @@ def get_top_suppliers(
     doc_type_filter: str,
     limit: int | None = None,
     legal_entity_id: int | None = None,
-    category_id: int | None = None,
+    category_id: int | list[int] | tuple[int, ...] | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
 ) -> List[dict]:
     with UnitOfWork() as uow:
         query = (
@@ -223,8 +238,8 @@ def get_top_suppliers(
             )
             .join(Document, Document.supplier_id == Supplier.id)
             .filter(Document.document_date.isnot(None))
-            .filter(func.year(Document.document_date) == year)
         )
+        query = filter_report_period(query, year, date_from, date_to)
         query = _apply_report_filters(query, doc_type_filter, legal_entity_id, category_id)
         rows_query = (
             query.group_by(Supplier.id, Supplier.name)
@@ -252,7 +267,9 @@ def get_category_breakdown(
     doc_type_filter: str,
     limit: int | None = None,
     legal_entity_id: int | None = None,
-    category_id: int | None = None,
+    category_id: int | list[int] | tuple[int, ...] | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
 ) -> CategoryBreakdown:
     with UnitOfWork() as uow:
         query = (
@@ -264,8 +281,8 @@ def get_category_breakdown(
             .join(DocumentLine, DocumentLine.category_id == Category.id)
             .join(Document, Document.id == DocumentLine.document_id)
             .filter(Document.document_date.isnot(None))
-            .filter(func.year(Document.document_date) == year)
         )
+        query = filter_report_period(query, year, date_from, date_to)
         query = _apply_report_filters(query, doc_type_filter, legal_entity_id, category_id)
         rows_query = (
             query.group_by(Category.id, Category.name)
@@ -279,8 +296,8 @@ def get_category_breakdown(
             uow.session.query(func.coalesce(func.sum(DocumentLine.total_line_amount), 0))
             .join(Document, Document.id == DocumentLine.document_id)
             .filter(Document.document_date.isnot(None))
-            .filter(func.year(Document.document_date) == year)
         )
+        total_query = filter_report_period(total_query, year, date_from, date_to)
         total_query = _apply_report_filters(
             total_query, doc_type_filter, legal_entity_id, category_id
         )
@@ -306,7 +323,7 @@ def _apply_type_filter(query, doc_type_filter: str):
 
 def _apply_report_filters(
     query, doc_type_filter: str, legal_entity_id: int | None,
-    category_id: int | None = None,
+    category_id: int | list[int] | tuple[int, ...] | None = None,
 ):
     query = filter_report_category(query, category_id)
     query = _apply_type_filter(query, doc_type_filter)

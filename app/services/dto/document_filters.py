@@ -23,6 +23,7 @@ class DocumentSearchFilters:
     physical_copy_status: Optional[str] = None
     payment_status: Optional[str] = None
     category_id: Optional[int] = None
+    category_ids: tuple[int, ...] = ()
     category_unassigned: bool = False
     amount_operator: str = "gt"
     amount_value: Optional[Decimal] = None
@@ -96,6 +97,9 @@ class DocumentSearchFilters:
             physical_copy_status=(args.get("physical_copy_status") or None),
             payment_status=(args.get("payment_status") or None),
             category_id=cls._parse_int(args.get("category_id")),
+            category_ids=tuple(sorted({int(value) for value in
+                                      str(args.get("category_ids") or "").split(",")
+                                      if value.strip().isdigit()})),
             category_unassigned=str(args.get("category_unassigned") or "").strip().lower() in {"1", "true", "yes", "on"},
             amount_operator=amount_operator,
             amount_value=amount_value,

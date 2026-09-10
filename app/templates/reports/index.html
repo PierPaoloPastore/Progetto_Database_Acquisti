@@ -13,12 +13,12 @@
     <section class="reports-hero" aria-labelledby="reports-title">
         <div class="reports-hero-copy">
             <div class="reports-eyebrow">Reportistica</div>
-            <h2 id="reports-title">Sintesi acquisti {{ year }}</h2>
+            <h2 id="reports-title">Sintesi acquisti {{ period_label }}</h2>
             <p>
                 Valori aggregati su <strong>{{ total_documents|format_int }}</strong> documenti
                 {% if legal_entity_id %}per l'intestazione selezionata{% else %}su tutte le intestazioni{% endif %}
                 {% if doc_type_filter != 'all' %} e sul tipo documento filtrato{% endif %}.
-                {% if category_id %}Documenti contenenti la categoria selezionata: i totali includono l'intero documento.{% endif %}
+                {% if category_ids %}Documenti contenenti almeno una delle categorie selezionate: i totali includono l'intero documento.{% endif %}
                 Aggiornato il {{ last_updated }}.
             </p>
         </div>
@@ -53,14 +53,28 @@
                 </select>
             </div>
             <div class="filters-item">
-                <label for="category_id" class="form-label">Categoria</label>
-                <select id="category_id" name="category_id" class="form-select form-select-sm">
-                    <option value="">Tutte le categorie</option>
-                    {% for category in categories %}
-                        <option value="{{ category.id }}" {% if category.id == category_id %}selected{% endif %}>{{ category.name }}</option>
-                    {% endfor %}
-                </select>
+                <span class="form-label d-block">Categorie</span>
+                <details>
+                    <summary class="btn btn-sm btn-outline-secondary">{{ category_ids|length }} selezionate (nessuna = tutte)</summary>
+                    <div class="border rounded p-2 overflow-auto" style="max-height: 220px">
+                        {% for category in categories %}
+                        <label class="d-block">
+                            <input type="checkbox" name="category_id" value="{{ category.id }}" {% if category.id in category_ids %}checked{% endif %}>
+                            {{ category.name }}
+                        </label>
+                        {% endfor %}
+                    </div>
+                </details>
             </div>
+            <div class="filters-item">
+                <label for="date_from" class="form-label">Da</label>
+                <input type="date" id="date_from" name="date_from" value="{{ date_from }}" class="form-control form-control-sm">
+            </div>
+            <div class="filters-item">
+                <label for="date_to" class="form-label">A (inclusa)</label>
+                <input type="date" id="date_to" name="date_to" value="{{ date_to }}" class="form-control form-control-sm">
+            </div>
+            <p class="small text-muted w-100 mb-0">Compila entrambe le date per usare un intervallo al posto dell'anno. Svuotale per tornare al filtro annuale.</p>
             <div class="filters-actions">
                 <button type="submit" class="btn btn-sm btn-primary">
                     <i class="bi bi-funnel"></i> Aggiorna
@@ -277,4 +291,22 @@
         </article>
     </section>
 </div>
+{% endblock %}
+
+
+{% block extra_js %}
+<script>
+(() => {
+    const start = document.getElementById('date_from');
+    const end = document.getElementById('date_to');
+    function validatePeriod() {
+        start.required = Boolean(end.value);
+        end.required = Boolean(start.value);
+        end.min = start.value;
+    }
+    start.addEventListener('input', validatePeriod);
+    end.addEventListener('input', validatePeriod);
+    validatePeriod();
+})();
+</script>
 {% endblock %}
