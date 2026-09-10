@@ -3,10 +3,12 @@ Route web per la reportistica.
 """
 from __future__ import annotations
 
+import csv
+import io
 from datetime import date, datetime
 
 
-from flask import Blueprint, render_template, request, url_for
+from flask import Response, Blueprint, render_template, request, url_for
 
 from app.services.reporting_service import (
     get_category_breakdown,
@@ -17,6 +19,7 @@ from app.services.reporting_service import (
     list_reporting_legal_entities,
     list_reporting_years,
 )
+from app.services.category_service import list_all_categories
 from app.services.formatting_service import format_amount
 
 
@@ -47,16 +50,20 @@ def index():
     if doc_type_filter != "all" and doc_type_filter not in document_types:
         doc_type_filter = "all"
     type_options = _build_type_options(document_types)
+    categories = list_all_categories()
+    category_id = request.args.get("category_id", type=int)
+    if category_id not in {category.id for category in categories}:
+        category_id = None
 
     monthly_report = get_monthly_totals(
-        year, doc_type_filter, legal_entity_id=legal_entity_id
+        year, doc_type_filter, legal_entity_id=legal_entity_id, category_id=category_id
     )
-    status_counts = get_status_counts(year, doc_type_filter, legal_entity_id)
+    status_counts = get_status_counts(year, doc_type_filter, legal_entity_id, category_id)
     suppliers = get_top_suppliers(
-        year, doc_type_filter, legal_entity_id=legal_entity_id
+        year, doc_type_filter, legal_entity_id=legal_entity_id, category_id=category_id
     )
     category_breakdown = get_category_breakdown(
-        year, doc_type_filter, legal_entity_id=legal_entity_id
+        year, doc_type_filter, legal_entity_id=legal_entity_id, category_id=category_id
     )
 
     total_documents = monthly_report.total_documents
@@ -75,13 +82,23 @@ def index():
             doc_type_filter,
             include_top_suppliers=False,
             legal_entity_id=legal_entity_id,
+            category_id=category_id,
         )
         previous_year_total = previous_report.total
         if previous_year_total:
             delta_amount = total_net_value - previous_year_total
             delta_percent = (delta_amount / previous_year_total) * 100
 
+    if request.args.get("format") == "csv":
+        return _export_csv(
+            year, doc_type_filter, legal_entity_id, category_id,
+            monthly_report, status_counts, suppliers, category_breakdown,
+            previous_year_total,
+        )
+
     list_filters = {"year": year}
+    if category_id is not None:
+        list_filters["category_id"] = category_id
     if legal_entity_id is not None:
         list_filters["legal_entity_id"] = legal_entity_id
     if doc_type_filter != "all":
@@ -141,6 +158,8 @@ def index():
         "reports/index.html",
         year=year,
         years=years,
+        categories=categories,
+        category_id=category_id,
         legal_entities=legal_entities,
         legal_entity_id=legal_entity_id,
         doc_type_filter=doc_type_filter,
@@ -164,6 +183,47 @@ def index():
         category_donut=category_donut,
         report_insights=report_insights,
         categories_empty=len(category_rows) == 0,
+    )
+
+
+def _export_csv(year, doc_type, entity_id, category_id, monthly, statuses,
+                suppliers, categories, previous_total):
+    output = io.StringIO(newline="")
+    writer = csv.writer(output, delimiter=";", lineterminator="\r\n")
+
+    def write(*values):
+        # Neutralizza formule nei testi senza alterare gli importi negativi.
+        writer.writerow([
+            "'" + value if isinstance(value, str) and value.lstrip().startswith(
+                ("=", "+", "-", "@")
+            ) else f"{value:.2f}".replace(".", ",") if isinstance(value, float)
+            else value for value in values
+        ])
+
+    write("Anno", "Tipo documento", "ID intestazione", "ID categoria")
+    write(year, doc_type, entity_id or "Tutte", category_id or "Tutte")
+    write("Sezione", "Voce", "Numero documenti", "Importo EUR")
+    write("Riepilogo", "Totale lordo documenti", monthly.total_documents, monthly.total)
+    write("Riepilogo", "Media per documento", "",
+          monthly.total / monthly.total_documents if monthly.total_documents else 0.0)
+    if previous_total is not None:
+        write("Confronto", str(year - 1), "", previous_total)
+        write("Confronto", "Differenza EUR", "", monthly.total - previous_total)
+    for month, (value, count) in enumerate(zip(monthly.values, monthly.counts), 1):
+        write("Mese", f"{year}-{month:02d}", count, value)
+        top = monthly.top_suppliers[month - 1]
+        if top:
+            write("Primo fornitore " + f"{year}-{month:02d}", top["name"], "", top["total"])
+    for status, count in statuses.items():
+        write("Stato documento", status, count, "")
+    for row in suppliers:
+        write("Fornitore", row["name"], row["documents"], row["total"])
+    for row in categories.rows:
+        write("Categoria (importi righe)", row["name"], "", row["total"])
+    write("Categorie", "Totale righe incluse quelle senza categoria", "", categories.total)
+    return Response(
+        "\ufeff" + output.getvalue(), content_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="reportistica_{year}.csv"'},
     )
 
 

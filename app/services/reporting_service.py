@@ -11,6 +11,7 @@ from sqlalchemy import func
 
 from app.models import Category, Document, DocumentLine, LegalEntity, Supplier
 from app.services.unit_of_work import UnitOfWork
+from app.repositories.reporting_repo import filter_report_category
 
 
 @dataclass
@@ -112,6 +113,7 @@ def get_monthly_totals(
     doc_type_filter: str,
     include_top_suppliers: bool = True,
     legal_entity_id: int | None = None,
+    category_id: int | None = None,
 ) -> MonthlyReport:
     if not year:
         year = date.today().year
@@ -129,7 +131,7 @@ def get_monthly_totals(
             .filter(Document.document_date.isnot(None))
             .filter(func.year(Document.document_date) == year)
         )
-        query = _apply_report_filters(query, doc_type_filter, legal_entity_id)
+        query = _apply_report_filters(query, doc_type_filter, legal_entity_id, category_id)
         rows = (
             query.group_by(func.month(Document.document_date))
             .order_by(func.month(Document.document_date))
@@ -155,7 +157,7 @@ def get_monthly_totals(
                 .filter(func.year(Document.document_date) == year)
             )
             top_query = _apply_report_filters(
-                top_query, doc_type_filter, legal_entity_id
+                top_query, doc_type_filter, legal_entity_id, category_id
             )
             top_rows = (
                 top_query.group_by(func.month(Document.document_date), Supplier.id, Supplier.name)
@@ -187,6 +189,7 @@ def get_status_counts(
     year: int,
     doc_type_filter: str,
     legal_entity_id: int | None = None,
+    category_id: int | None = None,
 ) -> dict[str, int]:
     with UnitOfWork() as uow:
         query = (
@@ -194,7 +197,7 @@ def get_status_counts(
             .filter(Document.document_date.isnot(None))
             .filter(func.year(Document.document_date) == year)
         )
-        query = _apply_report_filters(query, doc_type_filter, legal_entity_id)
+        query = _apply_report_filters(query, doc_type_filter, legal_entity_id, category_id)
         rows = query.group_by(Document.doc_status).all()
     counts = {"pending_physical_copy": 0, "verified": 0, "archived": 0}
     for status, count in rows:
@@ -208,6 +211,7 @@ def get_top_suppliers(
     doc_type_filter: str,
     limit: int | None = None,
     legal_entity_id: int | None = None,
+    category_id: int | None = None,
 ) -> List[dict]:
     with UnitOfWork() as uow:
         query = (
@@ -221,7 +225,7 @@ def get_top_suppliers(
             .filter(Document.document_date.isnot(None))
             .filter(func.year(Document.document_date) == year)
         )
-        query = _apply_report_filters(query, doc_type_filter, legal_entity_id)
+        query = _apply_report_filters(query, doc_type_filter, legal_entity_id, category_id)
         rows_query = (
             query.group_by(Supplier.id, Supplier.name)
             .order_by(func.sum(Document.total_gross_amount).desc())
@@ -248,6 +252,7 @@ def get_category_breakdown(
     doc_type_filter: str,
     limit: int | None = None,
     legal_entity_id: int | None = None,
+    category_id: int | None = None,
 ) -> CategoryBreakdown:
     with UnitOfWork() as uow:
         query = (
@@ -261,7 +266,7 @@ def get_category_breakdown(
             .filter(Document.document_date.isnot(None))
             .filter(func.year(Document.document_date) == year)
         )
-        query = _apply_report_filters(query, doc_type_filter, legal_entity_id)
+        query = _apply_report_filters(query, doc_type_filter, legal_entity_id, category_id)
         rows_query = (
             query.group_by(Category.id, Category.name)
             .order_by(func.sum(DocumentLine.total_line_amount).desc())
@@ -277,7 +282,7 @@ def get_category_breakdown(
             .filter(func.year(Document.document_date) == year)
         )
         total_query = _apply_report_filters(
-            total_query, doc_type_filter, legal_entity_id
+            total_query, doc_type_filter, legal_entity_id, category_id
         )
         total_sum = float(total_query.scalar() or 0)
 
@@ -299,7 +304,11 @@ def _apply_type_filter(query, doc_type_filter: str):
     return query
 
 
-def _apply_report_filters(query, doc_type_filter: str, legal_entity_id: int | None):
+def _apply_report_filters(
+    query, doc_type_filter: str, legal_entity_id: int | None,
+    category_id: int | None = None,
+):
+    query = filter_report_category(query, category_id)
     query = _apply_type_filter(query, doc_type_filter)
     return _apply_scope_filters(query, legal_entity_id=legal_entity_id)
 

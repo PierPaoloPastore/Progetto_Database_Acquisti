@@ -18,6 +18,7 @@
                 Valori aggregati su <strong>{{ total_documents|format_int }}</strong> documenti
                 {% if legal_entity_id %}per l'intestazione selezionata{% else %}su tutte le intestazioni{% endif %}
                 {% if doc_type_filter != 'all' %} e sul tipo documento filtrato{% endif %}.
+                {% if category_id %}Documenti contenenti la categoria selezionata: i totali includono l'intero documento.{% endif %}
                 Aggiornato il {{ last_updated }}.
             </p>
         </div>
@@ -51,9 +52,21 @@
                     {% endfor %}
                 </select>
             </div>
+            <div class="filters-item">
+                <label for="category_id" class="form-label">Categoria</label>
+                <select id="category_id" name="category_id" class="form-select form-select-sm">
+                    <option value="">Tutte le categorie</option>
+                    {% for category in categories %}
+                        <option value="{{ category.id }}" {% if category.id == category_id %}selected{% endif %}>{{ category.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
             <div class="filters-actions">
                 <button type="submit" class="btn btn-sm btn-primary">
                     <i class="bi bi-funnel"></i> Aggiorna
+                </button>
+                <button type="submit" name="format" value="csv" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-download"></i> Esporta CSV
                 </button>
             </div>
         </form>
