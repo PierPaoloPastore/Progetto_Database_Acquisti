@@ -440,6 +440,14 @@ def _build_import_document_key(
     )
 
 
+def _normalize_tax_id(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return None
+    cleaned = re.sub(r"\s+", "", value).strip().upper()
+    cleaned = re.sub(r"[^A-Z0-9]", "", cleaned)
+    return cleaned or None
+
+
 def _extract_header_data(xml_path: Path, *, logger=None) -> Dict:
     def _first(node, xpath: str):
         result = node.xpath(xpath)
@@ -451,13 +459,6 @@ def _extract_header_data(xml_path: Path, *, logger=None) -> Dict:
             value = target.text.strip()
             return value or None
         return None
-
-    def _normalize_tax_id(value: Optional[str]) -> Optional[str]:
-        if not value:
-            return None
-        cleaned = re.sub(r"\s+", "", value).strip().upper()
-        cleaned = re.sub(r"[^A-Z0-9]", "", cleaned)
-        return cleaned or None
 
     def _parse_xml_bytes(xml_bytes: bytes):
         try:
@@ -573,13 +574,6 @@ def _extract_header_data(xml_path: Path, *, logger=None) -> Dict:
 
 def _get_or_create_legal_entity(header_data: Dict, session) -> LegalEntity:
     cessionario = (header_data or {}).get("cessionario_committente") or {}
-
-    def _normalize_tax_id(value: Optional[str]) -> Optional[str]:
-        if not value:
-            return None
-        cleaned = re.sub(r"\s+", "", value).strip().upper()
-        cleaned = re.sub(r"[^A-Z0-9]", "", cleaned)
-        return cleaned or None
 
     def _normalize_name(value: Optional[str]) -> str:
         if not value:
@@ -803,9 +797,12 @@ def _handle_parsing_warning(
     return document_id
 
 
-def _log_error_parsing(logger, file_name, exc, summary, folder):
+def _log_import_error(
+    logger, file_name, exc, summary, folder, *, stage, log_message, message,
+    import_log_message=None,
+):
     logger.error(
-        "Errore di parsing FatturaPA.",
+        log_message,
         exc_info=exc,
         extra={
             "component": "import_service",
@@ -818,71 +815,39 @@ def _log_error_parsing(logger, file_name, exc, summary, folder):
         {
             "file_name": file_name,
             "status": "error",
-            "stage": "parsing",
+            "stage": stage,
             "error_type": exc.__class__.__name__,
-            "message": f"Parsing error: {exc}",
+            "message": message,
         }
     )
     create_import_log(
         file_name=file_name,
         import_source=folder,
         status="error",
-        message=f"Parsing error: {exc}",
+        message=message if import_log_message is None else import_log_message,
     )
 
+
+def _log_error_parsing(logger, file_name, exc, summary, folder):
+    _log_import_error(
+        logger, file_name, exc, summary, folder, stage="parsing",
+        log_message="Errore di parsing FatturaPA.", message=f"Parsing error: {exc}",
+    )
+
+
 def _log_error_storage(logger, file_name, exc, summary, folder):
-    logger.error(
-        "Errore salvataggio/archivio file import.",
-        exc_info=exc,
-        extra={
-            "component": "import_service",
-            "file_name": file_name,
-            "status": "error",
-        },
-    )
-    summary["errors"] += 1
-    summary["details"].append(
-        {
-            "file_name": file_name,
-            "status": "error",
-            "stage": "storage",
-            "error_type": exc.__class__.__name__,
-            "message": f"Storage error: {exc}",
-        }
-    )
-    create_import_log(
-        file_name=file_name,
-        import_source=folder,
-        status="error",
-        message=f"Storage error: {exc}",
+    _log_import_error(
+        logger, file_name, exc, summary, folder, stage="storage",
+        log_message="Errore salvataggio/archivio file import.", message=f"Storage error: {exc}",
     )
 
 
 def _log_error_p7m(logger, file_name, exc, summary, folder):
-    logger.error(
-        "Errore estrazione XML da file P7M.",
-        exc_info=exc,
-        extra={
-            "component": "import_service",
-            "file_name": file_name,
-            "status": "error",
-        },
-    )
-    summary["errors"] += 1
-    summary["details"].append(
-        {
-            "file_name": file_name,
-            "status": "error",
-            "stage": "p7m_extract",
-            "error_type": exc.__class__.__name__,
-            "message": f"Estrazione P7M fallita: {exc}",
-        }
-    )
-    create_import_log(
-        file_name=file_name,
-        import_source=folder,
-        status="error",
-        message=f"P7M extraction error: {exc}",
+    _log_import_error(
+        logger, file_name, exc, summary, folder, stage="p7m_extract",
+        log_message="Errore estrazione XML da file P7M.",
+        message=f"Estrazione P7M fallita: {exc}",
+        import_log_message=f"P7M extraction error: {exc}",
     )
 
 

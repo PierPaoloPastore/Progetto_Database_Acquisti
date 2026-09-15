@@ -100,14 +100,11 @@ def render_pdf_from_html(
     )
     wkhtmltopdf_bin = find_wkhtmltopdf_bin()
     if wkhtmltopdf_bin:
-        html_path = None
-        pdf_path = None
-        try:
-            with tempfile.NamedTemporaryFile(suffix=".html", delete=False, mode="w", encoding="utf-8") as html_file:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            html_path = os.path.join(temp_dir, "input.html")
+            pdf_path = os.path.join(temp_dir, "output.pdf")
+            with open(html_path, "w", encoding="utf-8") as html_file:
                 html_file.write(prepared_html)
-                html_path = html_file.name
-            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as pdf_file:
-                pdf_path = pdf_file.name
             result = subprocess.run(
                 [
                     wkhtmltopdf_bin,
@@ -127,7 +124,7 @@ def render_pdf_from_html(
                 capture_output=True,
                 text=True,
             )
-            if result.returncode == 0 and pdf_path and os.path.exists(pdf_path):
+            if result.returncode == 0 and os.path.exists(pdf_path):
                 with open(pdf_path, "rb") as handle:
                     return handle.read()
             if logger:
@@ -139,11 +136,6 @@ def render_pdf_from_html(
                         "stdout": (result.stdout or "").strip(),
                     },
                 )
-        finally:
-            if html_path and os.path.exists(html_path):
-                os.unlink(html_path)
-            if pdf_path and os.path.exists(pdf_path):
-                os.unlink(pdf_path)
 
     try:
         from weasyprint import HTML  # type: ignore

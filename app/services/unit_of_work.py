@@ -2,7 +2,7 @@
 Unit of Work Pattern.
 Gestisce la transazione del database atomica e l'accesso ai repository.
 """
-from typing import Optional
+from functools import cached_property
 from app.extensions import db
 
 # Import Repositories
@@ -19,15 +19,6 @@ from app.repositories.document_audit_log_repo import DocumentAuditLogRepository
 class UnitOfWork:
     def __init__(self):
         self.session = db.session
-        self._categories: Optional[CategoryRepository] = None
-        self._suppliers: Optional[SupplierRepository] = None
-        self._payments: Optional[PaymentRepository] = None
-        self._credit_note_allocations: Optional[CreditNoteAllocationRepository] = None
-        self._documents: Optional[DocumentRepository] = None
-        self._delivery_notes: Optional[DeliveryNoteRepository] = None
-        self._delivery_note_lines: Optional[DeliveryNoteLineRepository] = None
-        self._bank_accounts: Optional[BankAccountRepository] = None
-        self._document_audit_logs: Optional[DocumentAuditLogRepository] = None
 
     def __enter__(self):
         return self
@@ -38,59 +29,41 @@ class UnitOfWork:
             return False
         # Flask gestisce la chiusura della sessione, non chiudere qui
 
-    @property
+    @cached_property
     def categories(self) -> CategoryRepository:
-        if self._categories is None:
-            self._categories = CategoryRepository(self.session)
-        return self._categories
+        return CategoryRepository(self.session)
 
-    @property
+    @cached_property
     def suppliers(self) -> SupplierRepository:
-        if self._suppliers is None:
-            self._suppliers = SupplierRepository(self.session)
-        return self._suppliers
+        return SupplierRepository(self.session)
 
-    @property
+    @cached_property
     def payments(self) -> PaymentRepository:
-        if self._payments is None:
-            self._payments = PaymentRepository(self.session)
-        return self._payments
+        return PaymentRepository(self.session)
 
-    @property
+    @cached_property
     def credit_note_allocations(self) -> CreditNoteAllocationRepository:
-        if self._credit_note_allocations is None:
-            self._credit_note_allocations = CreditNoteAllocationRepository(self.session)
-        return self._credit_note_allocations
+        return CreditNoteAllocationRepository(self.session)
     
-    @property
+    @cached_property
     def delivery_notes(self) -> DeliveryNoteRepository:
-        if self._delivery_notes is None:
-            self._delivery_notes = DeliveryNoteRepository(self.session)
-        return self._delivery_notes
+        return DeliveryNoteRepository(self.session)
 
-    @property
+    @cached_property
     def delivery_note_lines(self) -> DeliveryNoteLineRepository:
-        if self._delivery_note_lines is None:
-            self._delivery_note_lines = DeliveryNoteLineRepository(self.session)
-        return self._delivery_note_lines
+        return DeliveryNoteLineRepository(self.session)
 
-    @property
+    @cached_property
     def documents(self) -> DocumentRepository:
-        if self._documents is None:
-            self._documents = DocumentRepository(self.session)
-        return self._documents
+        return DocumentRepository(self.session)
 
-    @property
+    @cached_property
     def bank_accounts(self) -> BankAccountRepository:
-        if self._bank_accounts is None:
-            self._bank_accounts = BankAccountRepository(self.session)
-        return self._bank_accounts
+        return BankAccountRepository(self.session)
 
-    @property
+    @cached_property
     def document_audit_logs(self) -> DocumentAuditLogRepository:
-        if self._document_audit_logs is None:
-            self._document_audit_logs = DocumentAuditLogRepository(self.session)
-        return self._document_audit_logs
+        return DocumentAuditLogRepository(self.session)
 
     def commit(self):
         try:
