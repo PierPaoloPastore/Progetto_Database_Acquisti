@@ -78,6 +78,8 @@
                         <thead>
                             <tr>
                                 <th>File</th>
+                                <th>Documento / fornitore</th>
+                                <th>Documento gia presente / confronto nomi</th>
                                 <th>Esito</th>
                                 <th>Fase</th>
                                 <th>Messaggio</th>
@@ -123,6 +125,8 @@
                     <thead>
                         <tr>
                             <th>File</th>
+                            <th>Documento / fornitore</th>
+                            <th>Documento gia presente / confronto nomi</th>
                             <th>Stato</th>
                             <th>Fase</th>
                             <th>Messaggio</th>
@@ -133,6 +137,18 @@
                         {% for d in summary.details %}
                         <tr>
                             <td>{{ d.file_name }}</td>
+                            <td>
+                                <div>{{ d.document_number or '-' }} — {{ d.document_date or '-' }}</div>
+                                <div>{{ d.supplier_name or '-' }}</div>
+                                <small class="text-muted">{{ d.document_data_source or 'Dati non disponibili' }}</small>
+                            </td>
+                            <td>
+                                <div>{{ d.existing_file_name or '-' }}</div>
+                                {% if d.existing_file_name %}
+                                <div>{{ d.existing_document_number or '-' }} — {{ d.existing_document_date or '-' }}</div>
+                                <small>Stesso nome file: {{ d.same_file_name or 'non verificato' }}</small>
+                                {% endif %}
+                            </td>
                             <td>
                                 {% if d.status == 'warning' %}
                                     <span class="badge bg-warning text-dark">warning</span>

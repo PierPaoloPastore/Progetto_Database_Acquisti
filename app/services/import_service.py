@@ -141,8 +141,8 @@ def _run_import_paths_locked(
         _log_error_scan(logger, import_source, summary)
 
     forced_legal_entity_id = legal_entity_id
-    seen_file_hashes: set[str] = set()
-    seen_document_keys: set[tuple] = set()
+    seen_file_hashes: dict[str, dict] = {}
+    seen_document_keys: dict[tuple, int] = {}
 
     for xml_path in xml_files:
         file_name = xml_path.name
@@ -158,6 +158,7 @@ def _run_import_paths_locked(
                 summary,
                 reason="Duplicato per file_name (pre-parse)",
                 stage="precheck",
+                context=_report_context(document=existing_doc, duplicate_reason="file_name"),
             )
             continue
 
@@ -170,12 +171,15 @@ def _run_import_paths_locked(
                 summary,
                 reason="Duplicato nello stesso batch per file_hash",
                 stage="batch_precheck",
+                context={**seen_file_hashes[file_hash], "duplicate_reason": "batch_file_hash"},
             )
             continue
-        seen_file_hashes.add(file_hash)
+        seen_file_hashes[file_hash] = {"existing_file_name": file_name}
 
         existing_by_hash = find_document_by_file_hash(file_hash)
         if existing_by_hash:
+            with UnitOfWork() as uow:
+                existing_doc = uow.documents.get_by_id(existing_by_hash)
             _log_skip(
                 logger,
                 file_name,
@@ -183,6 +187,7 @@ def _run_import_paths_locked(
                 summary,
                 reason="Duplicato per file_hash (pre-parse)",
                 stage="precheck",
+                context=_report_context(document=existing_doc, duplicate_reason="file_hash"),
             )
             continue
 
@@ -241,6 +246,7 @@ def _run_import_paths_locked(
         try:
             # Transazione Principale di Scrittura
             for invoice_dto in invoice_dtos:
+                report_context = _report_context(invoice_dto)
                 if not import_ddt_from_xml and hasattr(invoice_dto, "delivery_notes"):
                     invoice_dto.delivery_notes = []
                 with UnitOfWork() as uow:
@@ -259,23 +265,26 @@ def _run_import_paths_locked(
                         legal_entity_id=current_legal_entity_id,
                     )
                     if document_key and document_key in seen_document_keys:
+                        existing_doc = uow.documents.get_by_id(seen_document_keys[document_key])
                         _log_skip(
                             logger,
                             invoice_dto.file_name,
-                            None,
+                            existing_doc.id,
                             summary,
-                            reason="Fattura gia presente, saltata",
+                            reason="Duplicato nello stesso batch per identita contabile",
                             stage="batch_postcheck",
+                            context=_report_context(invoice_dto, existing_doc, "batch_document_identity"),
                         )
                         continue
 
                     # Duplicati per file sorgente o identita contabile
-                    existing_doc = uow.documents.find_existing_fatturapa_document(
+                    existing_doc, duplicate_reason = uow.documents.find_fatturapa_duplicate(
                         invoice_dto=invoice_dto,
                         supplier_id=supplier_id,
                         legal_entity_id=current_legal_entity_id,
                     )
                     if existing_doc:
+                        report_context = _report_context(invoice_dto, existing_doc, duplicate_reason)
                         _log_skip(
                             logger,
                             invoice_dto.file_name,
@@ -283,13 +292,15 @@ def _run_import_paths_locked(
                             summary,
                             reason="Fattura gia presente, saltata",
                             stage="postcheck",
+                            context=report_context,
                         )
+                        report_context = dict(summary["details"][-1])
                         create_import_log(
                             file_name=invoice_dto.file_name,
                             file_hash=invoice_dto.file_hash,
                             import_source=import_source,
-                            status="skipped",
-                            message="Fattura gia presente, saltata",
+                            status="duplicate",
+                            message=summary["details"][-1]["message"],
                             document_id=existing_doc.id,
                         )
                         uow.commit()
@@ -311,6 +322,7 @@ def _run_import_paths_locked(
                             summary,
                             reason="Duplicato per file_name/file_hash",
                             stage="postcheck",
+                            context=_report_context(invoice_dto, document),
                         )
                         continue
                     document.file_path = stored_rel_path
@@ -325,7 +337,8 @@ def _run_import_paths_locked(
 
                     uow.commit()
                     if document_key:
-                        seen_document_keys.add(document_key)
+                        seen_document_keys[document_key] = document.id
+                    seen_file_hashes[file_hash] = _report_context(document=document)
 
                     _log_success(
                         logger,
@@ -333,10 +346,15 @@ def _run_import_paths_locked(
                         document.id,
                         supplier_id,
                         summary,
+                        context=_report_context(invoice_dto),
                     )
 
         except Exception as exc:
             _log_error_db(logger, file_name, exc, summary)
+            summary["details"][-1].update({
+                key: value for key, value in report_context.items()
+                if key not in {"status", "stage", "message", "error_type"}
+            })
             continue
 
         try:
@@ -631,7 +649,46 @@ def _get_or_create_legal_entity(header_data: Dict, session) -> LegalEntity:
     return legal_entity
 
 
-def _log_skip(logger, file_name, invoice_id, summary, reason: str = "", stage: str = "skip"):
+def _report_context(invoice_dto=None, document=None, duplicate_reason=None):
+    """Dati del file letto, oppure del documento trovato prima del parsing."""
+    source = invoice_dto if invoice_dto is not None else document
+    supplier = getattr(source, "supplier", None)
+    number = getattr(source, "invoice_number" if invoice_dto is not None else "document_number", None)
+    document_date = getattr(source, "invoice_date" if invoice_dto is not None else "document_date", None)
+    return {
+        "document_number": number,
+        "document_date": document_date.isoformat() if document_date else None,
+        "supplier_name": getattr(supplier, "name", None),
+        "document_data_source": "file importato" if invoice_dto is not None else "documento esistente",
+        "duplicate_reason": duplicate_reason,
+        "existing_file_name": getattr(document, "file_name", None),
+        "existing_document_number": getattr(document, "document_number", None),
+        "existing_document_date": (
+            document.document_date.isoformat() if document is not None and document.document_date else None
+        ),
+    }
+
+
+_DUPLICATE_REASONS = {
+    "file_name": "Stesso nome file (inclusi eventuali body multipli); contenuto non confrontato",
+    "file_hash": "Contenuto del file identico (SHA-256)",
+    "document_identity": "Stesso tipo documento, fornitore, numero normalizzato e data",
+    "batch_file_hash": "Contenuto identico a un file gia incontrato nello stesso batch",
+    "batch_document_identity": "Stessa identita contabile e importo nello stesso batch",
+}
+
+
+def _log_skip(logger, file_name, invoice_id, summary, reason: str = "", stage: str = "skip", context=None):
+    context = dict(context or {})
+    duplicate_reason = context.get("duplicate_reason")
+    if duplicate_reason in _DUPLICATE_REASONS:
+        reason = _DUPLICATE_REASONS[duplicate_reason]
+    existing_file_name = context.get("existing_file_name")
+    if existing_file_name:
+        # Il suffisso body identifica una fattura interna allo stesso file XML.
+        same_name = file_name.split("#body", 1)[0] == existing_file_name.split("#body", 1)[0]
+        context["same_file_name"] = "si" if same_name else "no"
+        reason += "; nome file " + ("uguale" if same_name else "diverso")
     logger.info(
         "File XML già importato, salto.",
         extra={
@@ -649,11 +706,12 @@ def _log_skip(logger, file_name, invoice_id, summary, reason: str = "", stage: s
             "stage": stage,
             "message": reason or "Già presente",
             "invoice_id": invoice_id,
+            **context,
         }
     )
 
 
-def _log_success(logger, file_name, invoice_id, supplier_id, summary):
+def _log_success(logger, file_name, invoice_id, supplier_id, summary, context=None):
     logger.info(
         "Import fattura completato.",
         extra={
@@ -672,6 +730,7 @@ def _log_success(logger, file_name, invoice_id, supplier_id, summary):
             "stage": "import",
             "message": "Import completato",
             "invoice_id": invoice_id,
+            **(context or {}),
         }
     )
 
@@ -908,7 +967,12 @@ def _write_import_report(summary: Dict, import_source: str, logger) -> Optional[
         report_name = f"import_report_{source_label}_{timestamp}.csv"
         report_path = report_dir / report_name
 
-        fieldnames = ["file_name", "status", "stage", "error_type", "message", "invoice_id"]
+        fieldnames = [
+            "file_name", "status", "stage", "error_type", "message", "invoice_id",
+            "document_number", "document_date", "supplier_name", "document_data_source",
+            "duplicate_reason", "existing_file_name", "same_file_name",
+            "existing_document_number", "existing_document_date",
+        ]
         with report_path.open("w", encoding="utf-8", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=fieldnames)
             writer.writeheader()

@@ -225,6 +225,16 @@ document.addEventListener("DOMContentLoaded", () => {
                     stageCell.textContent = item.stage || "-";
                     msgCell.textContent = item.message || "Errore";
                     row.appendChild(fileCell);
+                    const documentCell = document.createElement("td");
+                    const existingCell = document.createElement("td");
+                    documentCell.style.whiteSpace = "pre-line";
+                    existingCell.style.whiteSpace = "pre-line";
+                    documentCell.textContent = `${item.document_number || "-"} — ${item.document_date || "-"}\n${item.supplier_name || "-"}\n${item.document_data_source || "Dati non disponibili"}`;
+                    existingCell.textContent = item.existing_file_name
+                        ? `${item.existing_file_name}\n${item.existing_document_number || "-"} — ${item.existing_document_date || "-"}\nStesso nome file: ${item.same_file_name || "non verificato"}`
+                        : "-";
+                    row.appendChild(documentCell);
+                    row.appendChild(existingCell);
                     row.appendChild(statusCell);
                     row.appendChild(stageCell);
                     row.appendChild(msgCell);
@@ -233,7 +243,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (details.length > ERROR_LIST_LIMIT) {
                     const row = document.createElement("tr");
                     const cell = document.createElement("td");
-                    cell.colSpan = 4;
+                    cell.colSpan = 6;
                     cell.className = "text-muted";
                     cell.textContent = `Mostrati i primi ${ERROR_LIST_LIMIT} dettagli.`;
                     row.appendChild(cell);

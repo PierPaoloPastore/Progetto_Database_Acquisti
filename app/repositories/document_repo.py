@@ -150,21 +150,31 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
         supplier_id: int,
         legal_entity_id: int,
     ) -> Optional[Document]:
+        document, _ = self.find_fatturapa_duplicate(
+            invoice_dto=invoice_dto,
+            supplier_id=supplier_id,
+            legal_entity_id=legal_entity_id,
+        )
+        return document
+
+    def find_fatturapa_duplicate(
+        self, *, invoice_dto: InvoiceDTO, supplier_id: int, legal_entity_id: int,
+    ) -> Tuple[Optional[Document], Optional[str]]:
         """
         Cerca un documento già presente usando sia il file sorgente
         sia l'identità contabile della fattura.
         """
-        existing = self.find_existing(
-            file_name=invoice_dto.file_name,
-            file_hash=getattr(invoice_dto, "file_hash", None),
-        )
+        existing = self.get_by_file_name(invoice_dto.file_name)
         if existing:
-            return existing
+            return existing, "file_name"
+        existing = self.get_by_file_hash(getattr(invoice_dto, "file_hash", None))
+        if existing:
+            return existing, "file_hash"
 
         normalized_number = _normalize_document_identity_value(invoice_dto.invoice_number)
         document_date = invoice_dto.invoice_date
         if not normalized_number or document_date is None:
-            return None
+            return None, None
 
         document_type = _fatturapa_document_type(getattr(invoice_dto, "tipo_documento", None))
         existing_by_identity = self.find_existing_by_supplier_number_date(
@@ -174,7 +184,7 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
             document_date=document_date,
         )
         if existing_by_identity:
-            return existing_by_identity
+            return existing_by_identity, "document_identity"
 
         expected_total = _normalize_decimal_for_match(invoice_dto.total_gross_amount)
         if document_type == "credit_note" and expected_total is not None and expected_total > 0:
@@ -199,9 +209,9 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
             candidate_total = _normalize_decimal_for_match(candidate.total_gross_amount)
             if expected_total is not None and candidate_total is not None and candidate_total != expected_total:
                 continue
-            return candidate
+            return candidate, "document_identity"
 
-        return None
+        return None, None
 
     def search(
         self,
