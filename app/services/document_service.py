@@ -695,6 +695,8 @@ def render_invoice_html(xml_path: str, xsl_path: str) -> str:
                         continue
             parser_recover = ET.XMLParser(recover=True)
             root = ET.fromstring(xml_bytes, parser=parser_recover)
+            if root is None:
+                raise
             return ET.ElementTree(root)
 
     xml_path_obj = Path(xml_path)
@@ -702,7 +704,7 @@ def render_invoice_html(xml_path: str, xsl_path: str) -> str:
         xml_bytes = _extract_xml_from_p7m(xml_path_obj)
         dom = _parse_xml_bytes(xml_bytes)
     else:
-        dom = ET.parse(xml_path)
+        dom = _parse_xml_bytes(xml_path_obj.read_bytes())
     xslt = ET.parse(xsl_path)
     transform = ET.XSLT(xslt)
     newdom = transform(dom)
