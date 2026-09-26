@@ -1,4 +1,4 @@
-Last updated: 2026-02-16
+Last updated: 2026-09-26
 
 # Documentazione - Indice
 
@@ -7,6 +7,7 @@ Benvenuto nel centro documentazione del Gestionale Acquisti. Usa questo indice c
 - [Architettura applicativa](architecture.md)
 - [Architettura database](database.md)
 - Guide
+  - [Deposito XML, archivio e nomi dei file](guides/xml_storage_naming.md)
   - [Troubleshooting import P7M](guides/p7m_troubleshooting.md)
   - [UI Pagamenti (scroll/compattazione)](guides/payments_ui.md)
   - [Export CBI / SEPA XML](guides/cbi_export.md)

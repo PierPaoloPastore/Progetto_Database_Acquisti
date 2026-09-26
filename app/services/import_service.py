@@ -20,6 +20,7 @@ from decimal import Decimal
 from lxml import etree
 from flask import current_app
 from werkzeug.datastructures import FileStorage
+from werkzeug.utils import secure_filename
 
 from app.models import LegalEntity
 from app.parsers.fatturapa_parser_v2 import (
@@ -228,7 +229,7 @@ def _run_import_paths_locked(
         archive_year = _resolve_archive_year(invoice_dtos)
 
         try:
-            stored_rel_path = _store_import_file(xml_path, archive_year)
+            stored_rel_path = _store_import_file(xml_path, archive_year, invoice_dtos)
         except Exception as exc:
             _log_error_storage(logger, file_name, exc, summary, import_source)
             continue
@@ -1008,12 +1009,25 @@ def _resolve_archive_year(invoice_dtos: List[InvoiceDTO]) -> int:
             return dto.registration_date.year
     return date.today().year
 
-def _store_import_file(xml_path: Path, year: int) -> str:
+def _store_import_file(
+    xml_path: Path, year: int, invoice_dtos: Optional[List[InvoiceDTO]] = None,
+) -> str:
     base_dir = Path(settings_service.get_xml_storage_path())
     year_dir = base_dir / str(year)
     year_dir.mkdir(parents=True, exist_ok=True)
 
-    target_name = settings_service.ensure_unique_filename(str(year_dir), xml_path.name)
+    filename = xml_path.name
+    if invoice_dtos:
+        dto = invoice_dtos[0]
+        invoice_date = dto.invoice_date or dto.registration_date
+        date_label = invoice_date.isoformat() if invoice_date else "senza-data"
+        supplier = secure_filename(dto.supplier.name or "")[:80] or "fornitore"
+        number = secure_filename((dto.invoice_number or "").replace("/", "-"))[:60] or "senza-numero"
+        suffix = ".xml.p7m" if filename.lower().endswith(".xml.p7m") else xml_path.suffix.lower()
+        multi = "_multi" if len(invoice_dtos) > 1 else ""
+        filename = f"{date_label}_{supplier}_{number}{multi}{suffix}"
+
+    target_name = settings_service.ensure_unique_filename(str(year_dir), filename)
     dest_path = year_dir / target_name
     shutil.copy2(xml_path, dest_path)
 

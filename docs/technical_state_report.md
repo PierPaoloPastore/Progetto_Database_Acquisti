@@ -224,6 +224,16 @@ Flussi file principali:
 
 - Import XML/P7M: copia nello storage XML organizzato per anno e spostamento
   dell'originale in `Archivio/XML/<anno>`.
+  I nuovi import usano nel deposito il nome `AAAA-MM-GG_Fornitore_Numero.xml`
+  (estensione originale XML/P7M preservata), con caratteri normalizzati e suffisso
+  numerico in caso di collisione. Gli XML con piu fatture usano i dati della prima
+  e il suffisso `_multi`; senza data o numero si usano `senza-data` e `senza-numero`.
+  Il nome originale resta nell'archivio e in `documents.file_name`; il nuovo
+  percorso viene salvato in `documents.file_path`. File storici e import con
+  parsing incompleto mantengono il nome precedente. Anche i download continuano
+  a proporre il nome originale.
+  Per esempi, regole complete e verifiche consultare la
+  [guida al deposito XML e al naming](guides/xml_storage_naming.md).
 - Copie fisiche: salvataggio path relativo in `documents.physical_copy_file_path`.
 - Pagamenti: salvataggio PDF in storage pagamenti e copia in
   `Archivio/Pagamenti/<anno>`.
@@ -475,4 +485,3 @@ Configurazione
 
 Questa analisi e' stata prodotta con lettura del repository e senza avviare
 servizi o modificare codice applicativo.
-
