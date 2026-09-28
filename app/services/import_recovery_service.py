@@ -8,6 +8,7 @@ import logging
 import os
 import shutil
 import socket
+import traceback
 from datetime import datetime, timezone
 from decimal import Decimal
 from logging.handlers import RotatingFileHandler
@@ -48,8 +49,11 @@ def diagnostic_root():
 
 
 def sha256(path):
+    digest = hashlib.sha256()
     with Path(path).open("rb") as stream:
-        return hashlib.file_digest(stream, "sha256").hexdigest()
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
 
 
 def sync_directory(path):
@@ -422,6 +426,10 @@ def import_file(source, batch_id, import_source, archive_base, forced_entity=Non
             _checkpoint(payload, "finished")
             return payload
     except Exception as exc:
+        payload["error_trace"] = [
+            {"file": frame.filename, "line": frame.lineno, "function": frame.name}
+            for frame in traceback.extract_tb(exc.__traceback__)
+        ]
         if committing:
             try:
                 return reconcile_attempt(attempt_id)

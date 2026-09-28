@@ -96,6 +96,25 @@ class ImportTestCase(unittest.TestCase):
 
 
 class ImportLifecycleTests(ImportTestCase):
+    def test_import_without_file_digest(self):
+        with patch.object(recovery.hashlib, "file_digest", create=True):
+            del recovery.hashlib.file_digest
+            for content in (b"", b"abc", b"x" * (1024 * 1024 + 17)):
+                path = self.root / "hash.bin"
+                path.write_bytes(content)
+                self.assertEqual(recovery.sha256(path), recovery.hashlib.sha256(content).hexdigest())
+            self.assert_registered(self.run_file())
+            self.assertEqual(self.run_file()["state"], "duplicate")
+
+    def test_failure_records_code_location_without_exception_data(self):
+        with patch.object(recovery, "sha256", side_effect=AttributeError("private invoice data")):
+            result = self.run_file()
+        self.assertEqual(result["state"], "failed")
+        self.assertEqual(result["error_code"], "AttributeError")
+        self.assertTrue(any(frame["function"] == "import_file" for frame in result["error_trace"]))
+        self.assertNotIn("private invoice data", json.dumps(result))
+        self.assertEqual(Document.query.count(), 0)
+
     def test_crash_before_manifest_is_found_in_database(self):
         with patch.object(recovery, "_checkpoint", side_effect=SystemExit), self.assertRaises(SystemExit):
             self.run_file()
