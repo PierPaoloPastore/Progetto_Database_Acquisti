@@ -12,6 +12,41 @@ from uuid import uuid4
 
 
 class ImportReportTests(ImportTestCase):
+    def test_history_and_import_date_are_visible(self):
+        from datetime import datetime
+        from app.extensions import db
+        from app.models import ImportLog
+        client = self.app.test_client()
+        batch_id = str(uuid4())
+        for content in (invoice(), invoice(), b"invalid xml"):
+            client.post("/import/run", data={"batch_id": batch_id,
+                "files": (io.BytesIO(content), "history.xml")}, headers={"Accept": "application/json"})
+        doc = Document.query.one()
+        doc.imported_at = datetime(2026, 9, 24, 7, 13)
+        db.session.commit()
+        db.session.connection().connection.driver_connection.create_function(
+            "year", 1, lambda value: int(value[:4]) if value else None)
+        page = client.get("/import/history?file=history.xml")
+        self.assertEqual(page.status_code, 200)
+        for label in ("Registrato", "Già presente", "Fallito", batch_id):
+            self.assertIn(label, page.get_data(as_text=True))
+        for url in ("/documents/review/list", f"/documents/{doc.id}"):
+            page = client.get(url)
+            self.assertEqual(page.status_code, 200)
+            self.assertIn("24/09/2026 07:13", page.get_data(as_text=True))
+        for index in range(51):
+            db.session.add(ImportLog(file_name="page_test.xml", status="error", message=f"legacy-{index}"))
+        db.session.commit()
+        first = client.get("/import/history?file=page_test.xml").get_data(as_text=True)
+        self.assertIn("legacy-50", first)
+        self.assertNotIn("legacy-0<", first)
+        from app.repositories.import_log_repo import import_history_page
+        rows = import_history_page(file_name="page_test.xml")
+        second = client.get(f"/import/history?file=page_test.xml&before={rows[49].id}").get_data(as_text=True)
+        self.assertIn("legacy-0", second)
+        self.assertNotIn("legacy-50", second)
+        self.assertIn("Nessun import trovato", client.get("/import/history?file=nonexistent").get_data(as_text=True))
+
     def test_route_recovers_batch_without_original_browser_cookie(self):
         batch_id = str(uuid4())
         client = self.app.test_client()

@@ -148,6 +148,23 @@ def _copy_verified(source, target, digest):
     sync_directory(target.parent)
 
 
+def _deposit_target(staged, year, filename, digest):
+    folder = storage_root() / str(year)
+    folder.mkdir(parents=True, exist_ok=True)
+    size = staged.stat().st_size
+    # ponytail: scansione per anno; indice degli hash se il deposito cresce troppo.
+    for candidate in sorted(folder.rglob("*")):
+        if candidate.suffix.lower() != staged.suffix.lower() or not candidate.is_file():
+            continue
+        candidate = _safe_path(candidate.relative_to(storage_root()))
+        if candidate.stat().st_size == size and sha256(candidate) == digest:
+            return candidate, True
+    target = folder / filename
+    if target.exists():
+        target = target.with_name(f"{target.stem}_{digest}{target.suffix}")
+    return target, False
+
+
 def _validate(dtos, metadata):
     if len(dtos) != len(metadata):
         raise ImportConflict("Conteggio corpi XML diverso dal risultato del parser")
@@ -382,8 +399,9 @@ def import_file(source, batch_id, import_source, archive_base, forced_entity=Non
             payload["archive_path"] = str(archive_dir / source.name)
             if any(doc is None for _, _, doc, _ in pending):
                 filename = service._import_filename(source, dtos)
-                final = storage_root() / str(year) / attempt_id / filename
-                final.parent.mkdir(parents=True, exist_ok=False)
+                final, reused = _deposit_target(staged, year, filename, payload["file_hash"])
+                if reused:
+                    payload["warnings"].append("Riutilizzato XML già presente nel deposito; nessuna nuova copia definitiva")
                 payload["final_path"] = str(final.relative_to(storage_root()))
             _checkpoint(payload, "prepared")
             for index, (dto, meta, doc, detail) in enumerate(pending, 1):

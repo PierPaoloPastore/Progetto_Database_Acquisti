@@ -5,8 +5,11 @@ Last updated: 2026-09-28
 ## Aggiornamento del 28 settembre
 
 Il protocollo corrente è descritto in [Import affidabile e recupero](import_recovery.md).
-Il nome leggibile rimane invariato, ma le nuove copie sono isolate in
-`ANNO/<attempt_id>/<nome-leggibile>`; l'archivio usa
+I nuovi file definitivi usano `ANNO/<nome-leggibile>`, senza cartelle per tentativo.
+Una copia identica nella stessa cartella annuale (incluse le vecchie sottocartelle)
+viene riutilizzata dopo verifica di dimensione e SHA-256, anche se il record è
+stato eliminato. Il report segnala il riutilizzo. Un nome occupato da contenuto
+diverso riceve un suffisso SHA-256 senza sovrascritture. L'archivio tecnico usa
 `Archivio/XML/ANNO/<attempt_id>/<nome-originale>`.
 Tutti i body del file vengono gestiti nella stessa transazione. La staging
 persistente permette di distinguere file pubblicati e commit confermati.

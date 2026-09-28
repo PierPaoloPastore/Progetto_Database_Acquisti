@@ -17,9 +17,9 @@ istanza e versione; il file originale resta separato, non dentro al log.
 Gli upload vengono salvati direttamente qui, dopo la registrazione del tentativo.
 Una ricezione troncata non genera un documento placeholder.
 
-La copia definitiva usa `ANNO/<attempt_id>/<nome-leggibile>.xml` (o P7M).
+La copia definitiva usa `ANNO/<nome-leggibile>.xml` (o P7M).
 La convenzione del nome leggibile introdotta il 26 settembre resta invariata.
-Una directory riservata evita collisioni e sovrascritture fra file omonimi.
+Le copie identiche vengono riutilizzate; gli omonimi diversi ricevono un suffisso hash.
 La copia originale viene conservata in `Archivio/XML/ANNO/<attempt_id>/<nome-originale>`.
 Per import da cartella, Archivio resta nella cartella sorgente; per upload è nel
 deposito. Gli originali sul server non vengono rimossi: potrebbero essere già
@@ -177,3 +177,15 @@ manuali richiedono riconciliazione. L'identità resta in JSON senza indici nuovi
 le ricerche dello storico sono lineari; batch con moltissimi body sono inoltre
 limitati dalla capacità TEXT del registro esistente. Errori di capacità producono
 rollback e traccia, non successi parziali.
+
+### Riutilizzo del deposito definitivo
+
+I nuovi import non creano sottocartelle per tentativo nel deposito annuale.
+Prima della copia cercano contenuto identico (dimensione e SHA-256) nello stesso
+anno, incluse le sottocartelle storiche: il nuovo record riutilizza il percorso
+esistente e il report lo segnala. Un nome già occupato da contenuto diverso
+riceve un suffisso SHA-256. Nessun file storico viene spostato o cancellato.
+Archivio e staging mantengono gli identificativi tecnici per il recupero.
+La scansione è lineare sui file dell’anno; per depositi molto grandi servirà
+un indice degli hash. La lettura fallita di un candidato blocca il singolo import
+anziché assumere che non esista una copia.

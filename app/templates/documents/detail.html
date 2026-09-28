@@ -147,6 +147,10 @@
                     <span class="value">{{ invoice.registration_date.strftime('%d/%m/%Y') if invoice.registration_date else '-' }}</span>
                 </div>
                 <div class="summary-item secondary">
+                    <span class="label">Data importazione (UTC)</span>
+                    <span class="value">{{ invoice.imported_at.strftime('%d/%m/%Y %H:%M') if invoice.imported_at else 'N/D' }}</span>
+                </div>
+                <div class="summary-item secondary">
                     <span class="label">Fornitore</span>
                     <span class="value">
                         {% if supplier %}

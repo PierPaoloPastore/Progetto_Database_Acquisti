@@ -122,6 +122,25 @@ def report_view():
 def status_view(batch_id):
     return jsonify(_with_links(batch_summary(str(batch_id))))
 
+
+@import_bp.get("/history")
+def history_view():
+    from app.repositories.import_log_repo import import_history_page, read_payload
+    before = request.args.get("before", type=int)
+    file_name = request.args.get("file", "").strip()
+    rows = import_history_page(before, file_name)
+    entries = []
+    for row in rows[:50]:
+        payload = read_payload(row)
+        batch_id = None
+        try:
+            batch_id = str(UUID(payload.get("batch_id", "")))
+        except (ValueError, TypeError, AttributeError):
+            pass
+        entries.append({"log": row, "payload": payload, "batch_id": batch_id})
+    return render_template("import/history.html", entries=entries, file_name=file_name,
+                           next_id=rows[49].id if len(rows) > 50 else None)
+
 def _with_links(summary):
     for detail in summary.get("details", []):
         if detail.get("invoice_id"):

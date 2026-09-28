@@ -4,6 +4,7 @@
 
 {% block content %}
 <div class="container-fluid">
+    <a class="btn btn-outline-primary mb-3" href="{{ url_for('import.history_view') }}">Storico importazioni</a>
     <a id="import-last-batch" class="btn btn-outline-secondary mb-3 d-none">Riapri l'ultimo tentativo</a>
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
         <h1 class="mb-0">Importazione Fatture XML (FatturaPA)</h1>

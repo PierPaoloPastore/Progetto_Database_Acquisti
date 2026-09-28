@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Storico importazioni{% endblock %}
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex flex-wrap justify-content-between gap-2 mb-3">
+        <h1>Storico importazioni</h1>
+        <a class="btn btn-outline-secondary align-self-start" href="{{ url_for('import.run_view') }}">Torna all'importazione</a>
+    </div>
+    <p class="text-muted">Registro persistente, dal più recente. Sono presenti tentativi e registrazioni dei singoli documenti; gli import storici mostrano i dati disponibili. Date e orari in UTC.</p>
+    <form method="get" class="d-flex flex-wrap gap-2 mb-3">
+        <label for="history-file" class="align-self-center">Nome file</label>
+        <input id="history-file" name="file" value="{{ file_name }}" class="form-control w-auto">
+        <button class="btn btn-primary">Cerca</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('import.history_view') }}">Azzera</a>
+    </form>
+    {% set labels = {'committed': 'Registrato', 'success': 'Registrato', 'duplicate': 'Già presente', 'skipped': 'Saltato', 'failed': 'Fallito', 'error': 'Errore', 'conflict': 'Conflitto', 'started': 'Avviato — esito non confermato', 'reconcile': 'Da verificare', 'warning': 'Avviso'} %}
+    <div class="table-responsive">
+        <table class="table table-striped table-sm">
+            <thead><tr><th>Data importazione (UTC)</th><th>File</th><th>Tipo</th><th>Esito</th><th>Dettaglio</th><th>Collegamenti</th></tr></thead>
+            <tbody>
+            {% for entry in entries %}
+                {% set log = entry.log %}{% set p = entry.payload %}
+                {% set state = p.get('state', log.status) %}
+                <tr>
+                    <td class="text-nowrap">{{ log.created_at.strftime('%d/%m/%Y %H:%M:%S') if log.created_at else 'N/D' }}</td>
+                    <td>{{ log.file_name }}</td>
+                    <td>{{ 'Tentativo' if p.get('kind') == 'attempt' else ('Documento' if p.get('kind') == 'body' else 'Storico') }}</td>
+                    <td>{{ labels.get(state, state) }}</td>
+                    <td>
+                        {{ p.get('message', '') if p else (log.message or '') }}
+                        {% for detail in p.get('details', []) %}<div>{{ detail.get('document_number', '') }} — {{ detail.get('message', '') }}</div>{% endfor %}
+                        {% for warning in p.get('warnings', []) %}<div class="text-warning">{{ warning }}</div>{% endfor %}
+                        {% if p.get('error_code') %}<div>Codice: {{ p.error_code }}</div>{% endif %}
+                        {% if p.get('attempt_id') %}<small class="text-muted">Tentativo: {{ p.attempt_id }}</small>{% endif %}
+                    </td>
+                    <td>
+                        {% if entry.batch_id %}<a href="{{ url_for('import.run_view', batch_id=entry.batch_id) }}">Riepilogo import</a>{% endif %}
+                        {% if log.document_id %}<a href="{{ url_for('documents.detail_view', document_id=log.document_id) }}">Documento #{{ log.document_id }}</a>{% endif %}
+                    </td>
+                </tr>
+            {% else %}<tr><td colspan="6">Nessun import trovato.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if next_id %}<a class="btn btn-outline-primary" href="{{ url_for('import.history_view', before=next_id, file=file_name) }}">Import precedenti</a>{% endif %}
+</div>
+{% endblock %}

@@ -51,6 +51,7 @@
                     <tr>
                         <th>Tipo</th>
                         <th>Data</th>
+                        <th>Data importazione (UTC)</th>
                         <th>Numero</th>
                         <th>Fornitore</th>
                         <th>Intestatario</th>
@@ -71,6 +72,7 @@
                               {% endif %}
                           </td>
                           <td>{{ doc.document_date.strftime('%d/%m/%Y') if doc.document_date else 'N/D' }}</td>
+                          <td class="text-nowrap">{{ doc.imported_at.strftime('%d/%m/%Y %H:%M') if doc.imported_at else 'N/D' }}</td>
                           <td class="fw-bold">{{ doc.document_number }}</td>
                           <td>{{ doc.supplier.name if doc.supplier else 'Sconosciuto' }}</td>
                           <td>
@@ -90,7 +92,7 @@
                       </tr>
                     {% else %}
                       <tr>
-                          <td colspan="7" class="text-center py-5 text-muted">
+                          <td colspan="8" class="text-center py-5 text-muted">
                               <i class="bi bi-check-circle fs-1 d-block mb-3"></i>
                               Nessun documento importato da rivedere.
                           </td>

@@ -96,6 +96,37 @@ class ImportTestCase(unittest.TestCase):
 
 
 class ImportLifecycleTests(ImportTestCase):
+    def test_deleted_document_reuses_deposit_file(self):
+        from app.services.document_service import DocumentService
+        self.assert_registered(self.run_file())
+        doc = Document.query.one()
+        original_path = doc.file_path
+        self.assertEqual(len(Path(original_path).parts), 2)
+        self.assertTrue(DocumentService.delete_document(doc.id, reason="Prova reimportazione"))
+        result = self.run_file(name="rinominato.xml")
+        self.assert_registered(result)
+        self.assertEqual(Document.query.one().file_path, original_path)
+        self.assertEqual(len(list((self.storage / "2026").rglob("*.xml"))), 1)
+        self.assertTrue(any("Riutilizzato" in warning for warning in result["warnings"]))
+
+    def test_reuses_orphan_in_legacy_attempt_folder(self):
+        existing = self.storage / "2026" / "vecchio-tentativo" / "storico.xml"
+        existing.parent.mkdir(parents=True)
+        existing.write_bytes(invoice())
+        self.assert_registered(self.run_file())
+        self.assertEqual(self.storage / Document.query.one().file_path, existing)
+        self.assertEqual(len(list((self.storage / "2026").rglob("*.xml"))), 1)
+
+    def test_same_readable_name_different_content_is_not_overwritten(self):
+        with patch.object(import_service, "_import_filename", return_value="fattura.xml"):
+            self.assert_registered(self.run_file())
+            original = self.storage / Document.query.one().file_path
+            self.assert_registered(self.run_file(invoice(("A/2",))), 2)
+        self.assertEqual(original.read_bytes(), invoice())
+        paths = [doc.file_path for doc in Document.query.all()]
+        self.assertEqual(len(set(paths)), 2)
+        self.assertTrue(all(len(Path(path).parts) == 2 for path in paths))
+
     def test_import_without_file_digest(self):
         with patch.object(recovery.hashlib, "file_digest", create=True):
             del recovery.hashlib.file_digest

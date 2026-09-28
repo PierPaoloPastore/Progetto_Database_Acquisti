@@ -32,6 +32,15 @@ def list_import_logs(limit: int = 500) -> List[ImportLog]:
     return query.all()
 
 
+def import_history_page(before_id=None, file_name=""):
+    query = ImportLog.query.order_by(ImportLog.id.desc())
+    if before_id is not None:
+        query = query.filter(ImportLog.id < before_id)
+    if file_name:
+        query = query.filter(ImportLog.file_name.contains(file_name, autoescape=True))
+    return query.limit(51).all()
+
+
 def list_import_logs_by_file_name(file_name: str) -> List[ImportLog]:
     """Restituisce tutti i log relativi a un determinato file XML."""
     return (
