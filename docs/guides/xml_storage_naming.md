@@ -1,6 +1,21 @@
-Last updated: 2026-09-26
+Last updated: 2026-09-28
 
 # Deposito XML, archivio e nomi dei file
+
+## Aggiornamento del 28 settembre
+
+Il protocollo corrente è descritto in [Import affidabile e recupero](import_recovery.md).
+Il nome leggibile rimane invariato, ma le nuove copie sono isolate in
+`ANNO/<attempt_id>/<nome-leggibile>`; l'archivio usa
+`Archivio/XML/ANNO/<attempt_id>/<nome-originale>`.
+Tutti i body del file vengono gestiti nella stessa transazione. La staging
+persistente permette di distinguere file pubblicati e commit confermati.
+Gli originali sul server e i file dei documenti eliminati vengono conservati.
+I nomi non sono più un criterio di duplicazione; contano identità e contenuto.
+Lo storico non viene rinominato e non sono richieste migrazioni.
+
+La descrizione seguente documenta il comportamento precedente del 26 settembre,
+ancora utile per interpretare i percorsi storici; non è il protocollo corrente.
 
 ## Ambito
 

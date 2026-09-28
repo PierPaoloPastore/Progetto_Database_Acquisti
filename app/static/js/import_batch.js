@@ -31,7 +31,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const MAX_BATCH_BYTES = 8 * 1024 * 1024;
     const MAX_BATCH_FILES = 200;
     const SERVER_LIMIT_BYTES = 16 * 1024 * 1024;
-    const ERROR_LIST_LIMIT = 50;
 
     const buildBatches = (files) => {
         const batches = [];
@@ -192,29 +191,29 @@ document.addEventListener("DOMContentLoaded", () => {
             summaryNarrative.textContent = buildNarrative(summary);
             summaryNarrative.classList.remove("d-none");
         }
-        if (summaryReport && summaryReportPath) {
-            if (summary.report_path) {
-                summaryReportPath.textContent = summary.report_path;
-                if (summaryReportLink) {
-                    const baseUrl = summaryReportLink.getAttribute("data-report-url");
-                    if (baseUrl) {
-                        const url = new URL(baseUrl, window.location.origin);
-                        url.searchParams.set("path", summary.report_path);
-                        summaryReportLink.href = url.toString();
-                        summaryReportLink.classList.remove("d-none");
-                    }
-                }
-                summaryReport.classList.remove("d-none");
-            } else {
-                summaryReport.classList.add("d-none");
-            }
+        if (summaryReport && summaryReportLink) {
+            const baseUrl = summaryReportLink.getAttribute("data-report-url");
+            const paths = summary.report_paths || (summary.report_path ? [summary.report_path] : []);
+            summaryReport.querySelectorAll(".batch-report").forEach(link => link.remove());
+            summaryReportLink.classList.add("d-none");
+            if (summaryReportPath) summaryReportPath.textContent = "";
+            paths.forEach((path, index) => {
+                const link = document.createElement("a");
+                const url = new URL(baseUrl, window.location.origin);
+                url.searchParams.set("path", path);
+                link.href = url.toString();
+                link.textContent = `Report CSV ${index + 1} `;
+                link.className = "batch-report ms-2";
+                summaryReport.appendChild(link);
+            });
+            summaryReport.classList.toggle("d-none", paths.length === 0);
         }
 
         if (summaryErrorsList && summaryErrorsBody) {
             if (details.length > 0) {
                 summaryErrorsList.classList.remove("d-none");
                 summaryErrorsBody.innerHTML = "";
-                details.slice(0, ERROR_LIST_LIMIT).forEach((item) => {
+                details.forEach((item) => {
                     const row = document.createElement("tr");
                     const fileCell = document.createElement("td");
                     const statusCell = document.createElement("td");
@@ -229,10 +228,16 @@ document.addEventListener("DOMContentLoaded", () => {
                     const existingCell = document.createElement("td");
                     documentCell.style.whiteSpace = "pre-line";
                     existingCell.style.whiteSpace = "pre-line";
-                    documentCell.textContent = `${item.document_number || "-"} — ${item.document_date || "-"}\n${item.supplier_name || "-"}\n${item.document_data_source || "Dati non disponibili"}`;
+                    documentCell.textContent = `${item.document_number || "-"} — ${item.document_date || "-"}\n${item.supplier_name || "-"}\nIntestazione: ${item.legal_entity_name || "-"}\n${item.document_data_source || "Dati non disponibili"}`;
                     existingCell.textContent = item.existing_file_name
                         ? `${item.existing_file_name}\n${item.existing_document_number || "-"} — ${item.existing_document_date || "-"}\nStesso nome file: ${item.same_file_name || "non verificato"}`
                         : "-";
+                    if (item.document_url) {
+                        const link = document.createElement("a");
+                        link.href = item.document_url;
+                        link.textContent = " Apri documento";
+                        documentCell.appendChild(link);
+                    }
                     row.appendChild(documentCell);
                     row.appendChild(existingCell);
                     row.appendChild(statusCell);
@@ -240,23 +245,40 @@ document.addEventListener("DOMContentLoaded", () => {
                     row.appendChild(msgCell);
                     summaryErrorsBody.appendChild(row);
                 });
-                if (details.length > ERROR_LIST_LIMIT) {
-                    const row = document.createElement("tr");
-                    const cell = document.createElement("td");
-                    cell.colSpan = 6;
-                    cell.className = "text-muted";
-                    cell.textContent = `Mostrati i primi ${ERROR_LIST_LIMIT} dettagli.`;
-                    row.appendChild(cell);
-                    summaryErrorsBody.appendChild(row);
-                }
+
             } else {
                 summaryErrorsList.classList.add("d-none");
             }
         }
     };
 
-    const uploadBatch = async (batch) => {
+    const recoveryLink = document.getElementById("import-last-batch");
+    const rememberBatch = (batchId) => {
+        const url = new URL(form.action || window.location.href, window.location.href);
+        url.searchParams.set("batch_id", batchId);
+        if (recoveryLink) {
+            recoveryLink.href = url.toString();
+            recoveryLink.classList.remove("d-none");
+        }
+        try { sessionStorage.setItem("last-import-batch", batchId); } catch (_) { /* Link resta disponibile. */ }
+    };
+    try {
+        const lastBatch = sessionStorage.getItem("last-import-batch");
+        if (lastBatch) rememberBatch(lastBatch);
+    } catch (_) { /* Storage browser facoltativo. */ }
+    const startBatch = () => {
+        const bytes = crypto.getRandomValues(new Uint8Array(16));
+        bytes[6] = (bytes[6] & 15) | 64;
+        bytes[8] = (bytes[8] & 63) | 128;
+        const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("");
+        const id = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+        rememberBatch(id);
+        return id;
+    };
+
+    const uploadBatch = async (batch, batchId) => {
         const formData = new FormData();
+        formData.append("batch_id", batchId);
         batch.forEach((file) => {
             const name = file.webkitRelativePath || file.name;
             formData.append("files", file, name);
@@ -304,10 +326,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         const batches = buildBatches(files);
-        const needsBatching = batches.length > 1 || totalBytes > MAX_BATCH_BYTES || files.length > MAX_BATCH_FILES;
-        if (!needsBatching) {
-            return;
-        }
 
         event.preventDefault();
         toggleDisabled(true);
@@ -322,6 +340,7 @@ document.addEventListener("DOMContentLoaded", () => {
             progressBar.classList.remove("bg-danger");
         }
 
+        const batchId = startBatch();
         const aggregate = {
             total_files: 0,
             imported: 0,
@@ -329,19 +348,21 @@ document.addEventListener("DOMContentLoaded", () => {
             warnings: 0,
             errors: 0,
             details: [],
+            report_paths: [],
         };
 
         try {
             for (let index = 0; index < batches.length; index += 1) {
                 const batch = batches[index];
                 updateProgress(index + 1, batches.length, batch.length);
-                const data = await uploadBatch(batch);
+                const data = await uploadBatch(batch, batchId);
 
                 aggregate.total_files += data.total_files || batch.length;
                 aggregate.imported += data.imported || 0;
                 aggregate.skipped += data.skipped || 0;
                 aggregate.warnings += data.warnings || 0;
                 aggregate.errors += data.errors || 0;
+                if (data.report_path) aggregate.report_paths.push(data.report_path);
                 if (Array.isArray(data.details)) {
                     aggregate.details = aggregate.details.concat(data.details);
                 }
@@ -350,7 +371,8 @@ document.addEventListener("DOMContentLoaded", () => {
             updateProgress(batches.length, batches.length, 0);
             renderSummary(aggregate, aggregate.details || []);
         } catch (error) {
-            showError("Errore durante l'import batch.");
+            renderSummary(aggregate, aggregate.details || []);
+            showError(`Risposta interrotta: il batch ${batchId} potrebbe essere già registrato. Controlla il riepilogo prima di riprovare.`);
         } finally {
             importSubmitting = false;
             toggleDisabled(false);
@@ -371,8 +393,11 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             event.preventDefault();
             importSubmitting = true;
+            const serverData = new FormData(serverForm);
             toggleDisabled(true);
             lockSubmitButton(serverBtn, "Importazione...");
+            const batchId = startBatch();
+            serverData.append("batch_id", batchId);
             resetSummary();
             if (summaryServer) {
                 summaryServer.classList.add("d-none");
@@ -386,7 +411,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 const targetUrl = serverForm.getAttribute("action") || window.location.href;
                 const response = await fetch(targetUrl, {
                     method: "POST",
-                    body: new FormData(serverForm),
+                    body: serverData,
                     headers: {
                         "X-Requested-With": "XMLHttpRequest",
                         Accept: "application/json",
@@ -400,7 +425,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 stopBusyProgress("Import cartella server completato.");
                 renderSummary(data, data.details || []);
             } catch (error) {
-                showError("Errore durante l'import da cartella server.");
+                showError("Risposta interrotta: alcuni documenti potrebbero essere registrati. Ricarica il riepilogo prima di riprovare.");
             } finally {
                 importSubmitting = false;
                 toggleDisabled(false);

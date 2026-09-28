@@ -731,6 +731,9 @@
 <div class="modal fade" id="documentDeleteModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <form method="post" action="{{ url_for('documents.delete_document_view', document_id=invoice.id) }}" class="modal-content">
+            <div class="p-3"><label class="form-label">Motivo della cancellazione</label>
+                <textarea name="delete_reason" class="form-control" required maxlength="2000"></textarea>
+                <small>La traccia dell'import e i file saranno conservati.</small></div>
             <div class="modal-header">
                 <h5 class="modal-title">Elimina documento</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>

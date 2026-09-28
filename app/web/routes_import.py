@@ -20,6 +20,8 @@ from flask import (
     abort,
 )
 from pathlib import Path
+from uuid import UUID, uuid4
+from app.services.import_recovery_service import batch_summary, diagnostic_root
 
 from app.services import run_import, run_import_files
 import_bp = Blueprint("import", __name__)
@@ -45,7 +47,13 @@ def run_view():
     from flask import session  # import locale per evitare problemi in contesti non-WSGI
 
     if request.method == "GET":
-        last_summary = session.get("last_import_summary")
+        last_batch = request.args.get("batch_id") or session.get("last_import_batch")
+        if last_batch:
+            try:
+                last_batch = str(UUID(last_batch))
+            except ValueError:
+                abort(400)
+        last_summary = batch_summary(last_batch) if last_batch else None
         last_folder = session.get("last_import_folder")
         return render_template(
             "import/import_run.html",
@@ -53,6 +61,12 @@ def run_view():
             summary=last_summary,
         )
 
+    try:
+        batch_id = str(UUID(request.form.get("batch_id"))) if request.form.get("batch_id") else str(uuid4())
+    except ValueError:
+        abort(400)
+    session["last_import_batch"] = batch_id
+    session.pop("last_import_summary", None)
     # POST: esecuzione import
     action = (request.form.get("import_action") or request.form.get("action") or "").strip()
     if action == "server_folder":
@@ -60,16 +74,12 @@ def run_view():
         if not server_folder:
             flash("Inserisci un percorso server valido.", "warning")
             return redirect(url_for("import.run_view"))
-        summary = run_import(folder=server_folder)
-        session["last_import_summary"] = summary
+        summary = run_import(folder=server_folder, batch_id=batch_id)
+        session["last_import_batch"] = batch_id
         session["last_import_folder"] = server_folder
         if _wants_json_response():
-            return jsonify(summary)
-        flash(
-            f"Import da cartella completato. File totali: {summary['total_files']}, "
-            f"importati: {summary['imported']}, errori: {summary['errors']}.",
-            "info",
-        )
+            return jsonify(_with_links(summary))
+        flash(summary["narrative"], "warning" if summary["errors"] else "info")
         return redirect(url_for("import.run_view"))
 
     files = request.files.getlist("files")
@@ -77,18 +87,14 @@ def run_view():
         flash("Seleziona una cartella con file XML/P7M da importare.", "warning")
         return redirect(url_for("import.run_view"))
 
-    summary = run_import_files(files=files)
+    summary = run_import_files(files=files, batch_id=batch_id)
 
     # salvo in sessione per riuscire a rivederlo al reload
-    session["last_import_summary"] = summary
+    session["last_import_batch"] = batch_id
     if _wants_json_response():
-        return jsonify(summary)
+        return jsonify(_with_links(summary))
 
-    flash(
-        f"Import completato. File totali: {summary['total_files']}, "
-        f"importati: {summary['imported']}, errori: {summary['errors']}.",
-        "info",
-    )
+    flash(summary["narrative"], "warning" if summary["errors"] else "info")
 
     return redirect(url_for("import.run_view"))
 
@@ -100,12 +106,24 @@ def report_view():
         abort(404)
 
     base_dir = Path(__file__).resolve().parents[2]
-    report_dir = (base_dir / "import_debug" / "import_reports").resolve()
+    report_dir = (diagnostic_root() / "reports").resolve()
     candidate = (base_dir / path_value).resolve()
 
     if not candidate.is_file():
         abort(404)
-    if not candidate.is_relative_to(report_dir):
+    legacy_reports = (base_dir / "import_debug" / "import_reports").resolve()
+    if not any(candidate.is_relative_to(root) for root in (report_dir, legacy_reports)):
         abort(404)
 
     return send_file(candidate, mimetype="text/csv", as_attachment=False, download_name=candidate.name)
+
+
+@import_bp.get("/status/<uuid:batch_id>")
+def status_view(batch_id):
+    return jsonify(_with_links(batch_summary(str(batch_id))))
+
+def _with_links(summary):
+    for detail in summary.get("details", []):
+        if detail.get("invoice_id"):
+            detail["document_url"] = url_for("documents.detail_view", document_id=detail["invoice_id"])
+    return summary

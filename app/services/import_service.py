@@ -6,16 +6,12 @@ Aggiornato per usare l'architettura Document e UnitOfWork.
 from __future__ import annotations
 
 import csv
-import hashlib
 import os
 import re
-import shutil
-import tempfile
 import threading
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
 from datetime import date, datetime
-from decimal import Decimal
 
 from lxml import etree
 from flask import current_app
@@ -26,20 +22,15 @@ from app.models import LegalEntity
 from app.parsers.fatturapa_parser_v2 import (
     InvoiceDTO,
     parse_invoice_xml,
-    P7MExtractionError,
-    FatturaPASkipFile,
 )
 from app.parsers.fatturapa_parser import _clean_xml_bytes, _extract_xml_from_p7m
-from app.repositories.import_log_repo import create_import_log, find_document_by_file_hash
-from app.services.unit_of_work import UnitOfWork
-from app.services.logging import log_structured_event
 from app.services import settings_service
 
 
 _IMPORT_RUN_LOCK = threading.Lock()
 
 
-def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = None) -> Dict:
+def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = None, batch_id=None) -> Dict:
     app = current_app._get_current_object()
     logger = app.logger
     validate_xsd = bool(app.config.get("FATTURAPA_VALIDATE_XSD_WARN", False))
@@ -57,45 +48,17 @@ def run_import(folder: Optional[str] = None, legal_entity_id: Optional[int] = No
         archive_base=import_folder,
         legal_entity_id=legal_entity_id,
         logger=logger,
-        validate_xsd=validate_xsd,
+        validate_xsd=validate_xsd, batch_id=batch_id,
     )
 
-def run_import_files(files: Sequence[FileStorage], legal_entity_id: Optional[int] = None) -> Dict:
+def run_import_files(files: Sequence[FileStorage], legal_entity_id: Optional[int] = None, batch_id=None) -> Dict:
     app = current_app._get_current_object()
-    logger = app.logger
-    validate_xsd = bool(app.config.get("FATTURAPA_VALIDATE_XSD_WARN", False))
-
-    archive_base = Path(settings_service.get_xml_storage_path())
-    if not archive_base.exists():
-        archive_base.mkdir(parents=True, exist_ok=True)
-
-    with tempfile.TemporaryDirectory() as temp_dir:
-        temp_root = Path(temp_dir)
-        xml_files_set: set[Path] = set()
-
-        for storage in files:
-            if not storage or not storage.filename:
-                continue
-            file_name = Path(storage.filename).name
-            if not file_name:
-                continue
-            lower_name = file_name.lower()
-            if not (lower_name.endswith(".xml") or lower_name.endswith(".p7m")):
-                continue
-            safe_name = settings_service.ensure_unique_filename(str(temp_root), file_name)
-            dest_path = temp_root / safe_name
-            storage.save(str(dest_path))
-            xml_files_set.add(dest_path.resolve())
-
-        xml_files = _select_import_files(xml_files_set)
-        return _run_import_paths(
-            xml_files=xml_files,
-            import_source="upload",
-            archive_base=archive_base,
-            legal_entity_id=legal_entity_id,
-            logger=logger,
-            validate_xsd=validate_xsd,
-        )
+    return _run_import_paths(
+        xml_files=[f for f in files if f and f.filename], import_source="upload",
+        archive_base=Path(settings_service.get_xml_storage_path()),
+        legal_entity_id=legal_entity_id, logger=app.logger,
+        validate_xsd=bool(app.config.get("FATTURAPA_VALIDATE_XSD_WARN", False)), batch_id=batch_id,
+    )
 
 
 def _run_import_paths(
@@ -104,7 +67,7 @@ def _run_import_paths(
     archive_base: Path,
     legal_entity_id: Optional[int],
     logger,
-    validate_xsd: bool,
+    validate_xsd: bool, batch_id=None,
 ) -> Dict:
     with _IMPORT_RUN_LOCK:
         return _run_import_paths_locked(
@@ -113,350 +76,33 @@ def _run_import_paths(
             archive_base=archive_base,
             legal_entity_id=legal_entity_id,
             logger=logger,
-            validate_xsd=validate_xsd,
+            validate_xsd=validate_xsd, batch_id=batch_id,
         )
 
 
 def _run_import_paths_locked(
-    xml_files: List[Path],
-    import_source: str,
-    archive_base: Path,
-    legal_entity_id: Optional[int],
-    logger,
-    validate_xsd: bool,
+    xml_files: List[Path], import_source: str, archive_base: Path,
+    legal_entity_id: Optional[int], logger, validate_xsd: bool, batch_id=None,
 ) -> Dict:
-    summary = {
-        "folder": import_source,
-        "total_files": len(xml_files),
-        "processed": 0,
-        "imported": 0,
-        "skipped": 0,
-        "warnings": 0,
-        "errors": 0,
-        "details": [],
-    }
-    import_ddt_from_xml = settings_service.get_setting("IMPORT_DDT_FROM_XML", "1")
-    import_ddt_from_xml = str(import_ddt_from_xml).strip().lower() in {"1", "true", "yes", "on"}
-
-    if not xml_files:
-        _log_error_scan(logger, import_source, summary)
-
-    forced_legal_entity_id = legal_entity_id
-    seen_file_hashes: dict[str, dict] = {}
-    seen_document_keys: dict[tuple, int] = {}
-
-    for xml_path in xml_files:
-        file_name = xml_path.name
-        summary["processed"] += 1
-
-        with UnitOfWork() as uow:
-            existing_doc = uow.documents.find_existing_by_file_base(file_name)
-        if existing_doc:
-            _log_skip(
-                logger,
-                file_name,
-                existing_doc.id,
-                summary,
-                reason="Duplicato per file_name (pre-parse)",
-                stage="precheck",
-                context=_report_context(document=existing_doc, duplicate_reason="file_name"),
-            )
-            continue
-
-        file_hash = _compute_file_hash(xml_path)
-        if file_hash in seen_file_hashes:
-            _log_skip(
-                logger,
-                file_name,
-                None,
-                summary,
-                reason="Duplicato nello stesso batch per file_hash",
-                stage="batch_precheck",
-                context={**seen_file_hashes[file_hash], "duplicate_reason": "batch_file_hash"},
-            )
-            continue
-        seen_file_hashes[file_hash] = {"existing_file_name": file_name}
-
-        existing_by_hash = find_document_by_file_hash(file_hash)
-        if existing_by_hash:
-            with UnitOfWork() as uow:
-                existing_doc = uow.documents.get_by_id(existing_by_hash)
-            _log_skip(
-                logger,
-                file_name,
-                existing_by_hash,
-                summary,
-                reason="Duplicato per file_hash (pre-parse)",
-                stage="precheck",
-                context=_report_context(document=existing_doc, duplicate_reason="file_hash"),
-            )
-            continue
-
-        invoice_dtos: List[InvoiceDTO] = []
-        try:
-            invoice_dtos = parse_invoice_xml(xml_path, validate_xsd=validate_xsd, logger=logger)
-        except FatturaPASkipFile as exc:
-            _log_skip(logger, file_name, None, summary, reason=str(exc), stage="skip")
-            continue
-        except P7MExtractionError as exc:
-            _log_error_p7m(logger, file_name, exc, summary, import_source)
-            continue
-        except Exception as exc:
-            warning_doc_id = _handle_parsing_warning(
-                xml_path=xml_path,
-                file_name=file_name,
-                file_hash=file_hash,
-                import_source=import_source,
-                archive_base=archive_base,
-                logger=logger,
-                error=exc,
-            )
-            if warning_doc_id:
-                _log_warning_parsing(
-                    logger,
-                    file_name,
-                    exc,
-                    summary,
-                    import_source,
-                    warning_doc_id,
-                )
-            else:
-                _log_error_parsing(logger, file_name, exc, summary, import_source)
-            continue
-
-        header_data = _extract_header_data(xml_path, logger=logger)
-        current_legal_entity_id = forced_legal_entity_id
-        archive_year = _resolve_archive_year(invoice_dtos)
-
-        try:
-            stored_rel_path = _store_import_file(xml_path, archive_year, invoice_dtos)
-        except Exception as exc:
-            _log_error_storage(logger, file_name, exc, summary, import_source)
-            continue
-
-        for idx, invoice_dto in enumerate(invoice_dtos, start=1):
-            # Nomina univoca per body multipli
-            base_name = invoice_dto.file_name or file_name
-            if len(invoice_dtos) > 1:
-                invoice_dto.file_name = f"{base_name}#body{idx}"
-            else:
-                invoice_dto.file_name = base_name
-            if file_hash is not None and not invoice_dto.file_hash:
-                invoice_dto.file_hash = file_hash
-
-        try:
-            # Transazione Principale di Scrittura
-            for invoice_dto in invoice_dtos:
-                report_context = _report_context(invoice_dto)
-                if not import_ddt_from_xml and hasattr(invoice_dto, "delivery_notes"):
-                    invoice_dto.delivery_notes = []
-                with UnitOfWork() as uow:
-                    # LegalEntity
-                    if current_legal_entity_id is None:
-                        legal_entity = _get_or_create_legal_entity(header_data, uow.session)
-                        current_legal_entity_id = legal_entity.id
-
-                    # Supplier
-                    supplier = uow.suppliers.get_or_create_from_dto(invoice_dto.supplier)
-                    supplier_id = supplier.id
-
-                    document_key = _build_import_document_key(
-                        invoice_dto=invoice_dto,
-                        supplier_id=supplier_id,
-                        legal_entity_id=current_legal_entity_id,
-                    )
-                    if document_key and document_key in seen_document_keys:
-                        existing_doc = uow.documents.get_by_id(seen_document_keys[document_key])
-                        _log_skip(
-                            logger,
-                            invoice_dto.file_name,
-                            existing_doc.id,
-                            summary,
-                            reason="Duplicato nello stesso batch per identita contabile",
-                            stage="batch_postcheck",
-                            context=_report_context(invoice_dto, existing_doc, "batch_document_identity"),
-                        )
-                        continue
-
-                    # Duplicati per file sorgente o identita contabile
-                    existing_doc, duplicate_reason = uow.documents.find_fatturapa_duplicate(
-                        invoice_dto=invoice_dto,
-                        supplier_id=supplier_id,
-                        legal_entity_id=current_legal_entity_id,
-                    )
-                    if existing_doc:
-                        report_context = _report_context(invoice_dto, existing_doc, duplicate_reason)
-                        _log_skip(
-                            logger,
-                            invoice_dto.file_name,
-                            existing_doc.id,
-                            summary,
-                            reason="Fattura gia presente, saltata",
-                            stage="postcheck",
-                            context=report_context,
-                        )
-                        report_context = dict(summary["details"][-1])
-                        create_import_log(
-                            file_name=invoice_dto.file_name,
-                            file_hash=invoice_dto.file_hash,
-                            import_source=import_source,
-                            status="duplicate",
-                            message=summary["details"][-1]["message"],
-                            document_id=existing_doc.id,
-                        )
-                        uow.commit()
-                        continue
-
-                    # Document
-                    document, created = uow.documents.create_from_fatturapa(
-                        invoice_dto=invoice_dto,
-                        supplier_id=supplier_id,
-                        legal_entity_id=current_legal_entity_id,
-                        import_source=import_source,
-                    )
-                    
-                    if not created:
-                        _log_skip(
-                            logger,
-                            invoice_dto.file_name,
-                            document.id,
-                            summary,
-                            reason="Duplicato per file_name/file_hash",
-                            stage="postcheck",
-                            context=_report_context(invoice_dto, document),
-                        )
-                        continue
-                    document.file_path = stored_rel_path
-                    create_import_log(
-                        file_name=invoice_dto.file_name,
-                        file_hash=invoice_dto.file_hash,
-                        import_source=import_source,
-                        status="success",
-                        message="Import completato",
-                        document_id=document.id,
-                    )
-
-                    uow.commit()
-                    if document_key:
-                        seen_document_keys[document_key] = document.id
-                    seen_file_hashes[file_hash] = _report_context(document=document)
-
-                    _log_success(
-                        logger,
-                        invoice_dto.file_name,
-                        document.id,
-                        supplier_id,
-                        summary,
-                        context=_report_context(invoice_dto),
-                    )
-
-        except Exception as exc:
-            _log_error_db(logger, file_name, exc, summary)
-            summary["details"][-1].update({
-                key: value for key, value in report_context.items()
-                if key not in {"status", "stage", "message", "error_type"}
-            })
-            continue
-
-        try:
-            _archive_original_file(xml_path, archive_year, archive_base)
-        except Exception as exc:
-            _log_error_storage(logger, file_name, exc, summary, import_source)
-
-    report_path = _write_import_report(summary, import_source, logger)
-    if report_path:
-        summary["report_path"] = report_path
-    summary["narrative"] = _build_import_narrative(summary)
-
-    log_structured_event(
-        action="run_import_completed",
-        folder=import_source,
-        total_files=summary["total_files"],
-        imported=summary["imported"],
-        skipped=summary["skipped"],
-        warnings=summary["warnings"],
-        errors=summary["errors"],
-    )
-
-    return summary
-
-
-def _build_import_narrative(summary: Dict) -> str:
-    total = int(summary.get("total_files") or 0)
-    processed = int(summary.get("processed") or 0)
-    imported = int(summary.get("imported") or 0)
-    skipped = int(summary.get("skipped") or 0)
-    warnings = int(summary.get("warnings") or 0)
-    errors = int(summary.get("errors") or 0)
-    details = summary.get("details") or []
-
-    if total == 0:
-        return "Non ho trovato file XML o P7M da importare nella sorgente selezionata."
-    if imported > 0 and errors == 0 and warnings == 0:
-        if skipped:
-            return (
-                f"Ho letto {total} file e ne ho inseriti {imported}. "
-                f"Gli altri {skipped} erano gia presenti o duplicati nel batch."
-            )
-        return f"Ho letto {total} file e li ho importati tutti correttamente."
-    if imported == 0:
-        if skipped and not errors and not warnings:
-            duplicate_count = sum(1 for item in details if item.get("status") == "skipped")
-            return (
-                f"Ho letto {total} file, ma non ho inserito nuovi documenti: "
-                f"{duplicate_count or skipped} risultano gia presenti o duplicati."
-            )
-        if errors:
-            return (
-                f"Ho letto {total} file, ma non ho inserito nuovi documenti. "
-                f"Ci sono {errors} errori da controllare nel dettaglio."
-            )
-        if warnings:
-            return (
-                f"Ho letto {total} file: nessun documento completo inserito, "
-                f"ma {warnings} file hanno generato documenti incompleti da rivedere."
-            )
-    return (
-        f"Ho processato {processed} file su {total}: {imported} inseriti, "
-        f"{skipped} saltati, {warnings} warning, {errors} errori."
-    )
-
-
-def _normalize_import_identity_value(value: Optional[str]) -> str:
-    if not value:
-        return ""
-    return re.sub(r"[^0-9a-z]+", "", value.lower())
-
-
-def _normalize_import_amount(value: Optional[object]) -> Optional[str]:
-    if value is None:
-        return None
+    from uuid import uuid4
+    from app.services.import_recovery_service import import_file, summarize, recover_imports
+    batch_id = batch_id or str(uuid4())
+    recover_imports()
+    payloads = [import_file(path, batch_id, import_source, archive_base, legal_entity_id)
+                for path in xml_files]
+    summary = summarize(payloads, batch_id)
+    summary["folder"] = import_source
     try:
-        return str(Decimal(str(value)).quantize(Decimal("0.01")))
+        report = _write_import_report(summary, import_source, logger)
     except Exception:
-        return None
-
-
-def _build_import_document_key(
-    *,
-    invoice_dto: InvoiceDTO,
-    supplier_id: int,
-    legal_entity_id: Optional[int],
-) -> Optional[tuple]:
-    number = _normalize_import_identity_value(invoice_dto.invoice_number)
-    if not number or invoice_dto.invoice_date is None:
-        return None
-    tipo_documento = (getattr(invoice_dto, "tipo_documento", None) or "").upper()
-    document_type = "credit_note" if tipo_documento == "TD04" else "invoice"
-    amount = _normalize_import_amount(invoice_dto.total_gross_amount)
-    return (
-        document_type,
-        supplier_id,
-        legal_entity_id,
-        number,
-        invoice_dto.invoice_date,
-        amount,
-    )
+        report = None
+    if report:
+        summary["report_path"] = report
+    elif summary["details"]:
+        summary["warnings"] += 1
+        summary["details"].append({"file_name": "-", "status": "warning", "stage": "report",
+                                    "message": "CSV non disponibile; esiti conservati nel registro import"})
+    return summary
 
 
 def _normalize_tax_id(value: Optional[str]) -> Optional[str]:
@@ -582,9 +228,6 @@ def _extract_header_data(xml_path: Path, *, logger=None) -> Dict:
                 "fiscal_code": fiscal_code,
                 "vat_number_clean": _normalize_tax_id(vat_number),
                 "fiscal_code_clean": _normalize_tax_id(fiscal_code),
-                "address": address,
-                "city": city,
-                "country": country,
             },
         )
 
@@ -650,309 +293,6 @@ def _get_or_create_legal_entity(header_data: Dict, session) -> LegalEntity:
     return legal_entity
 
 
-def _report_context(invoice_dto=None, document=None, duplicate_reason=None):
-    """Dati del file letto, oppure del documento trovato prima del parsing."""
-    source = invoice_dto if invoice_dto is not None else document
-    supplier = getattr(source, "supplier", None)
-    number = getattr(source, "invoice_number" if invoice_dto is not None else "document_number", None)
-    document_date = getattr(source, "invoice_date" if invoice_dto is not None else "document_date", None)
-    return {
-        "document_number": number,
-        "document_date": document_date.isoformat() if document_date else None,
-        "supplier_name": getattr(supplier, "name", None),
-        "document_data_source": "file importato" if invoice_dto is not None else "documento esistente",
-        "duplicate_reason": duplicate_reason,
-        "existing_file_name": getattr(document, "file_name", None),
-        "existing_document_number": getattr(document, "document_number", None),
-        "existing_document_date": (
-            document.document_date.isoformat() if document is not None and document.document_date else None
-        ),
-    }
-
-
-_DUPLICATE_REASONS = {
-    "file_name": "Stesso nome file (inclusi eventuali body multipli); contenuto non confrontato",
-    "file_hash": "Contenuto del file identico (SHA-256)",
-    "document_identity": "Stesso tipo documento, fornitore, numero normalizzato e data",
-    "batch_file_hash": "Contenuto identico a un file gia incontrato nello stesso batch",
-    "batch_document_identity": "Stessa identita contabile e importo nello stesso batch",
-}
-
-
-def _log_skip(logger, file_name, invoice_id, summary, reason: str = "", stage: str = "skip", context=None):
-    context = dict(context or {})
-    duplicate_reason = context.get("duplicate_reason")
-    if duplicate_reason in _DUPLICATE_REASONS:
-        reason = _DUPLICATE_REASONS[duplicate_reason]
-    existing_file_name = context.get("existing_file_name")
-    if existing_file_name:
-        # Il suffisso body identifica una fattura interna allo stesso file XML.
-        same_name = file_name.split("#body", 1)[0] == existing_file_name.split("#body", 1)[0]
-        context["same_file_name"] = "si" if same_name else "no"
-        reason += "; nome file " + ("uguale" if same_name else "diverso")
-    logger.info(
-        "File XML già importato, salto.",
-        extra={
-            "component": "import_service",
-            "file_name": file_name,
-            "status": "skipped",
-            "reason": reason or None,
-        },
-    )
-    summary["skipped"] += 1
-    summary["details"].append(
-        {
-            "file_name": file_name,
-            "status": "skipped",
-            "stage": stage,
-            "message": reason or "Già presente",
-            "invoice_id": invoice_id,
-            **context,
-        }
-    )
-
-
-def _log_success(logger, file_name, invoice_id, supplier_id, summary, context=None):
-    logger.info(
-        "Import fattura completato.",
-        extra={
-            "component": "import_service",
-            "file_name": file_name,
-            "status": "success",
-            "invoice_id": invoice_id,
-            "supplier_id": supplier_id,
-        },
-    )
-    summary["imported"] += 1
-    summary["details"].append(
-        {
-            "file_name": file_name,
-            "status": "success",
-            "stage": "import",
-            "message": "Import completato",
-            "invoice_id": invoice_id,
-            **(context or {}),
-        }
-    )
-
-
-def _log_warning_parsing(logger, file_name, exc, summary, folder, document_id: Optional[int]):
-    logger.warning(
-        "Parsing incompleto, documento creato in revisione.",
-        exc_info=exc,
-        extra={
-            "component": "import_service",
-            "file_name": file_name,
-            "status": "warning",
-        },
-    )
-    summary["warnings"] += 1
-    summary["details"].append(
-        {
-            "file_name": file_name,
-            "status": "warning",
-            "stage": "parsing",
-            "error_type": exc.__class__.__name__,
-            "message": f"Parsing incompleto: {exc}",
-            "invoice_id": document_id,
-        }
-    )
-
-
-def _build_import_warning_note(exc: Exception) -> str:
-    message = f"IMPORT_WARNING: parsing error: {exc}"
-    if len(message) > 500:
-        message = message[:497] + "..."
-    return message
-
-
-def _resolve_archive_year_from_path(xml_path: Path) -> int:
-    try:
-        return datetime.fromtimestamp(xml_path.stat().st_mtime).year
-    except Exception:
-        return date.today().year
-
-
-def _handle_parsing_warning(
-    *,
-    xml_path: Path,
-    file_name: str,
-    file_hash: str,
-    import_source: str,
-    archive_base: Path,
-    logger,
-    error: Exception,
-) -> Optional[int]:
-    header_data = _extract_header_data(xml_path, logger=logger)
-    archive_year = _resolve_archive_year_from_path(xml_path)
-    stored_rel_path: Optional[str] = None
-    try:
-        stored_rel_path = _store_import_file(xml_path, archive_year)
-    except Exception as exc:
-        if logger:
-            logger.warning(
-                "Errore salvataggio file per import incompleto.",
-                extra={
-                    "component": "import_service",
-                    "file_name": file_name,
-                    "error": str(exc),
-                },
-            )
-    import_source_for_doc = import_source
-    if stored_rel_path is None:
-        import_source_for_doc = str(xml_path)
-
-    try:
-        with UnitOfWork() as uow:
-            legal_entity_id = None
-            if header_data:
-                legal_entity = _get_or_create_legal_entity(header_data, uow.session)
-                legal_entity_id = legal_entity.id
-            note = _build_import_warning_note(error)
-            doc = uow.documents.create_import_placeholder(
-                file_name=file_name,
-                file_hash=file_hash,
-                file_path=stored_rel_path,
-                import_source=import_source_for_doc,
-                legal_entity_id=legal_entity_id,
-                note=note,
-            )
-            create_import_log(
-                file_name=file_name,
-                file_hash=file_hash,
-                import_source=import_source,
-                status="warning",
-                message=note,
-                document_id=doc.id,
-            )
-            uow.commit()
-            document_id = doc.id
-    except Exception as exc:
-        if logger:
-            logger.error(
-                "Impossibile creare documento per parsing incompleto.",
-                exc_info=exc,
-                extra={
-                    "component": "import_service",
-                    "file_name": file_name,
-                    "status": "error",
-                },
-            )
-        return None
-
-    if stored_rel_path:
-        try:
-            _archive_original_file(xml_path, archive_year, archive_base)
-        except Exception as exc:
-            if logger:
-                logger.warning(
-                    "Errore archiviazione file per import incompleto.",
-                    extra={
-                        "component": "import_service",
-                        "file_name": file_name,
-                        "error": str(exc),
-                    },
-                )
-
-    return document_id
-
-
-def _log_import_error(
-    logger, file_name, exc, summary, folder, *, stage, log_message, message,
-    import_log_message=None,
-):
-    logger.error(
-        log_message,
-        exc_info=exc,
-        extra={
-            "component": "import_service",
-            "file_name": file_name,
-            "status": "error",
-        },
-    )
-    summary["errors"] += 1
-    summary["details"].append(
-        {
-            "file_name": file_name,
-            "status": "error",
-            "stage": stage,
-            "error_type": exc.__class__.__name__,
-            "message": message,
-        }
-    )
-    create_import_log(
-        file_name=file_name,
-        import_source=folder,
-        status="error",
-        message=message if import_log_message is None else import_log_message,
-    )
-
-
-def _log_error_parsing(logger, file_name, exc, summary, folder):
-    _log_import_error(
-        logger, file_name, exc, summary, folder, stage="parsing",
-        log_message="Errore di parsing FatturaPA.", message=f"Parsing error: {exc}",
-    )
-
-
-def _log_error_storage(logger, file_name, exc, summary, folder):
-    _log_import_error(
-        logger, file_name, exc, summary, folder, stage="storage",
-        log_message="Errore salvataggio/archivio file import.", message=f"Storage error: {exc}",
-    )
-
-
-def _log_error_p7m(logger, file_name, exc, summary, folder):
-    _log_import_error(
-        logger, file_name, exc, summary, folder, stage="p7m_extract",
-        log_message="Errore estrazione XML da file P7M.",
-        message=f"Estrazione P7M fallita: {exc}",
-        import_log_message=f"P7M extraction error: {exc}",
-    )
-
-
-def _log_error_db(logger, file_name, exc, summary):
-    logger.error(
-        "Errore durante il commit.",
-        exc_info=exc,
-        extra={
-            "component": "import_service",
-            "file_name": file_name,
-            "status": "error",
-        },
-    )
-    summary["errors"] += 1
-    summary["details"].append(
-        {
-            "file_name": file_name,
-            "status": "error",
-            "stage": "db_commit",
-            "error_type": exc.__class__.__name__,
-            "message": f"DB error: {exc}",
-        }
-    )
-
-def _log_error_scan(logger, import_source: str, summary):
-    logger.warning(
-        "Nessun file XML/P7M trovato nella cartella di import.",
-        extra={
-            "component": "import_service",
-            "status": "error",
-            "import_source": import_source,
-        },
-    )
-    summary["errors"] += 1
-    summary["details"].append(
-        {
-            "file_name": "-",
-            "status": "error",
-            "stage": "scan",
-            "error_type": "FileNotFound",
-            "message": f"Nessun file XML/P7M trovato nella cartella: {import_source}",
-        }
-    )
-
-
 def _write_import_report(summary: Dict, import_source: str, logger) -> Optional[str]:
     details = summary.get("details") or []
     if not details:
@@ -960,26 +300,32 @@ def _write_import_report(summary: Dict, import_source: str, logger) -> Optional[
 
     try:
         base_dir = Path(__file__).resolve().parents[2]
-        report_dir = base_dir / "import_debug" / "import_reports"
+        from app.services.import_recovery_service import diagnostic_root
+        from uuid import uuid4
+        report_dir = diagnostic_root() / "reports"
         report_dir.mkdir(parents=True, exist_ok=True)
 
         source_label = "upload" if import_source == "upload" else "server"
         timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        report_name = f"import_report_{source_label}_{timestamp}.csv"
+        report_name = f"import_report_{source_label}_{timestamp}_{secure_filename(summary.get('batch_id', 'batch'))}_{uuid4().hex}.csv"
         report_path = report_dir / report_name
 
         fieldnames = [
             "file_name", "status", "stage", "error_type", "message", "invoice_id",
             "document_number", "document_date", "supplier_name", "document_data_source",
             "duplicate_reason", "existing_file_name", "same_file_name",
-            "existing_document_number", "existing_document_date",
+            "existing_document_number", "existing_document_date", "legal_entity_name", "attempt_id", "batch_id",
         ]
-        with report_path.open("w", encoding="utf-8", newline="") as handle:
+        temporary = report_path.with_suffix(".csv.part")
+        with temporary.open("w", encoding="utf-8", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=fieldnames)
             writer.writeheader()
             for detail in details:
                 row = {key: detail.get(key) or "" for key in fieldnames}
                 writer.writerow(row)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, report_path)
 
         try:
             return str(report_path.relative_to(base_dir))
@@ -994,13 +340,6 @@ def _write_import_report(summary: Dict, import_source: str, logger) -> Optional[
         return None
 
 
-def _compute_file_hash(file_path: Path) -> str:
-    sha256 = hashlib.sha256()
-    with open(file_path, "rb") as f:
-        while chunk := f.read(8192):
-            sha256.update(chunk)
-    return sha256.hexdigest()
-
 def _resolve_archive_year(invoice_dtos: List[InvoiceDTO]) -> int:
     for dto in invoice_dtos:
         if dto.invoice_date:
@@ -1009,83 +348,27 @@ def _resolve_archive_year(invoice_dtos: List[InvoiceDTO]) -> int:
             return dto.registration_date.year
     return date.today().year
 
-def _store_import_file(
-    xml_path: Path, year: int, invoice_dtos: Optional[List[InvoiceDTO]] = None,
-) -> str:
-    base_dir = Path(settings_service.get_xml_storage_path())
-    year_dir = base_dir / str(year)
-    year_dir.mkdir(parents=True, exist_ok=True)
-
+def _import_filename(xml_path, invoice_dtos=None):
     filename = xml_path.name
-    if invoice_dtos:
-        dto = invoice_dtos[0]
-        invoice_date = dto.invoice_date or dto.registration_date
-        date_label = invoice_date.isoformat() if invoice_date else "senza-data"
-        supplier = secure_filename(dto.supplier.name or "")[:80] or "fornitore"
-        number = secure_filename((dto.invoice_number or "").replace("/", "-"))[:60] or "senza-numero"
-        suffix = ".xml.p7m" if filename.lower().endswith(".xml.p7m") else xml_path.suffix.lower()
-        multi = "_multi" if len(invoice_dtos) > 1 else ""
-        filename = f"{date_label}_{supplier}_{number}{multi}{suffix}"
-
-    target_name = settings_service.ensure_unique_filename(str(year_dir), filename)
-    dest_path = year_dir / target_name
-    shutil.copy2(xml_path, dest_path)
-
-    return os.path.join(str(year), target_name)
-
-def _archive_original_file(xml_path: Path, year: int, archive_base: Path) -> None:
-    archive_dir = Path(settings_service.get_xml_archive_path(year, base_path=str(archive_base)))
-    target_name = settings_service.ensure_unique_filename(str(archive_dir), xml_path.name)
-    dest_path = archive_dir / target_name
-    shutil.move(str(xml_path), str(dest_path))
+    if not invoice_dtos:
+        return filename
+    dto = invoice_dtos[0]
+    invoice_date = dto.invoice_date or dto.registration_date
+    date_label = invoice_date.isoformat() if invoice_date else "senza-data"
+    supplier = secure_filename(dto.supplier.name or "")[:80] or "fornitore"
+    number = secure_filename((dto.invoice_number or "").replace("/", "-"))[:60] or "senza-numero"
+    suffix = ".xml.p7m" if filename.lower().endswith(".xml.p7m") else xml_path.suffix.lower()
+    multi = "_multi" if len(invoice_dtos) > 1 else ""
+    return f"{date_label}_{supplier}_{number}{multi}{suffix}"
 
 
 def _select_import_files(candidates: set[Path]) -> List[Path]:
-    """
-    Seleziona i file da importare:
-    - ignora i metadati (nome contiene _metadato)
-    - se esistono sia .xml che .p7m per lo stesso documento, preferisce .xml
-    """
-    def _is_metadata(name: str) -> bool:
-        return "_metadato" in name.lower()
-
-    def _base_key(path: Path) -> str:
-        name = path.name.lower()
-        if name.endswith(".xml.p7m"):
-            return name[:-len(".xml.p7m")]
-        if name.endswith(".p7m"):
-            return name[:-len(".p7m")]
-        if name.endswith(".xml"):
-            return name[:-len(".xml")]
-        return name
-
-    by_key: dict[str, list[Path]] = {}
-    for path in candidates:
-        if _is_metadata(path.name):
-            continue
-        key = _base_key(path)
-        by_key.setdefault(key, []).append(path)
-
-    selected: List[Path] = []
-    for paths in by_key.values():
-        xmls = [p for p in paths if p.name.lower().endswith(".xml")]
-        if xmls:
-            selected.append(sorted(xmls)[0])
-            continue
-        selected.append(sorted(paths)[0])
-
-    return sorted(selected)
+    # Anche gli omonimi XML/P7M passano dai controlli sul contenuto.
+    return sorted(candidates)
 
 
 def _collect_import_files(import_folder: Path) -> set[Path]:
-    def _is_archived(path: Path) -> bool:
-        return any(part.lower() == "archivio" for part in path.parts)
-
-    patterns = ("*.xml", "*.p7m", "*.P7M")
-    found: set[Path] = set()
-    for pattern in patterns:
-        for path in import_folder.rglob(pattern):
-            if _is_archived(path):
-                continue
-            found.add(path.resolve())
-    return found
+    return {path.resolve() for path in import_folder.rglob("*")
+            if path.is_file() and path.suffix.lower() in {".xml", ".p7m"}
+            and not any(part.lower() in {"archivio", ".import-staging", ".import-diagnostics"}
+                        for part in path.parts)}

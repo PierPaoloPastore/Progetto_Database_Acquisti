@@ -7,6 +7,7 @@ Benvenuto nel centro documentazione del Gestionale Acquisti. Usa questo indice c
 - [Architettura applicativa](architecture.md)
 - [Architettura database](database.md)
 - Guide
+  - [Import affidabile e recupero](guides/import_recovery.md)
   - [Deposito XML, archivio e nomi dei file](guides/xml_storage_naming.md)
   - [Troubleshooting import P7M](guides/p7m_troubleshooting.md)
   - [UI Pagamenti (scroll/compattazione)](guides/payments_ui.md)

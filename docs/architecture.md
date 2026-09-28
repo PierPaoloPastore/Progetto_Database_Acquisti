@@ -144,7 +144,9 @@ I repository incapsulano le query SQLAlchemy e centralizzano la logica di access
   - creazione `Invoice` + `InvoiceLine` + `VatSummary` + scadenze iniziali in `Payment`,
   - creazione dei `DeliveryNote` attesi per fatture differite,
   - scrittura `ImportLog` e logging strutturato,
-  - commit/rollback per file.
+  - commit/rollback per file, inclusi tutti i body; registro e staging persistenti,
+  - lock MySQL sulla connessione di scrittura e recupero dei commit incerti
+    ([procedura](guides/import_recovery.md)).
 
 - `document_service`
   - ricerca fatture per la UI (filtri complessi),

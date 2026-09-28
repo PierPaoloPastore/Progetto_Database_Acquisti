@@ -1034,7 +1034,11 @@ def review_bank_accounts_ajax():
 
 @documents_bp.route("/review/<int:document_id>/delete", methods=["POST"])
 def delete_document(document_id: int):
-    ok = DocumentService.delete_document(document_id)
+    reason = (request.form.get("delete_reason") or "").strip()
+    if not reason:
+        flash("Indica il motivo della cancellazione.", "warning")
+        return redirect(url_for("documents.detail_view", document_id=document_id))
+    ok = DocumentService.delete_document(document_id, reason=reason)
     if not ok:
         abort(404)
     flash("Documento scartato ed eliminato. Potrai reimportarlo.", "info")
@@ -1391,7 +1395,11 @@ def delete_document_view(document_id: int):
         flash("Conferma non valida. Eliminazione annullata.", "warning")
         return redirect(url_for("documents.detail_view", document_id=document_id))
 
-    ok = DocumentService.delete_document(document_id)
+    reason = (request.form.get("delete_reason") or "").strip()
+    if not reason:
+        flash("Indica il motivo della cancellazione.", "warning")
+        return redirect(url_for("documents.detail_view", document_id=document_id))
+    ok = DocumentService.delete_document(document_id, reason=reason)
     if not ok:
         flash("Documento non trovato.", "warning")
         return redirect(url_for("documents.list_view"))

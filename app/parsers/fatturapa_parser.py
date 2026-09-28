@@ -35,11 +35,64 @@ import os
 import re
 import logging
 import time
+import hashlib
+import json
 
 
 # =========================
 #  DTO (Data Transfer Objects)
 # =========================
+
+
+def import_metadata(path):
+    """Identità originale e impronta conservativa, prima dei fallback contabili."""
+    path = Path(path)
+    raw = _extract_xml_from_p7m(path) if path.suffix.lower() == ".p7m" else path.read_bytes()
+    root = etree.fromstring(raw, etree.XMLParser(resolve_entities=False, no_network=True))
+    if root.getroottree().docinfo.doctype:
+        raise ValueError("DOCTYPE non ammesso")
+
+    def child(node, name):
+        matches = node.xpath("./*[local-name()=$name]", name=name)
+        if len(matches) != 1:
+            raise ValueError(f"Elemento obbligatorio assente o ripetuto: {name}")
+        return matches[0]
+
+    def value(node, name):
+        return (child(node, name).text or "").strip()
+
+    def fiscal(node):
+        data = child(node, "DatiAnagrafici")
+        ids = data.xpath("./*[local-name()='IdFiscaleIVA']")
+        cf = data.xpath("./*[local-name()='CodiceFiscale']/text()")
+        country, code = (value(ids[0], "IdPaese"), value(ids[0], "IdCodice")) if len(ids) == 1 else ("", "")
+        result = [country.upper(), code.upper(), cf[0].strip().upper() if cf else ""]
+        if not ((country and code) or result[2]):
+            raise ValueError("Identità fiscale mancante")
+        return result
+
+    def canonical(node):
+        # Prefissi e indentazione non contano; campi ignoti restano nel confronto.
+        return [etree.QName(node).localname, sorted(node.attrib.items()),
+                (node.text or "").strip(),
+                [canonical(c) for c in node if isinstance(c.tag, str)]]
+
+    header = child(root, "FatturaElettronicaHeader")
+    supplier = fiscal(child(header, "CedentePrestatore"))
+    recipient = fiscal(child(header, "CessionarioCommittente"))
+    bodies = root.xpath("./*[local-name()='FatturaElettronicaBody']")
+    if not bodies:
+        raise ValueError("Nessun corpo fattura")
+    result = []
+    for body in bodies:
+        general = child(child(body, "DatiGenerali"), "DatiGeneraliDocumento")
+        identity = [supplier, recipient, value(general, "TipoDocumento"),
+                    value(general, "Numero"), value(general, "Data")]
+        if not all(identity[2:]):
+            raise ValueError("Tipo, numero o data mancanti")
+        digest = hashlib.sha256(json.dumps(canonical(body), ensure_ascii=True).encode()).hexdigest()
+        result.append({"identity": identity, "body_hash": digest})
+    return result
 
 
 @dataclass

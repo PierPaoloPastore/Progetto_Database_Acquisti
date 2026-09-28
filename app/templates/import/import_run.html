@@ -4,6 +4,7 @@
 
 {% block content %}
 <div class="container-fluid">
+    <a id="import-last-batch" class="btn btn-outline-secondary mb-3 d-none">Riapri l'ultimo tentativo</a>
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
         <h1 class="mb-0">Importazione Fatture XML (FatturaPA)</h1>
         <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('help.guide_view', slug='importare-fatture-xml') }}">
@@ -58,8 +59,8 @@
             <div id="import-summary-narrative" class="alert alert-secondary d-none"></div>
             <ul class="list-group list-group-flush mb-3">
                 <li class="list-group-item">File totali: <strong id="import-summary-total">0</strong></li>
-                <li class="list-group-item text-success">Importati con successo: <strong id="import-summary-imported">0</strong></li>
-                <li class="list-group-item text-warning">Saltati (gia presenti): <strong id="import-summary-skipped">0</strong></li>
+                <li class="list-group-item text-success">Documenti registrati: <strong id="import-summary-imported">0</strong></li>
+                <li class="list-group-item text-warning">Documenti già presenti: <strong id="import-summary-skipped">0</strong></li>
                 <li class="list-group-item text-warning">Warning: <strong id="import-summary-warnings">0</strong></li>
                 <li class="list-group-item text-danger">Errori: <strong id="import-summary-errors">0</strong></li>
             </ul>
@@ -103,20 +104,14 @@
             {% endif %}
             <ul class="list-group list-group-flush mb-3">
                 <li class="list-group-item">File totali: <strong>{{ summary.total_files }}</strong></li>
-                <li class="list-group-item text-success">Importati con successo: <strong>{{ summary.imported }}</strong></li>
+                <li class="list-group-item text-success">Documenti registrati: <strong>{{ summary.imported }}</strong></li>
                 <li class="list-group-item text-warning">Saltati (già presenti): <strong>{{ summary.skipped }}</strong></li>
                 <li class="list-group-item text-warning">Warning: <strong>{{ summary.warnings or 0 }}</strong></li>
                 <li class="list-group-item text-danger">Errori: <strong>{{ summary.errors }}</strong></li>
             </ul>
-            {% if summary.report_path %}
-            <p class="small text-muted">
-                Report: <code>{{ summary.report_path }}</code>
-                <a class="btn btn-sm btn-outline-secondary ms-2"
-                   href="{{ url_for('import.report_view', path=summary.report_path) }}"
-                   target="_blank"
-                   rel="noopener">Apri report CSV</a>
-            </p>
-            {% endif %}
+            {% for report_path in summary.report_paths or ([summary.report_path] if summary.report_path else []) %}
+            <a class="btn btn-sm btn-outline-secondary mb-2" href="{{ url_for('import.report_view', path=report_path) }}">Report CSV {{ loop.index }}</a>
+            {% endfor %}
 
             {% if summary.details %}
             <h5>Dettaglio file:</h5>
@@ -140,6 +135,7 @@
                             <td>
                                 <div>{{ d.document_number or '-' }} — {{ d.document_date or '-' }}</div>
                                 <div>{{ d.supplier_name or '-' }}</div>
+                                <div>Intestazione: {{ d.legal_entity_name or '-' }}</div>
                                 <small class="text-muted">{{ d.document_data_source or 'Dati non disponibili' }}</small>
                             </td>
                             <td>

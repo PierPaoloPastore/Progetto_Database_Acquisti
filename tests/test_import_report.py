@@ -1,104 +1,61 @@
-"""Report import: controlli senza connessioni al database reale."""
+"""Report strutturato con transazioni isolate e XML sintetici."""
 import csv
-import logging
-import tempfile
-import unittest
-from datetime import date
+import io
 from pathlib import Path
-from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
+from werkzeug.datastructures import FileStorage
 
-from app.services import import_service as service
-from app.repositories.document_repo import DocumentRepository
-
-
-class ImportReportTests(unittest.TestCase):
-    def setUp(self):
-        self.document = SimpleNamespace(
-            id=42, file_name="originale.xml", document_number="FT/123",
-            document_date=date(2026, 9, 23), supplier=SimpleNamespace(name="Fornitore prova"),
-        )
-        self.dto = SimpleNamespace(
-            file_name="rinominato.xml", file_hash="abc", invoice_number="FT-123",
-            invoice_date=date(2026, 9, 23), supplier=self.document.supplier,
-            total_gross_amount=100, tipo_documento="TD01",
-        )
-        self.logger = logging.getLogger(__name__)
-
-    def test_repository_reports_actual_match_and_preserves_old_api(self):
-        repo = DocumentRepository(MagicMock())
-        for criterion in ("file_name", "file_hash", "document_identity"):
-            with self.subTest(criterion=criterion):
-                repo.get_by_file_name = MagicMock(return_value=self.document if criterion == "file_name" else None)
-                repo.get_by_file_hash = MagicMock(return_value=self.document if criterion == "file_hash" else None)
-                repo.find_existing_by_supplier_number_date = MagicMock(return_value=self.document)
-                args = dict(invoice_dto=self.dto, supplier_id=1, legal_entity_id=1)
-                self.assertEqual(repo.find_fatturapa_duplicate(**args), (self.document, criterion))
-                self.assertIs(repo.find_existing_fatturapa_document(**args), self.document)
-                if criterion == "file_name":
-                    repo.get_by_file_hash.assert_not_called()
-        repo.get_by_file_name.return_value = None
-        repo.get_by_file_hash.return_value = None
-        self.dto.invoice_number = None
-        self.assertEqual(repo.find_fatturapa_duplicate(**args), (None, None))
-
-    def test_skip_report_distinguishes_names_and_metadata_source(self):
-        for incoming, criterion, expected in (
-            ("originale.xml", "file_name", "si"),
-            ("originale.xml#body2", "file_name", "si"),
-            ("rinominato.xml", "file_hash", "no"),
-            ("rinominato.xml", "document_identity", "no"),
-        ):
-            with self.subTest(criterion=criterion, incoming=incoming):
-                summary = {"skipped": 0, "details": []}
-                dto = self.dto if criterion == "document_identity" else None
-                service._log_skip(
-                    self.logger, incoming, 42, summary,
-                    context=service._report_context(dto, self.document, criterion),
-                )
-                row = summary["details"][0]
-                self.assertEqual(row["same_file_name"], expected)
-                self.assertEqual(row["existing_document_number"], "FT/123")
-                self.assertEqual(row["document_number"], "FT-123" if dto else "FT/123")
-                self.assertEqual(row["document_data_source"], "file importato" if dto else "documento esistente")
-                self.assertIn(service._DUPLICATE_REASONS[criterion], row["message"])
-
-    def test_postcheck_writes_valid_db_status_and_csv_metadata(self):
-        uow = MagicMock()
-        uow.__enter__.return_value = uow
-        uow.documents.find_existing_by_file_base.return_value = None
-        uow.documents.find_fatturapa_duplicate.return_value = (self.document, "document_identity")
-        uow.suppliers.get_or_create_from_dto.return_value = SimpleNamespace(id=1)
-        with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as temp:
-            root = Path(temp)
-            xml = root / self.dto.file_name
-            xml.write_text("<example/>", encoding="utf-8")
-            with (
-                patch.object(service, "UnitOfWork", return_value=uow),
-                patch.object(service.settings_service, "get_setting", return_value="1"),
-                patch.object(service, "find_document_by_file_hash", return_value=None),
-                patch.object(service, "parse_invoice_xml", return_value=[self.dto]),
-                patch.object(service, "_extract_header_data", return_value={}),
-                patch.object(service, "_store_import_file", return_value="2026/test.xml"),
-                patch.object(service, "_archive_original_file"),
-                patch.object(service, "create_import_log") as create_log,
-                patch.object(service, "__file__", str(root / "app/services/import_service.py")),
-            ):
-                summary = service._run_import_paths_locked(
-                    [xml], "upload", root, 1, self.logger, False,
-                )
-            self.assertEqual(summary["errors"], 0)
-            self.assertEqual(summary["skipped"], 1)
-            self.assertEqual(create_log.call_args.kwargs["status"], "duplicate")
-            uow.commit.assert_called_once()
-            with (root / summary["report_path"]).open(encoding="utf-8", newline="") as handle:
-                row = next(csv.DictReader(handle))
-            self.assertEqual(row["document_number"], "FT-123")
-            self.assertEqual(row["supplier_name"], "Fornitore prova")
-            self.assertEqual(row["same_file_name"], "no")
-            self.assertEqual(row["duplicate_reason"], "document_identity")
-            self.assertEqual(row["existing_file_name"], "originale.xml")
+from test_import_lifecycle import ImportTestCase, invoice
+from app.services import import_service, import_recovery_service as recovery
+from app.models import Document
+from uuid import uuid4
 
 
-if __name__ == "__main__":
-    unittest.main()
+class ImportReportTests(ImportTestCase):
+    def test_route_recovers_batch_without_original_browser_cookie(self):
+        batch_id = str(uuid4())
+        client = self.app.test_client()
+        response = client.post("/import/run", data={
+            "batch_id": batch_id, "files": (io.BytesIO(invoice()), "originale.xml"),
+        }, headers={"Accept": "application/json"})
+        self.assertEqual(response.status_code, 200)
+        summary = response.get_json()
+        self.assertEqual(summary["imported"], 1, summary)
+        self.assertIn("/documents/", summary["details"][0]["document_url"])
+        self.assertLess(len(response.headers.get("Set-Cookie", "")), 1000)
+        other_browser = self.app.test_client()
+        page = other_browser.get("/import/run?batch_id=" + batch_id)
+        self.assertEqual(page.status_code, 200)
+        self.assertIn(b"Cliente prova", page.data)
+        self.assertIn(b"Report CSV", page.data)
+        state = other_browser.get("/import/status/" + batch_id).get_json()
+        self.assertEqual(state["imported"], 1)
+        self.assertEqual(len(state["report_paths"]), 1)
+
+    def test_upload_same_name_different_content_and_report(self):
+        files = [FileStorage(io.BytesIO(invoice((number,))), filename="originale.xml")
+                 for number in ("A/1", "A/2")]
+        summary = import_service.run_import_files(files, batch_id="report-test")
+        self.assertEqual(summary["imported"], 2, summary)
+        self.assertEqual(summary["total_files"], 2)
+        with Path(summary["report_path"]).open(encoding="utf-8", newline="") as stream:
+            rows = list(csv.DictReader(stream))
+        self.assertEqual({row["document_number"] for row in rows}, {"A/1", "A/2"})
+        self.assertTrue(all(row["legal_entity_name"] == "Cliente prova" for row in rows))
+        self.assertTrue(all(row["attempt_id"] for row in rows))
+        self.assertEqual(recovery.batch_summary("report-test")["imported"], 2)
+
+    def test_duplicate_has_existing_link_and_precise_criterion(self):
+        self.run_file()
+        summary = import_service.run_import_files([FileStorage(io.BytesIO(invoice()), filename="rinominata.xml")])
+        self.assertEqual(summary["skipped"], 1, summary)
+        row = summary["details"][0]
+        self.assertEqual(row["duplicate_reason"], "file_hash")
+        self.assertEqual(row["same_file_name"], "no")
+        self.assertEqual(row["invoice_id"], Document.query.one().id)
+
+    def test_report_failure_cannot_reverse_committed_import(self):
+        with patch.object(import_service, "_write_import_report", return_value=None):
+            summary = import_service.run_import_files([FileStorage(io.BytesIO(invoice()), filename="originale.xml")])
+        self.assertEqual(summary["imported"], 1, summary)
+        self.assertEqual(summary["errors"], 0)

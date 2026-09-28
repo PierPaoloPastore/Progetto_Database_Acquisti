@@ -10,6 +10,7 @@ Uso:
 import argparse
 import logging
 import os
+from uuid import UUID
 
 from sqlalchemy.exc import OperationalError as SAOperationalError
 from pymysql.err import OperationalError as MySQLOperationalError
@@ -84,9 +85,11 @@ def main() -> None:
     )
     parser.add_argument(
         "command",
-        choices=["runserver", "create-db"],
+        choices=["runserver", "create-db", "recover-imports"],
         help="Comando da eseguire.",
     )
+    parser.add_argument("--attempt-id", type=lambda value: str(UUID(value)),
+                        help="Riconcilia un tentativo specifico, anche già finalizzato.")
 
     args = parser.parse_args()
 
@@ -95,6 +98,12 @@ def main() -> None:
 
     if args.command == "runserver":
         run_server(app)
+    elif args.command == "recover-imports":
+        from app.services.import_recovery_service import recover_imports, reconcile_attempt
+        with app.app_context():
+            results = [reconcile_attempt(args.attempt_id)] if args.attempt_id else recover_imports()
+            for result in results:
+                cli_logger.info("Tentativo %s: %s", result["attempt_id"], result["state"])
     elif args.command == "create-db":
         create_db(app)
 

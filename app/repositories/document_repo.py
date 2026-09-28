@@ -38,21 +38,6 @@ def _compact_search_expression(column):
     return expr
 
 
-def _normalize_document_identity_value(value: Optional[str]) -> str:
-    if not value:
-        return ""
-    return re.sub(r"[^0-9a-z]+", "", value.lower())
-
-
-def _normalize_decimal_for_match(value: Optional[Decimal]) -> Optional[Decimal]:
-    if value is None:
-        return None
-    return Decimal(value).quantize(Decimal("0.01"))
-
-
-def _fatturapa_document_type(tipo_documento: Optional[str]) -> str:
-    return "credit_note" if (tipo_documento or "").upper() == "TD04" else "invoice"
-
 class DocumentRepository(SqlAlchemyRepository[Document]):
     def __init__(self, session):
         super().__init__(session, Document)
@@ -101,117 +86,13 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
         """Trova un documento con lo stesso file base, inclusi body multipli."""
         if not file_name:
             return None
-        pattern = f"{file_name}#body%"
+        pattern = file_name.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "#body%"
         return (
             self.session.query(Document)
-            .filter((Document.file_name == file_name) | (Document.file_name.like(pattern)))
+            .filter((Document.file_name == file_name) | (Document.file_name.like(pattern, escape="!")))
             .order_by(Document.id.asc())
             .first()
         )
-
-    def find_existing_by_supplier_number_date(
-        self,
-        *,
-        document_type: str,
-        supplier_id: int,
-        document_number: Optional[str],
-        document_date: Optional[date],
-    ) -> Optional[Document]:
-        """
-        Cerca duplicati contabili indipendenti dal nome file.
-
-        La query usa le colonne indicizzate supplier_id, document_number e
-        document_date; il confronto normalizzato sul numero copre differenze
-        minori di spazi, slash o separatori.
-        """
-        normalized_number = _normalize_document_identity_value(document_number)
-        if not normalized_number or document_date is None:
-            return None
-
-        candidates = (
-            self.session.query(Document)
-            .filter(
-                Document.document_type == document_type,
-                Document.supplier_id == supplier_id,
-                Document.document_date == document_date,
-            )
-            .order_by(Document.id.asc())
-            .all()
-        )
-        for candidate in candidates:
-            if _normalize_document_identity_value(candidate.document_number) == normalized_number:
-                return candidate
-        return None
-
-    def find_existing_fatturapa_document(
-        self,
-        *,
-        invoice_dto: InvoiceDTO,
-        supplier_id: int,
-        legal_entity_id: int,
-    ) -> Optional[Document]:
-        document, _ = self.find_fatturapa_duplicate(
-            invoice_dto=invoice_dto,
-            supplier_id=supplier_id,
-            legal_entity_id=legal_entity_id,
-        )
-        return document
-
-    def find_fatturapa_duplicate(
-        self, *, invoice_dto: InvoiceDTO, supplier_id: int, legal_entity_id: int,
-    ) -> Tuple[Optional[Document], Optional[str]]:
-        """
-        Cerca un documento già presente usando sia il file sorgente
-        sia l'identità contabile della fattura.
-        """
-        existing = self.get_by_file_name(invoice_dto.file_name)
-        if existing:
-            return existing, "file_name"
-        existing = self.get_by_file_hash(getattr(invoice_dto, "file_hash", None))
-        if existing:
-            return existing, "file_hash"
-
-        normalized_number = _normalize_document_identity_value(invoice_dto.invoice_number)
-        document_date = invoice_dto.invoice_date
-        if not normalized_number or document_date is None:
-            return None, None
-
-        document_type = _fatturapa_document_type(getattr(invoice_dto, "tipo_documento", None))
-        existing_by_identity = self.find_existing_by_supplier_number_date(
-            document_type=document_type,
-            supplier_id=supplier_id,
-            document_number=invoice_dto.invoice_number,
-            document_date=document_date,
-        )
-        if existing_by_identity:
-            return existing_by_identity, "document_identity"
-
-        expected_total = _normalize_decimal_for_match(invoice_dto.total_gross_amount)
-        if document_type == "credit_note" and expected_total is not None and expected_total > 0:
-            expected_total = -expected_total
-
-        candidates = (
-            self.session.query(Document)
-            .filter(
-                Document.document_type == document_type,
-                Document.supplier_id == supplier_id,
-                Document.legal_entity_id == legal_entity_id,
-                Document.document_date == document_date,
-            )
-            .order_by(Document.id.asc())
-            .all()
-        )
-
-        for candidate in candidates:
-            candidate_number = _normalize_document_identity_value(candidate.document_number)
-            if candidate_number != normalized_number:
-                continue
-            candidate_total = _normalize_decimal_for_match(candidate.total_gross_amount)
-            if expected_total is not None and candidate_total is not None and candidate_total != expected_total:
-                continue
-            return candidate, "document_identity"
-
-        return None, None
 
     def search(
         self,
@@ -542,14 +423,6 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
         """
         Crea un Document (type='invoice') partendo da un DTO FatturaPA.
         """
-        existing = self.find_existing_fatturapa_document(
-            invoice_dto=invoice_dto,
-            supplier_id=supplier_id,
-            legal_entity_id=legal_entity_id,
-        )
-        if existing:
-            return existing, False
-
         tipo_documento = (getattr(invoice_dto, "tipo_documento", None) or "").upper()
         is_credit_note = tipo_documento == "TD04"
         document_type = "credit_note" if is_credit_note else "invoice"

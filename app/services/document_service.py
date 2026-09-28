@@ -108,22 +108,38 @@ class DocumentService:
             return True, "Documento confermato"
 
     @staticmethod
-    def delete_document(document_id: int) -> bool:
-        with UnitOfWork() as uow:
+    def delete_document(document_id: int, reason: str = "Eliminazione richiesta dall'operatore") -> bool:
+        from app.repositories.import_log_repo import import_session, document_snapshot
+        from app.services.import_recovery_service import operator
+        if not reason.strip():
+            raise ValueError("Indicare il motivo della cancellazione")
+        with import_session() as session:
+            uow = UnitOfWork(session)
             doc = uow.documents.get_by_id(document_id)
             if not doc:
                 return False
             snapshot = _serialize_document(doc)
-            _create_document_audit_log(
-                uow,
-                document_id=doc.id,
-                action="delete",
-                payload={"before": snapshot, "document_id": doc.id},
-            )
-            file_paths = _collect_document_file_paths(doc)
+            snapshot["supplier"] = {
+                "name": getattr(doc.supplier, "name", None),
+                "vat_number": getattr(doc.supplier, "vat_number", None),
+                "fiscal_code": getattr(doc.supplier, "fiscal_code", None),
+            }
+            snapshot["legal_entity"] = {
+                "name": getattr(doc.legal_entity, "name", None),
+                "vat_number": getattr(doc.legal_entity, "vat_number", None),
+                "fiscal_code": getattr(doc.legal_entity, "fiscal_code", None),
+            }
+            snapshot["import_identity"] = document_snapshot(session, doc.id)
+            session.add(DocumentAuditLog(
+                document_id=doc.id, action="delete",
+                payload=json.dumps({"version": 1, "before": snapshot, "document_id": doc.id,
+                                    "operator": operator(), "reason": reason.strip()[:2000]}, default=str),
+            ))
+            session.flush()  # Un errore audit impedisce la cancellazione.
             uow.documents.delete(doc)
-            uow.commit()
-        _remove_document_files(file_paths)
+            session.commit()
+        # Conservare i file: più body possono condividere lo stesso XML.
+        # La pulizia del deposito è distinta dalla cancellazione contabile.
         return True
 
 # --- Funzioni Helper ---

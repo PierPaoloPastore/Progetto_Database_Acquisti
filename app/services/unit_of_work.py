@@ -17,8 +17,8 @@ from app.repositories.bank_account_repo import BankAccountRepository
 from app.repositories.document_audit_log_repo import DocumentAuditLogRepository
 
 class UnitOfWork:
-    def __init__(self):
-        self.session = db.session
+    def __init__(self, session=None):
+        self.session = session if session is not None else db.session
 
     def __enter__(self):
         return self

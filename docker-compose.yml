@@ -6,9 +6,12 @@ services:
       - "8081:5000"
     volumes:
       - /mnt/pastore:/mnt/pastore
+      - import-diagnostics:/var/lib/gestionale-import
     networks:
       - gestionale-network
     environment:
+        IMPORT_DIAGNOSTIC_DIR: /var/lib/gestionale-import
+        APP_VERSION: ${APP_VERSION:-unknown}
         DB_USER: repartoitsql
         DB_PASSWORD: Giovanni$
         DB_HOST: db-magazzino-mysql-1
@@ -19,3 +22,6 @@ services:
 networks:
   gestionale-network:
     external: true
+
+volumes:
+  import-diagnostics:
