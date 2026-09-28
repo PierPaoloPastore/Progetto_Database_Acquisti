@@ -17,13 +17,16 @@ istanza e versione; il file originale resta separato, non dentro al log.
 Gli upload vengono salvati direttamente qui, dopo la registrazione del tentativo.
 Una ricezione troncata non genera un documento placeholder.
 
-La copia definitiva usa `ANNO/<nome-leggibile>.xml` (o P7M).
-La convenzione del nome leggibile introdotta il 26 settembre resta invariata.
-Le copie identiche vengono riutilizzate; gli omonimi diversi ricevono un suffisso hash.
+La copia definitiva usa `ANNO/<nome-leggibile>.xml` (o P7M), senza cartelle
+visibili per tentativo. La convenzione del nome leggibile resta invariata.
+Prima della copia si cerca nello stesso anno un contenuto identico, anche nelle
+vecchie sottocartelle: se lo si trova, il nuovo documento riusa quel percorso e
+il report lo dichiara. Gli omonimi con contenuto diverso ricevono un suffisso
+SHA-256; nessun XML viene sovrascritto.
 La copia originale viene conservata in `Archivio/XML/ANNO/<attempt_id>/<nome-originale>`.
 Per import da cartella, Archivio resta nella cartella sorgente; per upload è nel
 deposito. Gli originali sul server non vengono rimossi: potrebbero essere già
-referenziati da altri documenti. Non si rinomina lo storico.
+referenziati da altri documenti. Non si rinomina né elimina lo storico.
 
 Il file definitivo viene copiato e verificato prima del commit, poi verificato
 nuovamente prima di dichiarare successo. Un crash può lasciare un file orfano:
@@ -89,6 +92,27 @@ Non sono registrati XML completi, credenziali o SQL con parametri nel nuovo regi
 L'operatore proviene dal middleware esistente, che attualmente è uno stub:
 non equivale a un'identità autenticata e viene indicato come tale.
 
+## Consultazione nell'interfaccia
+
+La pagina **Importazione** conserva il collegamento all'ultimo batch nel browser
+e offre **Storico importazioni**. Lo storico legge il registro persistente MySQL,
+dal più recente, con ricerca per nome file e pagine da 50 righe. Mostra data e
+ora in UTC, file, tipo di riga (tentativo o documento), esito, messaggio,
+identificativo del tentativo e collegamenti al riepilogo del batch o al documento.
+I log antecedenti al protocollo v1 restano visibili con i dati disponibili, ma
+non possono mostrare dettagli che non furono salvati allora.
+
+Nella lista **Documenti da rivedere** e nel dettaglio di ogni documento è
+presente **Data importazione (UTC)**. Corrisponde a `documents.imported_at`:
+non è la data della fattura né la data di registrazione contabile.
+
+Durante l'importazione browser, la pagina interroga il batch ogni cinque secondi
+e mostra quanti file hanno già un esito, l'eventuale file in corso/da verificare
+e il tempo trascorso. Dopo 60 secondi senza novità, oppure se il controllo non
+risponde, avvisa senza dichiarare l'importazione bloccata: il server può stare
+ancora elaborando. Non ricaricare o rilanciare il batch sulla base del solo
+avviso; aprire il riepilogo del batch e verificarne l'esito.
+
 La cancellazione contabile richiede il motivo nella UI e salva audit + delete
 nella stessa transazione. Numero, identità, operatore e motivo restano nel
 payload quando la FK diventa NULL. I file vengono conservati, anche se nessun
@@ -130,12 +154,34 @@ e recupero mirato, non una nuova importazione automatica:
 python manage.py recover-imports --attempt-id <UUID-del-tentativo>
 ```
 
+## Diagnostica di un errore
+
+Il report utente mostra un messaggio sintetico. Per il dettaglio tecnico cercare
+il tentativo nei JSONL sotto `IMPORT_DIAGNOSTIC_DIR` (nel compose:
+`/var/lib/gestionale-import/import-*.jsonl`) e nei log del container:
+
+```sh
+docker compose exec web sh -c 'tail -n 100 /var/lib/gestionale-import/import-*.jsonl'
+docker compose logs --tail=200 web
+```
+
+Un `AttributeError` senza riga nel vecchio JSONL indica incompatibilità o errore
+di codice; il protocollo attuale conserva anche file, funzione e riga della
+traccia, senza registrare XML completi, credenziali o parametri SQL. Il calcolo
+dell'hash è compatibile con Python 3.10: non richiede `hashlib.file_digest`.
+
+Un browser può segnalare un XML non visualizzabile per una dichiarazione
+`schemaLocation` non valida. Questo non prova da solo che la fattura sia assente
+dal database: verificare sempre l'ID documento e `documents.file_path` prima di
+cancellare o reimportare.
+
 ## VERIFY — Verifiche e limiti
 
-Ultima esecuzione locale, 28 settembre 2026: **23 test superati, 19 test MySQL
-saltati** perché manca l'ambiente dedicato. Controlli sintattici Python e
-JavaScript e `git diff --check` completati senza errori. Interprete locale:
-Python 3.14; resta da verificare il deployment previsto con Python 3.12.
+Ultime esecuzioni locali, 28 settembre 2026: suite import **28 test superati,
+24 test MySQL saltati** perché manca l'ambiente dedicato; test della pagina di
+storico **5 superati**. Controlli sintattici Python e JavaScript e
+`git diff --check` completati senza errori. Interprete locale: Python 3.14;
+resta da verificare il deployment Docker con Python 3.10.
 
 Prove locali: factory Flask con configurazione isolata, parser reale (in questo
 ambiente il percorso xsdata ricade sul fallback legacy), SQLite su file temporaneo,
@@ -178,14 +224,6 @@ le ricerche dello storico sono lineari; batch con moltissimi body sono inoltre
 limitati dalla capacità TEXT del registro esistente. Errori di capacità producono
 rollback e traccia, non successi parziali.
 
-### Riutilizzo del deposito definitivo
-
-I nuovi import non creano sottocartelle per tentativo nel deposito annuale.
-Prima della copia cercano contenuto identico (dimensione e SHA-256) nello stesso
-anno, incluse le sottocartelle storiche: il nuovo record riutilizza il percorso
-esistente e il report lo segnala. Un nome già occupato da contenuto diverso
-riceve un suffisso SHA-256. Nessun file storico viene spostato o cancellato.
-Archivio e staging mantengono gli identificativi tecnici per il recupero.
-La scansione è lineare sui file dell’anno; per depositi molto grandi servirà
-un indice degli hash. La lettura fallita di un candidato blocca il singolo import
-anziché assumere che non esista una copia.
+La ricerca di una copia nel deposito è lineare sui file dell'anno; per depositi
+molto grandi servirà un indice degli hash. La lettura fallita di un candidato
+blocca il singolo import anziché assumere che non esista una copia.

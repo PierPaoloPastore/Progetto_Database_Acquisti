@@ -17,14 +17,11 @@ Gli originali sul server e i file dei documenti eliminati vengono conservati.
 I nomi non sono più un criterio di duplicazione; contano identità e contenuto.
 Lo storico non viene rinominato e non sono richieste migrazioni.
 
-La descrizione seguente documenta il comportamento precedente del 26 settembre,
-ancora utile per interpretare i percorsi storici; non è il protocollo corrente.
-
 ## Ambito
 
-La convenzione introdotta il 2026-09-26 si applica alle copie dei nuovi import
-XML/P7M, dopo l'aggiornamento dell'applicazione sul server. Non rinomina i file
-gia importati e non richiede migrazioni o modifiche allo schema del database.
+La convenzione si applica alle copie dei nuovi import XML/P7M dopo
+l'aggiornamento dell'applicazione sul server. Non rinomina i file già importati
+e non richiede migrazioni o modifiche allo schema del database.
 
 ## Flusso di salvataggio
 
@@ -35,8 +32,8 @@ Nel normale import completato correttamente, il gestionale:
    nome leggibile. Il contenuto del file non viene modificato.
 3. Salva nel database i dati e il percorso relativo della copia in
    `documents.file_path`, usato per accedere al file dal gestionale.
-4. Sposta l'originale in `Archivio/XML/ANNO`, conservandone il nome salvo
-   l'aggiunta di un suffisso numerico se quel nome esiste gia.
+4. Copia l'originale in `Archivio/XML/ANNO/<attempt_id>/`, conservandone il
+   nome. La sorgente non viene spostata né cancellata.
 
 Il deposito corrisponde al percorso configurato in Impostazioni, campo
 **Deposito XML** (`XML_STORAGE_PATH`; fallback `storage/xml`). Sul server Debian
@@ -58,7 +55,8 @@ Deposito XML/
 └── Archivio/
     └── XML/
         └── 2026/
-            └── IT01234567890_ABC.xml
+            └── <attempt_id>/
+                └── IT01234567890_ABC.xml
 ```
 
 Le due copie hanno lo stesso contenuto e ruoli diversi: copia collegata al
@@ -82,8 +80,8 @@ producono `2026-09-26_Fornitore_prova_FT-123.xml`.
   non adatti al filesystem vengono convertiti o rimossi.
 - Le estensioni `.xml`, `.p7m` e `.xml.p7m` vengono mantenute, in minuscolo.
   Il naming non estrae ne altera il contenuto dei file firmati.
-- In caso di nome gia presente, si aggiunge `_1`, `_2`, ecc. prima
-  dell'estensione, senza sovrascrivere il file precedente.
+- Se il nome è già presente con contenuto diverso, si aggiunge il digest
+  SHA-256 prima dell'estensione, senza sovrascrivere il file precedente.
 - Un XML con piu fatture resta un solo file: il nome usa i dati della prima
   fattura e aggiunge `_multi` prima dell'estensione. I documenti creati
   condividono il percorso di quel file.
@@ -102,9 +100,10 @@ le fatture di un XML multiplo); `documents.file_path` contiene il nuovo percorso
 Anche i download continuano a proporre il nome sorgente. Vecchi e nuovi nomi
 possono quindi convivere nel deposito senza rinominare lo storico.
 
-I controlli dei duplicati restano quelli esistenti: nome sorgente, hash del
-contenuto e identita contabile della fattura. Il suffisso numerico nel filesystem
-evita collisioni di nomi, ma non sostituisce questi controlli.
+I duplicati non sono decisi dal nome sorgente. Contano hash del contenuto e
+identità contabile della fattura. Se il record è stato eliminato ma l'XML
+identico è rimasto nel deposito, la reimportazione crea il nuovo record e
+riutilizza il file esistente; il report registra l'avviso di riutilizzo.
 
 La scansione da cartella server esclude i percorsi che contengono una componente
 chiamata `Archivio`, anche se quella cartella viene selezionata direttamente.
@@ -131,7 +130,10 @@ Verifica manuale in ambiente di prova dopo l'aggiornamento dell'applicazione:
    nell'archivio previsto dalla modalita di importazione.
 3. Aprire/scaricare il file dal documento e verificare che il contenuto sia corretto.
 4. Ricaricare lo stesso XML e controllare che il resoconto lo indichi come duplicato.
-5. Aprire un documento precedente all'aggiornamento e verificare che il suo file
+5. Eliminare un documento di sola prova, reimportare il suo XML e verificare
+   che il nuovo record punti alla stessa copia nel deposito, senza crearne una
+   seconda.
+6. Aprire un documento precedente all'aggiornamento e verificare che il suo file
    sia ancora accessibile.
 
 Riferimenti: `app/services/import_service.py`, `app/services/settings_service.py`

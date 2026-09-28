@@ -1,10 +1,11 @@
-Last updated: 2026-06-04
+Last updated: 2026-09-28
 
 # Architecture
 
 ## Stack
 
-- Python 3.12
+- Python 3.10 nel container Docker (`python:3.10-slim`); il codice import deve
+  restare compatibile con questa versione
 - Flask (app monolitica)
 - SQLAlchemy (ORM)
 - MySQL (mysql+pymysql)
