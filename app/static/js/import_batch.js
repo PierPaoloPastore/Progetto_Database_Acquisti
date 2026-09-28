@@ -276,6 +276,59 @@ document.addEventListener("DOMContentLoaded", () => {
         return id;
     };
 
+    const startLiveProgress = (batchId, totalFiles) => {
+        const status = document.createElement("div");
+        status.className = "small mt-2";
+        progressBox.appendChild(status);
+        const url = new URL(`status/${batchId}`, form.action || window.location.href);
+        const started = Date.now();
+        let changed = started;
+        let signature = "";
+        let stopped = false;
+        let timer;
+        let controller;
+        status.textContent = "In attesa del primo aggiornamento dal server...";
+        const poll = async () => {
+            controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 10000);
+            try {
+                const response = await fetch(url, {
+                    credentials: "same-origin", cache: "no-store", signal: controller.signal,
+                    headers: { Accept: "application/json" },
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+                if (stopped) return;
+                const completed = Math.max(0, data.total_files - (data.reconcile || 0));
+                const active = (data.details || []).find(item => item.status === "reconcile");
+                const next = JSON.stringify([completed, active?.file_name, active?.stage]);
+                if (next !== signature) { changed = Date.now(); signature = next; }
+                const seconds = Math.floor((Date.now() - started) / 1000);
+                const idle = Math.floor((Date.now() - changed) / 1000);
+                status.textContent = `${completed}${totalFiles ? ` di ${totalFiles}` : ""} file con esito disponibile · ${seconds}s trascorsi.`
+                    + (active ? ` In corso o da verificare: ${active.file_name}.` : "")
+                    + (idle >= 60 ? ` Nessun nuovo avanzamento da ${idle}s; il server risponde. Attendi o consulta il riepilogo, senza rilanciare l'importazione.` : "");
+                if (totalFiles) {
+                    const percent = Math.min(100, Math.round(completed / totalFiles * 100));
+                    progressBar.style.width = `${percent}%`;
+                    progressBar.setAttribute("aria-valuenow", percent);
+                }
+            } catch (_) {
+                if (!stopped) status.textContent = "Aggiornamento non disponibile: l'importazione potrebbe continuare. Nuovo controllo tra 5 secondi; non rilanciarla.";
+            } finally {
+                clearTimeout(timeout);
+                if (!stopped) timer = setTimeout(poll, 5000);
+            }
+        };
+        timer = setTimeout(poll, 1000);
+        return () => {
+            stopped = true;
+            clearTimeout(timer);
+            controller?.abort();
+            status.remove();
+        };
+    };
+
     const uploadBatch = async (batch, batchId) => {
         const formData = new FormData();
         formData.append("batch_id", batchId);
@@ -341,6 +394,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         const batchId = startBatch();
+        const stopLiveProgress = startLiveProgress(batchId, files.length);
         const aggregate = {
             total_files: 0,
             imported: 0,
@@ -354,7 +408,8 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
             for (let index = 0; index < batches.length; index += 1) {
                 const batch = batches[index];
-                updateProgress(index + 1, batches.length, batch.length);
+                updateProgress(index, batches.length, aggregate.total_files);
+                progressText.textContent = `Elaborazione gruppo ${index + 1} di ${batches.length}...`;
                 const data = await uploadBatch(batch, batchId);
 
                 aggregate.total_files += data.total_files || batch.length;
@@ -374,6 +429,7 @@ document.addEventListener("DOMContentLoaded", () => {
             renderSummary(aggregate, aggregate.details || []);
             showError(`Risposta interrotta: il batch ${batchId} potrebbe essere già registrato. Controlla il riepilogo prima di riprovare.`);
         } finally {
+            stopLiveProgress();
             importSubmitting = false;
             toggleDisabled(false);
             unlockSubmitButton(submitBtn);
@@ -406,6 +462,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 progressBar.classList.remove("bg-danger");
             }
             startBusyProgress("Import cartella server in corso...");
+            const stopLiveProgress = startLiveProgress(batchId);
 
             try {
                 const targetUrl = serverForm.getAttribute("action") || window.location.href;
@@ -427,6 +484,8 @@ document.addEventListener("DOMContentLoaded", () => {
             } catch (error) {
                 showError("Risposta interrotta: alcuni documenti potrebbero essere registrati. Ricarica il riepilogo prima di riprovare.");
             } finally {
+                stopLiveProgress();
+                progressBar?.classList.remove("progress-bar-striped", "progress-bar-animated");
                 importSubmitting = false;
                 toggleDisabled(false);
                 unlockSubmitButton(serverBtn);
