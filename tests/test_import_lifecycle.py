@@ -96,6 +96,23 @@ class ImportTestCase(unittest.TestCase):
 
 
 class ImportLifecycleTests(ImportTestCase):
+    def test_case_distinct_names_and_suffix_are_not_identity(self):
+        self.assert_registered(self.run_file(invoice(("CASE/1",)), "SM03473_GaBEd.xml"))
+        self.assert_registered(self.run_file(invoice(("CASE/2",)), "SM03473_GaBED.xml"), 2)
+        repeat = self.run_file(invoice(("CASE/1",)), "SM03473_GaBEd_1.xml")
+        self.assertEqual(repeat["state"], "duplicate", repeat)
+        self.assert_registered(self.run_file(invoice(("CASE/3",)), "SM03473_GaBED_1.xml"), 3)
+
+    def test_duplicate_with_changed_database_total_requires_review(self):
+        self.assert_registered(self.run_file())
+        doc = Document.query.one()
+        doc.total_gross_amount = 999
+        db.session.commit()
+        result = self.run_file()
+        self.assertEqual(result["state"], "conflict", result)
+        self.assertIn("total_gross_amount", result["message"])
+        self.assertEqual(Document.query.count(), 1)
+
     def test_deleted_document_reuses_deposit_file(self):
         from app.services.document_service import DocumentService
         self.assert_registered(self.run_file())
@@ -242,6 +259,7 @@ class ImportLifecycleTests(ImportTestCase):
         self.assertEqual(Document.query.count(), 0)
         self.assertEqual(ImportLog.query.filter_by(status="success").count(), 0)
         self.assertEqual(ImportLog.query.filter_by(status="error").count(), 1)
+        self.assertFalse((self.storage / "Archivio").exists())
         self.assert_registered(self.run_file(invoice(("A/1", "A/2"))), 2)
 
     def test_commit_ack_lost_reconciles_without_duplicate(self):

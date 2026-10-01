@@ -208,6 +208,17 @@ def _snapshot(session, doc):
     raise ImportConflict(f"Documento storico #{doc.id}: identità non verificabile")
 
 
+def _verify_totals(doc, dto):
+    sign = -1 if dto.tipo_documento == "TD04" else 1
+    for field in ("total_gross_amount", "total_taxable_amount", "total_vat_amount"):
+        expected = getattr(dto, field)
+        actual = getattr(doc, field)
+        if expected is not None and sign == -1:
+            expected = -abs(expected)
+        if actual is None or expected is None or Decimal(str(actual)) != Decimal(str(expected)):
+            raise ImportConflict(f"Documento #{doc.id}: {field} discordante, verificare", doc.id)
+
+
 def _duplicate(session, dto, meta, entity_id, file_hash):
     candidates = registry.accounting_candidates(session, dto.invoice_number, dto.invoice_date, meta["identity"])
     matches = []
@@ -226,6 +237,7 @@ def _duplicate(session, dto, meta, entity_id, file_hash):
             continue
         if snapshot["body_hash"] != meta["body_hash"]:
             raise ImportConflict(f"Stessa identità contabile del documento #{doc.id}, contenuto diverso", doc.id)
+        _verify_totals(doc, dto)
         if not doc.file_path or not _safe_path(doc.file_path).is_file():
             raise ImportConflict(f"XML del documento #{doc.id} non disponibile: recupero necessario", doc.id)
         if imported and imported.get("stored_hash") and sha256(_safe_path(doc.file_path)) != imported["stored_hash"]:

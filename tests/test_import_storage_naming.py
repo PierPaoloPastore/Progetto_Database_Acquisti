@@ -2,12 +2,24 @@
 import unittest
 from datetime import date
 from pathlib import Path
+from pathlib import PureWindowsPath
+from unittest.mock import Mock
 from types import SimpleNamespace
 
 from app.services import import_service as service
 
 
 class ImportStorageNamingTests(unittest.TestCase):
+    def test_scan_keeps_windows_case_distinct_entries(self):
+        paths = [Mock(), Mock()]
+        for item, name in zip(paths, ("SM03473_GaBEd.xml", "SM03473_GaBED.xml")):
+            item.suffix = ".xml"
+            item.parts = ("2026", name)
+            item.resolve.return_value = PureWindowsPath("Z:/2026") / name
+        folder = Mock()
+        folder.rglob.return_value = paths
+        self.assertEqual(len(service._collect_import_files(folder)), 2)
+
     def setUp(self):
         self.dto = SimpleNamespace(
             supplier=SimpleNamespace(name="Fornitore prova"),

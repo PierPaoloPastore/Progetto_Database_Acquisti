@@ -362,13 +362,14 @@ def _import_filename(xml_path, invoice_dtos=None):
     return f"{date_label}_{supplier}_{number}{multi}{suffix}"
 
 
-def _select_import_files(candidates: set[Path]) -> List[Path]:
+def _select_import_files(candidates: Sequence[Path]) -> List[Path]:
     # Anche gli omonimi XML/P7M passano dai controlli sul contenuto.
     return sorted(candidates)
 
 
-def _collect_import_files(import_folder: Path) -> set[Path]:
-    return {path.resolve() for path in import_folder.rglob("*")
+def _collect_import_files(import_folder: Path) -> List[Path]:
+    # WindowsPath confronta senza case: un set perderebbe file su NAS case-sensitive.
+    return [path.resolve() for path in import_folder.rglob("*")
             if path.is_file() and path.suffix.lower() in {".xml", ".p7m"}
             and not any(part.lower() in {"archivio", ".import-staging", ".import-diagnostics"}
-                        for part in path.parts)}
+                        for part in path.parts)]
