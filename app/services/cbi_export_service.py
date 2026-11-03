@@ -213,7 +213,10 @@ def _append_transfer(parent, profile: CbiProfile, message_id: str, index: int, r
 def _document_remaining_amount(document: Document) -> Decimal:
     raw_value = getattr(document, "remaining_amount", None)
     if raw_value is None:
-        raw_value = document.total_gross_amount
+        from app.services.payment_service import attach_payment_amounts
+
+        attach_payment_amounts([document])
+        raw_value = document.remaining_amount
     return Decimal(str(raw_value or "0")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 

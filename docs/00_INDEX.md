@@ -1,4 +1,4 @@
-Last updated: 2026-09-28
+Last updated: 2026-10-02
 
 # Documentazione - Indice
 
@@ -12,6 +12,7 @@ Benvenuto nel centro documentazione del Gestionale Acquisti. Usa questo indice c
   - [Troubleshooting import P7M](guides/p7m_troubleshooting.md)
   - [UI Pagamenti (scroll/compattazione)](guides/payments_ui.md)
   - [Export CBI / SEPA XML](guides/cbi_export.md)
+  - [Dovuto fatture XML e recupero storico](guides/invoice_due_amount.md)
 - Aggiornamenti recenti
   - [Aggiornamenti 2025-12-30](updates/2025-12-30.md)
   - [Aggiornamenti 2026-02-14](updates/2026-02-14.md)

@@ -12,6 +12,7 @@ from flask import abort, Response, Blueprint, render_template, request, url_for
 
 from app.services.reporting_service import (
     get_category_breakdown,
+    get_category_entity_breakdown,
     get_monthly_totals,
     get_status_counts,
     get_top_suppliers,
@@ -125,6 +126,12 @@ def index():
     }
 
     chart = _build_monthly_chart(monthly_report)
+    category_entities = (
+        get_category_entity_breakdown(
+            year, doc_type_filter, category_id=category_ids or None,
+            date_from=date_from, date_to=date_to,
+        ) if legal_entity_id is None else {}
+    )
     category_rows = []
     category_total_base = category_breakdown.total or total_net_value
     if category_total_base < 0:
@@ -191,6 +198,7 @@ def index():
         top_suppliers=suppliers_rows,
         category_rows=category_rows,
         category_donut=category_donut,
+        category_entities=category_entities,
         report_insights=report_insights,
         categories_empty=len(category_rows) == 0,
     )

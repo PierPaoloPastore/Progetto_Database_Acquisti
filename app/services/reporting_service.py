@@ -11,7 +11,9 @@ from sqlalchemy import func
 
 from app.models import Category, Document, DocumentLine, LegalEntity, Supplier
 from app.services.unit_of_work import UnitOfWork
-from app.repositories.reporting_repo import filter_report_category, filter_report_period
+from app.repositories.reporting_repo import (
+    filter_report_category, filter_report_period, list_category_entity_totals,
+)
 
 
 @dataclass
@@ -313,6 +315,35 @@ def get_category_breakdown(
             }
         )
     return CategoryBreakdown(total=total_sum, rows=results)
+
+
+def get_category_entity_breakdown(
+    year: int,
+    doc_type_filter: str,
+    category_id: int | list[int] | tuple[int, ...] | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+) -> dict[int, dict]:
+    """Quote sul totale netto di ogni categoria; con totale zero la quota non è definita."""
+    with UnitOfWork() as uow:
+        totals = list_category_entity_totals(
+            uow.session, year, doc_type_filter, category_id, date_from, date_to,
+        )
+    categories = {}
+    for category, entity_id, name, total in totals:
+        group = categories.setdefault(category, {"total": 0.0, "rows": []})
+        amount = float(total or 0)
+        group["total"] += amount
+        group["rows"].append({
+            "legal_entity_id": entity_id,
+            "name": name or "Senza intestazione",
+            "total": amount,
+        })
+    for group in categories.values():
+        group["total"] = round(group["total"], 2)
+        for row in group["rows"]:
+            row["percent"] = row["total"] / group["total"] * 100 if group["total"] else None
+    return categories
 
 
 def _apply_type_filter(query, doc_type_filter: str):

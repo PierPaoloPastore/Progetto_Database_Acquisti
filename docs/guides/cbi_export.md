@@ -34,7 +34,7 @@ La generazione si blocca con un messaggio leggibile se:
 
 - Ordinante: `BankAccount.iban` e intestazione collegata.
 - Beneficiario: `Supplier.name` e `Supplier.iban`.
-- Documento: `Document.document_number`, `Document.document_date`, `Document.total_gross_amount`.
+- Documento: `Document.document_number`, `Document.document_date`, `Document.total_gross_amount` (somma degli importi di pagamento XML, quando presenti).
 - Residuo: campo runtime `remaining_amount` calcolato da `payment_service.attach_payment_amounts()`.
 
 ## Struttura tecnica

@@ -280,7 +280,23 @@ Per ogni blocco:
 
 ---
 
-### 7.2 Fallback ImportoTotaleDocumento
+### 7.2 Importo applicativo della fattura
+
+Dal 2 ottobre 2026, per tutti i fornitori, `InvoiceDTO.total_gross_amount` e
+`documents.total_gross_amount` usano la somma degli `ImportoPagamento` presenti
+in tutti i `DatiPagamento/DettaglioPagamento` del singolo Body.
+Se nessun importo è presente, usano `ImportoTotaleDocumento`; zero esplicito è
+un valore valido e non attiva il fallback. I corpi non vengono sommati tra loro.
+La scelta è implementata in `InvoiceDTO.__post_init__`, condiviso da xsdata e
+legacy. Importi presenti ma invalidi o non finiti bloccano l'importazione.
+
+Per TD04 si mantiene `ImportoTotaleDocumento` e la normalizzazione negativa
+preesistente. Imponibile e IVA non cambiano. Non si conserva un secondo totale
+né si aggiungono colonne DB. Report e pagamenti usano il totale così salvato.
+Le fatture esistenti non vengono aggiornate automaticamente: vedere la
+[guida al criterio e al recupero dagli XML](../guides/invoice_due_amount.md).
+
+### 7.3 Fallback ImportoTotaleDocumento
 
 Se `ImportoTotaleDocumento` è assente:
 

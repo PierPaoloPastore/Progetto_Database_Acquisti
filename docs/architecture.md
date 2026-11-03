@@ -1,4 +1,4 @@
-Last updated: 2026-09-28
+Last updated: 2026-10-02
 
 # Architecture
 
@@ -58,6 +58,15 @@ Last updated: 2026-09-28
     **Supertipo unificato** per tutti i documenti economici:
     - `document_type`: discriminatore (`'invoice'`, `'credit_note'`, `'f24'`, `'insurance'`, `'mav'`, `'cbill'`, `'receipt'`, `'rent'`, `'tax'`, `'other'`)
     - Colonne comuni: supplier, legal_entity, date, importi, stato
+    - Fatture XML: `total_gross_amount` usa la somma degli `ImportoPagamento`
+      presenti, incluso zero; altrimenti `ImportoTotaleDocumento`. La scelta
+      avviene in `InvoiceDTO.__post_init__`, condiviso dai due parser, per tutti
+      i fornitori. Nessuna colonna aggiuntiva o migrazione; TD04 conserva il
+      totale documento e la gestione preesistente delle note di credito.
+    - Residuo e saldo usano lo snapshot condiviso in `payment_service` sul
+      totale salvato, pagamenti effettivi e compensazioni. Dashboard ed export
+      usano lo stesso residuo, senza ricavare il totale dalle scadenze modificabili.
+      Vedere [importo fattura XML](guides/invoice_due_amount.md).
     - Colonne specifiche per tipo (nullable): `invoice_type`, `f24_payment_code`, `insurance_policy_number`, ecc.
     - **Gestione copie fisiche**: campo `physical_copy_file_path` per il percorso relativo delle scansioni o dei documenti PDF caricati
     - Pattern: **Single Table Inheritance**

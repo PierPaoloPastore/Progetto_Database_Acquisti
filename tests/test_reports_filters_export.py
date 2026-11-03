@@ -7,8 +7,8 @@ from sqlalchemy import create_engine, text, func
 from sqlalchemy.orm import Session
 
 from app.models import Document
-from app.repositories.reporting_repo import filter_report_category
 from app.services.reporting_service import MonthlyReport, CategoryBreakdown
+from app.repositories.reporting_repo import filter_report_category
 from app.web import routes_reports as routes
 
 
@@ -57,6 +57,16 @@ def test_csv_route_preserves_all_filters_and_escapes_names(monkeypatch):
     monkeypatch.setattr(routes, "get_category_breakdown", aggregate(CategoryBreakdown(-20.0, [
         {"category_id": 7, "name": "Servizi", "total": -20.0}
     ])))
+    entity_calls = []
+
+    def entity_breakdown(year, kind, **scope):
+        entity_calls.append((year, kind, scope))
+        return {7: {"total": 100, "rows": [
+            {"legal_entity_id": 2, "name": "A", "total": 30, "percent": 30},
+            {"legal_entity_id": 3, "name": "B", "total": 70, "percent": 70},
+        ]}}
+
+    monkeypatch.setattr(routes, "get_category_entity_breakdown", entity_breakdown)
     response = app.test_client().get("/reports/?year=2026&type=invoice&legal_entity_id=2&category_id=7&format=csv")
     assert response.status_code == 200
     assert "attachment" in response.headers["Content-Disposition"]
@@ -71,6 +81,7 @@ def test_csv_route_preserves_all_filters_and_escapes_names(monkeypatch):
     assert len(calls) == 5
     assert all(call[1:] == ("invoice", 2, [7]) for call in calls)
     assert calls[-1][0] == 2025
+    assert entity_calls == []  # Nessuna query aggiuntiva per il CSV.
 
     calls.clear()
     response = app.test_client().get("/reports/?category_id=999&format=csv")
@@ -95,6 +106,9 @@ def test_csv_route_preserves_all_filters_and_escapes_names(monkeypatch):
     ])
     app.jinja_env.filters["format_int"] = str
     app.jinja_env.filters["format_amount"] = str
+    monkeypatch.setattr(routes, "get_category_breakdown", aggregate(CategoryBreakdown(100.0, [
+        {"category_id": 7, "name": "Servizi", "total": 100.0}
+    ])))
     response = app.test_client().get(query)
     assert response.status_code == 200
     html = response.get_data(as_text=True)
@@ -108,6 +122,19 @@ def test_csv_route_preserves_all_filters_and_escapes_names(monkeypatch):
     assert filters["category_ids"] == ["7,8"]
     assert filters["date_from"] == ["2025-12-31"]
     assert "year" not in filters
+    assert 'class="category-picker"' in html
+    assert 'data-report-results' in html
+    assert 'data-category-id="7"' in html
+    assert '30,0%' in html and '70,0%' in html
+    assert entity_calls[-1] == (2026, "all", {
+        "category_id": [7, 8], "date_from": date(2025, 12, 31), "date_to": date(2026, 1, 1),
+    })
+
+    entity_calls.clear()
+    response = app.test_client().get(query + "&legal_entity_id=2")
+    assert response.status_code == 200
+    assert 'data-category-id="7"' not in response.get_data(as_text=True)
+    assert entity_calls == []
 
 
 
@@ -187,3 +214,44 @@ def test_document_category_selection_parsing():
     assert filters.category_ids == (7, 8)
     assert filters.accounting_year is None
     assert filters.date_from.year == 2025
+
+
+def test_category_entity_shares_use_category_lines_and_respect_scope():
+    from datetime import date
+    from unittest.mock import patch
+    from app.services import reporting_service as service
+
+    engine = create_engine("sqlite://")
+    with engine.begin() as connection:
+        connection.execute(text("CREATE TABLE documents (id INTEGER, document_date DATE, document_type TEXT, legal_entity_id INTEGER)"))
+        connection.execute(text("CREATE TABLE invoice_lines (id INTEGER, document_id INTEGER, category_id INTEGER, total_line_amount NUMERIC)"))
+        connection.execute(text("CREATE TABLE legal_entities (id INTEGER, name TEXT)"))
+        connection.execute(text("INSERT INTO legal_entities VALUES (2, 'La Fasanara'), (3, 'Pastore Mario'), (4, 'Altra')"))
+        connection.execute(text("INSERT INTO documents VALUES (1,'2025-12-31','invoice',2), (2,'2026-01-01','invoice',3), (3,'2026-01-01','invoice',4), (4,'2026-01-01','credit_note',2), (5,'2026-01-02','invoice',2), (6,'2025-12-30','invoice',2), (7,'2026-01-01','invoice',NULL)"))
+        connection.execute(text("INSERT INTO invoice_lines VALUES (1,1,7,10), (2,1,7,20), (3,2,7,15), (4,2,8,900), (5,3,7,55), (6,4,7,-5), (7,5,7,1000), (8,6,7,2000), (9,1,9,10), (10,2,9,-10), (11,7,10,5), (12,1,NULL,50)"))
+        connection.execute(text("INSERT INTO invoice_lines VALUES (13,1,11,0.1), (14,2,11,0.2), (15,3,11,-0.3)"))
+    with Session(engine) as session, patch.object(service, "UnitOfWork") as uow:
+        uow.return_value.__enter__.return_value.session = session
+        scope = dict(category_id=[7], date_from=date(2025, 12, 31), date_to=date(2026, 1, 1))
+        groups = service.get_category_entity_breakdown(2026, "invoice", **scope)
+        assert groups[7]["total"] == 100
+        shares = {row["name"]: round(row["percent"], 8) for row in groups[7]["rows"]}
+        assert shares == {"La Fasanara": 30, "Pastore Mario": 15, "Altra": 55}
+        assert sum(shares.values()) == 100
+        assert groups[8]["total"] == 900  # Le altre righe non gonfiano la quota di categoria 7.
+        assert groups[9]["total"] == 0
+        assert all(row["percent"] is None for row in groups[9]["rows"])
+        assert groups[11]["total"] == 0  # Anche con importi che producono residui float.
+        assert all(row["percent"] is None for row in groups[11]["rows"])
+        assert 10 not in groups  # Documento senza una delle categorie selezionate.
+
+        groups = service.get_category_entity_breakdown(2026, "all", **scope)
+        assert groups[7]["total"] == 95  # Nota di credito inclusa una sola volta.
+        assert abs(sum(row["percent"] for row in groups[7]["rows"]) - 100) < 1e-9
+        assert service.get_category_entity_breakdown(2026, "all", category_id=[999]) == {}
+        credit = service.get_category_entity_breakdown(2026, "credit_note", **scope)
+        assert credit[7]["total"] == -5
+        assert credit[7]["rows"][0]["percent"] == 100
+        groups = service.get_category_entity_breakdown(2026, "invoice", **{**scope, "category_id": None})
+        assert groups[10]["rows"][0]["name"] == "Senza intestazione"
+        assert groups[10]["rows"][0]["percent"] == 100

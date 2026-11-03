@@ -468,6 +468,7 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
             total_taxable_amount=taxable,
             total_vat_amount=vat,
             total_gross_amount=gross,
+            is_paid=not is_credit_note and gross == Decimal("0"),
             doc_status=status,
             due_date=effective_due_date,
             file_name=invoice_dto.file_name,

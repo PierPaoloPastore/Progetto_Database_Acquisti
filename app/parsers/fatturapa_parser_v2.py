@@ -380,7 +380,10 @@ def _map_payments(body) -> tuple[List[PaymentDTO], Optional[date]]:
         condizioni = _enum_to_str(getattr(dp, "condizioni_pagamento", None))
         for det in getattr(dp, "dettaglio_pagamento", []) or []:
             due_date = _to_date(getattr(det, "data_scadenza_pagamento", None))
-            expected_amount = _to_decimal(getattr(det, "importo_pagamento", None))
+            amount_value = getattr(det, "importo_pagamento", None)
+            expected_amount = _to_decimal(amount_value)
+            if amount_value is not None and expected_amount is None:
+                raise FatturaPAParseError("ImportoPagamento non valido")
             payment_method = _enum_to_str(getattr(det, "modalita_pagamento", None))
             iban = _normalize_iban(getattr(det, "iban", None))
 

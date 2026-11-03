@@ -1,4 +1,4 @@
-Last updated: 2026-04-14
+Last updated: 2026-10-02
 
 # Architettura Database
 
@@ -159,6 +159,18 @@ Tabella centrale del dominio.
 - `note`
 - `is_paid`
 - `created_at`, `updated_at`
+
+### Importo delle fatture XML
+
+Per le nuove fatture di tutti i fornitori, `total_gross_amount` contiene la somma
+degli `ImportoPagamento` presenti nel singolo corpo XML, anche se zero. In loro
+assenza usa `ImportoTotaleDocumento` e i fallback già previsti dal parser.
+Non si conserva un secondo totale e non serve alcuna migrazione DB.
+Imponibile e IVA restano quelli XML; il totale salvato può quindi differire
+dalla loro somma. Le note di credito TD04 mantengono il totale documento negativo.
+Le scadenze modificabili non vengono usate per ricostruire il totale salvato.
+Lo storico non viene aggiornato automaticamente: vedere la
+[guida agli importi XML e al recupero](guides/invoice_due_amount.md).
 
 ### Colonne specifiche per tipo
 

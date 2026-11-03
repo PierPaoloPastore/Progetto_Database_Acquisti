@@ -7,11 +7,32 @@
 {% endblock %}
 
 {% block content %}
+{% macro entity_split(row) %}
+    {% set split = category_entities.get(row.category_id) %}
+    {% if not legal_entity_id and split %}
+        <details class="category-entity-split" data-category-id="{{ row.category_id }}">
+            <summary aria-label="Ripartizione per intestazione: {{ row.name }}"><i class="bi bi-pie-chart" aria-hidden="true"></i> % intestazioni</summary>
+            <div class="entity-split-content">
+                <p>Quote sul totale di {{ row.name }}: &euro; {{ split.total|format_amount }}. Gli importi negativi riducono il totale.</p>
+                <ul class="entity-split-list" aria-label="Spesa per intestazione: {{ row.name }}">
+                    {% for entity in split.rows %}
+                        <li>
+                            <span>{{ entity.name }}</span>
+                            <span>&euro; {{ entity.total|format_amount }}</span>
+                            <strong>{% if entity.percent is not none %}{{ '%.1f'|format(entity.percent)|replace('.', ',') }}%{% else %}n/d{% endif %}</strong>
+                        </li>
+                    {% endfor %}
+                </ul>
+                {% if not split.total %}<p>Percentuali non disponibili: il totale della categoria è zero.</p>{% endif %}
+            </div>
+        </details>
+    {% endif %}
+{% endmacro %}
 <div class="container-fluid reports-page">
     <h1 class="visually-hidden" data-nav-title>Reportistica</h1>
 
     <section class="reports-hero" aria-labelledby="reports-title">
-        <div class="reports-hero-copy">
+        <div class="reports-hero-copy" data-report-heading>
             <div class="reports-eyebrow">Reportistica</div>
             <h2 id="reports-title">Sintesi acquisti {{ period_label }}</h2>
             <p>
@@ -22,7 +43,7 @@
                 Aggiornato il {{ last_updated }}.
             </p>
         </div>
-        <form method="get" class="reports-filters" aria-label="Filtri reportistica">
+        <form method="get" action="{{ url_for('reports.index') }}" class="reports-filters" aria-label="Filtri reportistica">
             <div class="filters-item">
                 <label for="legal_entity_id" class="form-label">Intestazione</label>
                 <select id="legal_entity_id" name="legal_entity_id" class="form-select form-select-sm">
@@ -52,17 +73,28 @@
                     {% endfor %}
                 </select>
             </div>
-            <div class="filters-item">
-                <span class="form-label d-block">Categorie</span>
-                <details>
-                    <summary class="btn btn-sm btn-outline-secondary">{{ category_ids|length }} selezionate (nessuna = tutte)</summary>
-                    <div class="border rounded p-2 overflow-auto" style="max-height: 220px">
-                        {% for category in categories %}
-                        <label class="d-block">
-                            <input type="checkbox" name="category_id" value="{{ category.id }}" {% if category.id in category_ids %}checked{% endif %}>
-                            {{ category.name }}
-                        </label>
-                        {% endfor %}
+            <div class="filters-item filters-categories">
+                <span class="form-label d-block" id="categories-label">Categorie</span>
+                <details class="category-picker">
+                    <summary class="form-select form-select-sm" aria-labelledby="categories-label categories-summary">
+                        <span id="categories-summary">{% if category_ids %}{{ category_ids|length }} selezionate{% else %}Tutte le categorie{% endif %}</span>
+                    </summary>
+                    <div class="category-picker-menu">
+                        <label for="category-search" class="visually-hidden">Cerca categorie</label>
+                        <input type="search" id="category-search" class="form-control form-control-sm" placeholder="Cerca categoria…" autocomplete="off">
+                        <div class="category-picker-tools">
+                            <span>Nessuna selezione = tutte</span>
+                            <button type="button" class="btn btn-sm btn-link" data-clear-categories>Azzera</button>
+                        </div>
+                        <div class="category-picker-options">
+                            {% for category in categories %}
+                            <label class="category-picker-option">
+                                <input type="checkbox" class="form-check-input" name="category_id" value="{{ category.id }}" {% if category.id in category_ids %}checked{% endif %}>
+                                <span>{{ category.name }}</span>
+                            </label>
+                            {% else %}<p class="text-muted small p-2">Nessuna categoria disponibile.</p>{% endfor %}
+                        </div>
+                        <p class="text-muted small mb-0" data-category-no-match hidden>Nessuna categoria trovata.</p>
                     </div>
                 </details>
             </div>
@@ -74,18 +106,20 @@
                 <label for="date_to" class="form-label">A (inclusa)</label>
                 <input type="date" id="date_to" name="date_to" value="{{ date_to }}" class="form-control form-control-sm">
             </div>
-            <p class="small text-muted w-100 mb-0">Compila entrambe le date per usare un intervallo al posto dell'anno. Svuotale per tornare al filtro annuale.</p>
+            <p class="small text-muted w-100 mb-0">Compila entrambe le date per usare un intervallo. Svuotale o scegli un anno per tornare al filtro annuale.</p>
             <div class="filters-actions">
-                <button type="submit" class="btn btn-sm btn-primary">
-                    <i class="bi bi-funnel"></i> Aggiorna
+                <button type="submit" class="btn btn-sm btn-primary" data-report-refresh>
+                    <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Aggiorna
                 </button>
                 <button type="submit" name="format" value="csv" class="btn btn-sm btn-outline-primary">
-                    <i class="bi bi-download"></i> Esporta CSV
+                    <i class="bi bi-download" aria-hidden="true"></i> Esporta CSV
                 </button>
             </div>
+            <p class="report-filter-status small mb-0" role="status" aria-live="polite" data-report-status></p>
         </form>
     </section>
 
+    <div data-report-results>
     <section class="reports-kpi-grid" aria-label="Indicatori principali">
         <a class="report-kpi report-kpi-link" href="{{ links.total_net }}">
             <span class="kpi-label">Totale lordo</span>
@@ -218,6 +252,7 @@
                                         &euro; {{ row.total_label }} - {{ row.percent_label }}
                                         {% if row.is_other and row.children_count %} su {{ row.children_count }} categorie{% endif %}
                                     </small>
+                                    {{ entity_split(row) }}
                                 </div>
                             </li>
                         {% endfor %}
@@ -231,12 +266,15 @@
                         </summary>
                         <div class="category-other-list">
                             {% for row in category_donut.other_rows %}
-                                <a class="category-other-row" href="{{ row.url }}">
-                                    <span class="category-other-name">{{ row.name }}</span>
-                                    <span class="category-other-values">
-                                        &euro; {{ row.total_label }} <span>{{ row.percent_label }}</span>
-                                    </span>
-                                </a>
+                                <div class="category-other-item">
+                                    <a class="category-other-row" href="{{ row.url }}">
+                                        <span class="category-other-name">{{ row.name }}</span>
+                                        <span class="category-other-values">
+                                            &euro; {{ row.total_label }} <span>{{ row.percent_label }}</span>
+                                        </span>
+                                    </a>
+                                    {{ entity_split(row) }}
+                                </div>
                             {% endfor %}
                         </div>
                     </details>
@@ -290,23 +328,11 @@
             {% endif %}
         </article>
     </section>
+    </div>
 </div>
 {% endblock %}
 
 
 {% block extra_js %}
-<script>
-(() => {
-    const start = document.getElementById('date_from');
-    const end = document.getElementById('date_to');
-    function validatePeriod() {
-        start.required = Boolean(end.value);
-        end.required = Boolean(start.value);
-        end.min = start.value;
-    }
-    start.addEventListener('input', validatePeriod);
-    end.addEventListener('input', validatePeriod);
-    validatePeriod();
-})();
-</script>
+<script src="{{ url_for('static', filename='js/reports.js') }}"></script>
 {% endblock %}

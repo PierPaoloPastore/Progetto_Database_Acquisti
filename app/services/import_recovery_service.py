@@ -186,7 +186,7 @@ def _validate(dtos, metadata):
             dto.total_gross_amount = dto.total_taxable_amount + dto.total_vat_amount
         amounts = [dto.total_gross_amount, dto.total_taxable_amount, dto.total_vat_amount]
         amounts += [line.total_line_amount for line in dto.lines]
-        amounts += [payment.expected_amount for payment in dto.payments]
+        amounts += [payment.expected_amount for payment in dto.payments if payment.expected_amount is not None]
         if any(value is None or not Decimal(str(value)).is_finite() for value in amounts):
             raise ValueError("Importi mancanti o non validi")
 

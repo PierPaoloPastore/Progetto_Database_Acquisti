@@ -206,6 +206,14 @@ class InvoiceDTO:
     attachments: List["AttachmentDTO"] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
 
+    def __post_init__(self):
+        """Preferisce gli importi di pagamento XML per le fatture, incluso zero."""
+        if (self.tipo_documento or "").upper() == "TD04":
+            return
+        amounts = [p.expected_amount for p in self.payments if p.expected_amount is not None]
+        if amounts:
+            self.total_gross_amount = sum(amounts, Decimal("0"))
+
 
 @dataclass
 class AttachmentDTO:
@@ -1662,9 +1670,10 @@ def _parse_payments(body) -> tuple[List[PaymentDTO], Optional[date]]:
         )
         due_date = _to_date(due_date_str)
 
-        expected_amount = _to_decimal(
-            _get_text(p_node, ".//*[local-name()='ImportoPagamento']")
-        )
+        amount_text = _get_text(p_node, ".//*[local-name()='ImportoPagamento']")
+        expected_amount = _to_decimal(amount_text)
+        if amount_text is not None and expected_amount is None:
+            raise FatturaPAParseError("ImportoPagamento non valido")
 
         payment_terms = _get_text(
             p_node, ".//*[local-name()='TerminiPagamento']"

@@ -1,5 +1,5 @@
 # LLM context pack
-Last updated: 2025-12-15
+Last updated: 2026-10-02
 
 1) Project overview
 - Monolithic Flask app (Python 3.12) that manages the full lifecycle of purchase documents, centered on a unified `documents` supertype with shared workflows for import, review, physical copies, deadlines, and payments. Source of truth: [README](../README.md).
@@ -9,6 +9,7 @@ Last updated: 2025-12-15
 - Document review with statuses (`imported`, `verified`, `rejected`, `cancelled`, `archived`) and physical copy tracking. Source: [README](../README.md).
 - Delivery notes (`delivery_notes`) for deferred invoices and PDF inbox with matching states. Source: [architecture](architecture.md).
 - Payment scheduling via `payments`, payment PDFs in `payment_documents`, and M:N reconciliation through `payment_document_links`. Source: [README](../README.md), [architecture](architecture.md).
+- Invoice amount: for every supplier, the existing `total_gross_amount` stores the sum of XML `ImportoPagamento` values when present (including zero), otherwise `ImportoTotaleDocumento`. Both parsers share `InvoiceDTO.__post_init__`. No separate total or DB migration. TD04 credit notes preserve their document total and existing allocation behavior. Dashboard and payment exports use the shared settlement snapshot; mutable schedules do not determine the saved total. Existing invoices require verified XML recovery, with no automatic updates. Source: [invoice amount and recovery](guides/invoice_due_amount.md).
 - Supplier/legal entity registry, categories on invoice lines, notes, exports/reports (IVA, supplier statements, CSV). Source: [README](../README.md).
 
 3) Architecture (high-level)
