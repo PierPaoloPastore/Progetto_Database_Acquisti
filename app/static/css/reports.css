@@ -282,6 +282,7 @@
 
 .reports-filters {
     flex: 1 1 520px;
+    align-items: flex-start;
     justify-content: flex-end;
     border-color: #e2e8f0;
     border-radius: 12px;
@@ -325,98 +326,30 @@
     color: #475569;
 }
 
-.category-picker {
-    position: relative;
+.filters-categories {
+    flex-basis: 100%;
 }
 
-.category-picker > summary {
-    display: flex;
-    align-items: center;
-    cursor: pointer;
-    list-style: none;
-}
-
-.category-picker > summary::-webkit-details-marker {
-    display: none;
-}
-
-.category-picker > summary span {
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-}
-
-.category-picker-menu {
-    position: absolute;
-    z-index: 20;
-    top: calc(100% + 0.4rem);
-    right: 0;
-    width: 25rem;
-    max-width: calc(100vw - 4rem);
-    padding: 0.75rem;
-    border: 1px solid #d9e2ef;
-    border-radius: 12px;
-    background: #fff;
-    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
-}
-
-.reports-filters .category-picker-heading {
-    margin-bottom: 0.65rem;
-    color: #1f2d3d;
-    font-size: 0.95rem;
-    font-weight: 700;
-}
-
-.category-picker-tools {
+.category-selector-meta {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 0.5rem;
     color: #64748b;
-    font-size: 0.75rem;
 }
 
-.category-picker-options {
-    max-height: 19rem;
-    overflow-y: auto;
-    overscroll-behavior: contain;
+.category-selector-meta .btn {
+    padding: 0.15rem 0;
 }
 
-.category-picker-option {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.75rem;
-    padding: 0.7rem;
-    margin-bottom: 0.3rem;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    cursor: pointer;
-    overflow-wrap: anywhere;
-    font-size: 0.95rem;
-    line-height: 1.5;
-    color: #334155;
+.reports-filters .report-category-select {
+    height: 10rem;
+    padding: 0.35rem;
+    background-image: none;
 }
 
-.category-picker-option:hover,
-.category-picker-option:focus-within {
-    background: #eef3f9;
-}
-
-.category-picker-option .form-check-input {
-    flex-shrink: 0;
-    width: 1.1rem;
-    height: 1.1rem;
-}
-
-.category-picker-option:has(input:checked) {
-    background: #edf7f0;
-    border-color: #92c5a3;
-    color: #175334;
-    font-weight: 650;
-}
-
-.category-picker-option[hidden] {
-    display: none;
+.report-category-select option {
+    padding: 0.4rem 0.5rem;
 }
 
 .category-entity-split {
@@ -937,10 +870,6 @@
     .filters-item,
     .filters-actions,
     .filters-actions .btn {
-        width: 100%;
-    }
-
-    .category-picker-menu {
         width: 100%;
     }
 

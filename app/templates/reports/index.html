@@ -3,7 +3,7 @@
 {% block title %}Reportistica - Gestionale Acquisti{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/reports.css', v='manual-categories-2') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/reports.css', v='native-categories-1') }}">
 {% endblock %}
 
 {% block content %}
@@ -88,30 +88,18 @@
                 </select>
             </div>
             <div class="filters-item filters-categories">
-                <span class="form-label d-block" id="categories-label">Categorie</span>
-                <details class="category-picker">
-                    <summary class="form-select form-select-sm" aria-labelledby="categories-label categories-summary">
-                        <span id="categories-summary">{% if category_ids %}{{ category_ids|length }} selezionate{% else %}Tutte le categorie{% endif %}</span>
-                    </summary>
-                    <div class="category-picker-menu">
-                        <p class="category-picker-heading">Scegli le categorie</p>
-                        <label for="category-search" class="visually-hidden">Cerca categorie</label>
-                        <input type="search" id="category-search" class="form-control form-control-sm" placeholder="Cerca categoria…" autocomplete="off">
-                        <div class="category-picker-tools">
-                            <span>Nessuna selezione = tutte</span>
-                            <button type="button" class="btn btn-sm btn-link" data-clear-categories>Azzera</button>
-                        </div>
-                        <div class="category-picker-options">
-                            {% for category in categories %}
-                            <label class="category-picker-option">
-                                <input type="checkbox" class="form-check-input" name="category_id" value="{{ category.id }}" {% if category.id in category_ids %}checked{% endif %}>
-                                <span>{{ category.name }}</span>
-                            </label>
-                            {% else %}<p class="text-muted small p-2">Nessuna categoria disponibile.</p>{% endfor %}
-                        </div>
-                        <p class="text-muted small mb-0" data-category-no-match hidden>Nessuna categoria trovata.</p>
-                    </div>
-                </details>
+                <label for="report-categories" id="report-categories-label" class="form-label">Categorie</label>
+                <select id="report-categories" name="category_id" class="form-select report-category-select"
+                        multiple size="5" aria-describedby="categories-help categories-summary">
+                    {% for category in categories %}
+                        <option value="{{ category.id }}" title="{{ category.name }}" {% if category.id in category_ids %}selected{% endif %}>{{ category.name }}</option>
+                    {% endfor %}
+                </select>
+                <small id="categories-help" class="text-muted">Ctrl/Cmd + clic per scegliere più categorie. Nessuna selezione include tutte le categorie.</small>
+                <div class="category-selector-meta">
+                    <small id="categories-summary">{% if category_ids|length == 1 %}1 selezionata{% elif category_ids %}{{ category_ids|length }} selezionate{% else %}Nessuna selezione = tutte{% endif %}</small>
+                    <button type="button" class="btn btn-sm btn-link" data-clear-categories>Azzera</button>
+                </div>
             </div>
             <div class="filters-item">
                 <label for="date_from" class="form-label">Da</label>
@@ -325,5 +313,5 @@
 
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='js/reports.js', v='manual-categories-2') }}"></script>
+<script src="{{ url_for('static', filename='js/reports.js', v='native-categories-1') }}"></script>
 {% endblock %}

@@ -1,5 +1,6 @@
 import csv
 import io
+import re
 from types import SimpleNamespace
 
 from flask import Flask
@@ -112,17 +113,20 @@ def test_csv_route_preserves_all_filters_and_escapes_names(monkeypatch):
     response = app.test_client().get(query)
     assert response.status_code == 200
     html = response.get_data(as_text=True)
-    assert 'value="7" checked' in html and 'value="8" checked' in html
+    assert re.search(r'<option value="7"[^>]* selected', html)
+    assert re.search(r'<option value="8"[^>]* selected', html)
     assert 'value="2025-12-31"' in html
     assert "31/12/2025" in html
-    import re
     from html import unescape
     link = unescape(re.search(r'href="(/documents[^"]+)"', html).group(1))
     filters = parse_qs(urlsplit(link).query)
     assert filters["category_ids"] == ["7,8"]
     assert filters["date_from"] == ["2025-12-31"]
     assert "year" not in filters
-    assert 'class="category-picker"' in html
+    assert 'class="form-select report-category-select"' in html
+    assert 'multiple size="5"' in html
+    assert 'js-select2' not in html
+    assert 'class="category-picker"' not in html
     assert 'data-report-refresh' in html
     assert 'Seleziona i filtri, poi premi Aggiorna.' in html
     assert 'class="category-summary-card"' in html
