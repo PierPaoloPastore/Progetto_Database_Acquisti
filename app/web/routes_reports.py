@@ -27,12 +27,12 @@ from app.services.formatting_service import format_amount
 reports_bp = Blueprint("reports", __name__, url_prefix="/reports")
 
 _DONUT_COLORS = [
-    "#1f6f43",
-    "#0d6efd",
-    "#7c3aed",
-    "#b7791f",
-    "#0f766e",
-    "#b42318",
+    "#28795e",
+    "#6c8ea5",
+    "#a8aa74",
+    "#9c8eae",
+    "#66a49a",
+    "#a0aaaf",
 ]
 
 
@@ -304,30 +304,45 @@ def _export_csv(year, doc_type, entity_id, category_id, monthly, statuses,
 def _build_monthly_chart(report) -> dict:
     labels = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"]
     if report.periods:
-        labels = [f"{labels[int(period[5:]) - 1]} {period[:4]}" for period in report.periods]
+        show_year = len({period[:4] for period in report.periods}) > 1
+        labels = [labels[int(period[5:]) - 1] + (f" {period[:4]}" if show_year else "")
+                  for period in report.periods]
     values = report.values
     counts = report.counts
     top_suppliers = report.top_suppliers or [None] * 12
     max_value = max((abs(v) for v in values), default=0) or 1
-    has_negative = any(value < 0 for value in values)
 
     bar_width = 28
     gap = 10
-    top_padding = 10
-    chart_height = 150
-    chart_width = gap + (bar_width + gap) * len(labels)
-    positive_height = int(chart_height * 0.68) if has_negative else chart_height
-    negative_height = chart_height - positive_height if has_negative else 0
-    base_y = top_padding + positive_height
+    top_padding = 20
+    left_padding = 54
+    chart_height = 180
+    chart_width = left_padding + gap + (bar_width + gap) * len(labels)
+    upper = max(max(values, default=0), 0)
+    lower = min(min(values, default=0), 0)
+    value_range = upper - lower or 1
+    scale = chart_height / value_range
+    base_y = top_padding + upper * scale
+    ticks = []
+    for step in range(5):
+        tick_value = upper - value_range * step / 4
+        if abs(tick_value) >= 1_000_000:
+            tick_label = f"{tick_value / 1_000_000:.1f}".replace(".", ",") + " mln"
+        elif abs(tick_value) >= 1000:
+            tick_label = f"{tick_value / 1000:.1f}".replace(".", ",") + "k"
+        elif 0 < abs(tick_value) < 10:
+            tick_label = _format_amount(tick_value)
+        else:
+            tick_label = f"{tick_value:.0f}"
+        ticks.append({"y": top_padding + step * chart_height / 4, "label": tick_label})
 
     bars = []
     max_total = max(values) if values else 0
     min_total = min(values) if values else 0
     for idx, label in enumerate(labels):
         value = values[idx] if idx < len(values) else 0
-        available_height = negative_height if value < 0 else positive_height
-        height = int((abs(value) / max_value) * available_height)
-        x = gap + idx * (bar_width + gap)
+        height = abs(value) * scale
+        x = left_padding + gap + idx * (bar_width + gap)
         y = base_y if value < 0 else base_y - height
         top_supplier = top_suppliers[idx] if idx < len(top_suppliers) else None
         top_supplier_label = "n/d"
@@ -364,6 +379,8 @@ def _build_monthly_chart(report) -> dict:
         "width": chart_width,
         "height": chart_height,
         "base_y": base_y,
+        "left_padding": left_padding,
+        "ticks": ticks,
         "bars": bars,
         "has_data": any(value != 0 for value in values),
         "max_value": _format_amount(max_value),

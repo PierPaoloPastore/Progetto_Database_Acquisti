@@ -1,6 +1,7 @@
 from flask import Flask
 
-from app.web.routes_reports import _build_category_donut, _build_report_insights
+from app.web.routes_reports import _build_category_donut, _build_report_insights, _build_monthly_chart
+from app.services.reporting_service import MonthlyReport
 
 
 def _app():
@@ -71,3 +72,38 @@ def test_report_insights_empty_dataset():
     )
 
     assert insights == []
+
+
+def test_monthly_chart_uses_one_scale_for_positive_and_negative_amounts():
+    report = MonthlyReport(2026, [100, -50, 0], [1, 1, 0], 50, 2, [None] * 3,
+                           ["2026-01", "2026-02", "2026-03"])
+    with _app().app_context():
+        chart = _build_monthly_chart(report)
+    positive, negative, zero = chart["bars"]
+    assert positive["label"] == "Gen"
+    assert positive["height"] == 2 * negative["height"]
+    assert positive["y"] + positive["height"] == chart["base_y"]
+    assert negative["y"] == chart["base_y"]
+    assert zero["height"] == 0
+    assert chart["ticks"][0]["y"] <= positive["y"]
+    assert chart["ticks"][-1]["y"] >= negative["y"] + negative["height"]
+    assert chart["left_padding"] > 0
+
+
+def test_monthly_chart_handles_zero_and_negative_only_data():
+    for values in ([0, 0], [-100, -50]):
+        report = MonthlyReport(2026, values, [1, 1], sum(values), 2, [None, None],
+                               ["2026-01", "2026-02"])
+        with _app().app_context():
+            chart = _build_monthly_chart(report)
+        assert chart["has_data"] == any(values)
+        assert all(bar["height"] >= 0 for bar in chart["bars"])
+        assert chart["base_y"] == chart["ticks"][0]["y"]
+
+
+def test_monthly_chart_keeps_cent_values_distinguishable():
+    report = MonthlyReport(2026, [0.2, 0.1], [1, 1], 0.3, 2, [None, None],
+                           ["2026-01", "2026-02"])
+    with _app().app_context():
+        chart = _build_monthly_chart(report)
+    assert len({tick["label"] for tick in chart["ticks"]}) == 5

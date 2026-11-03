@@ -3,7 +3,7 @@
 {% block title %}Reportistica - Gestionale Acquisti{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/reports.css', v='native-categories-1') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/reports.css', v='minimal-reports-1') }}">
 {% endblock %}
 
 {% block content %}
@@ -50,12 +50,12 @@
             <div class="reports-eyebrow">Reportistica</div>
             <h2 id="reports-title">Sintesi acquisti {{ period_label }}</h2>
             <p>
-                Valori aggregati su <strong>{{ total_documents|format_int }}</strong> documenti
-                {% if legal_entity_id %}per l'intestazione selezionata{% else %}su tutte le intestazioni{% endif %}
-                {% if doc_type_filter != 'all' %} e sul tipo documento filtrato{% endif %}.
-                {% if category_ids %}Documenti contenenti almeno una delle categorie selezionate: i totali includono l'intero documento.{% endif %}
-                Aggiornato il {{ last_updated }}.
+                <strong>{{ total_documents|format_int }}</strong> documenti ·
+                {% if legal_entity_id %}Intestazione selezionata{% else %}Tutte le intestazioni{% endif %}
+                {% if doc_type_filter != 'all' %}· {{ (type_options|selectattr('value', 'equalto', doc_type_filter)|first).label }}{% endif %}
+                · Aggiornato {{ last_updated }}
             </p>
+            {% if category_ids %}<p class="reports-scope-note">Categorie: documenti con almeno una voce selezionata; totali lordi dell’intero documento.</p>{% endif %}
         </div>
         <form method="get" action="{{ url_for('reports.index') }}" class="reports-filters" aria-label="Filtri reportistica">
             <div class="filters-item">
@@ -88,17 +88,32 @@
                 </select>
             </div>
             <div class="filters-item filters-categories">
-                <label for="report-categories" id="report-categories-label" class="form-label">Categorie</label>
-                <select id="report-categories" name="category_id" class="form-select report-category-select"
-                        multiple size="5" aria-describedby="categories-help categories-summary">
-                    {% for category in categories %}
-                        <option value="{{ category.id }}" title="{{ category.name }}" {% if category.id in category_ids %}selected{% endif %}>{{ category.name }}</option>
-                    {% endfor %}
-                </select>
-                <small id="categories-help" class="text-muted">Ctrl/Cmd + clic per scegliere più categorie. Nessuna selezione include tutte le categorie.</small>
-                <div class="category-selector-meta">
-                    <small id="categories-summary">{% if category_ids|length == 1 %}1 selezionata{% elif category_ids %}{{ category_ids|length }} selezionate{% else %}Nessuna selezione = tutte{% endif %}</small>
-                    <button type="button" class="btn btn-sm btn-link" data-clear-categories>Azzera</button>
+                <span id="report-categories-label" class="form-label d-block">Categorie</span>
+                <button type="button" class="category-filter-button" popovertarget="report-category-popover"
+                        aria-labelledby="report-categories-label categories-summary">
+                    <span id="categories-summary">{% if category_ids %}{{ category_ids|length }} selezionate{% else %}Tutte{% endif %}</span>
+                    <i class="bi bi-chevron-down" aria-hidden="true"></i>
+                </button>
+                <div id="report-category-popover" popover="auto" class="report-category-popover" aria-label="Seleziona categorie">
+                    <div class="category-popover-header">
+                        <strong>Categorie</strong>
+                        <button type="button" class="btn-close" popovertarget="report-category-popover" popovertargetaction="hide" aria-label="Chiudi categorie"></button>
+                    </div>
+                    <label for="category-search" class="visually-hidden">Cerca categoria</label>
+                    <input id="category-search" type="search" class="form-control form-control-sm" placeholder="Cerca categoria…" autocomplete="off">
+                    <div class="category-popover-options">
+                        {% for category in categories %}
+                            <label class="category-filter-option">
+                                <input type="checkbox" name="category_id" value="{{ category.id }}" {% if category.id in category_ids %}checked{% endif %}>
+                                <span>{{ category.name }}</span>
+                            </label>
+                        {% else %}<p class="small text-muted mb-0">Nessuna categoria disponibile.</p>{% endfor %}
+                    </div>
+                    <p class="small text-muted mb-0" data-category-no-match hidden>Nessuna categoria trovata.</p>
+                    <div class="category-popover-footer">
+                        <span>Nessuna selezione = tutte</span>
+                        <button type="button" class="btn btn-sm btn-link" data-clear-categories>Azzera</button>
+                    </div>
                 </div>
             </div>
             <div class="filters-item">
@@ -109,7 +124,7 @@
                 <label for="date_to" class="form-label">A (inclusa)</label>
                 <input type="date" id="date_to" name="date_to" value="{{ date_to }}" class="form-control form-control-sm">
             </div>
-            <p class="small text-muted w-100 mb-0">Compila entrambe le date per usare un intervallo. Svuotale o scegli un anno per tornare al filtro annuale.</p>
+            <p class="report-date-hint small text-muted mb-0">Compila entrambe le date per usare un intervallo al posto dell’anno.</p>
             <div class="filters-actions">
                 <button type="submit" class="btn btn-sm btn-primary" data-report-refresh>
                     <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Aggiorna
@@ -154,43 +169,65 @@
         </a>
     </section>
 
-    <section class="reports-layout reports-layout-main">
+    <section class="reports-layout reports-overview">
         <article class="report-panel report-panel-wide" aria-labelledby="monthly-heading">
             <header class="reports-card-header">
                 <div>
                     <h3 id="monthly-heading">Andamento mensile</h3>
-                    <p>Media mensile: &euro; {{ chart.avg_label }}</p>
+                    <p>Spesa lorda nel periodo selezionato</p>
                 </div>
-                <div class="reports-badges" aria-label="Massimo e minimo mensile">
-                    <span class="badge text-bg-light">Max {{ chart.max_label }} - &euro; {{ chart.max_total }}</span>
-                    <span class="badge text-bg-light">Min {{ chart.min_label }} - &euro; {{ chart.min_total }}</span>
-                </div>
+                <span class="report-unit">EUR</span>
             </header>
+            <div class="monthly-summary" aria-label="Riepilogo mensile">
+                <div><span>Media / mese</span><strong>&euro; {{ chart.avg_label }}</strong></div>
+                <div><span>Picco · {{ chart.max_label }}</span><strong>&euro; {{ chart.max_total }}</strong></div>
+                <div><span>Minimo · {{ chart.min_label }}</span><strong>&euro; {{ chart.min_total }}</strong></div>
+            </div>
 
             {% if chart.has_data %}
                 <div class="reports-chart" role="img" aria-label="Totale lordo per mese">
-                    <svg viewBox="0 0 {{ chart.width }} {{ chart.height + 40 }}" class="w-100" aria-hidden="true" focusable="false">
-                        <line x1="0" y1="{{ chart.base_y }}" x2="{{ chart.width }}" y2="{{ chart.base_y }}" class="chart-axis"></line>
+                    <svg viewBox="0 0 {{ chart.width }} {{ chart.height + 58 }}" class="w-100" style="min-width: {{ chart.width }}px" aria-hidden="true" focusable="false">
+                        {% for tick in chart.ticks %}
+                            <line x1="{{ chart.left_padding }}" y1="{{ tick.y }}" x2="{{ chart.width }}" y2="{{ tick.y }}" class="chart-grid"></line>
+                            <text x="{{ chart.left_padding - 9 }}" y="{{ tick.y + 4 }}" text-anchor="end" class="chart-tick">{{ tick.label }}</text>
+                        {% endfor %}
+                        <line x1="{{ chart.left_padding }}" y1="{{ chart.base_y }}" x2="{{ chart.width }}" y2="{{ chart.base_y }}" class="chart-axis"></line>
                         {% for bar in chart.bars %}
                             <g class="chart-month">
                                 <rect
-                                    class="chart-bar {% if bar.is_negative %}chart-negative{% endif %} {% if bar.is_max %}chart-peak{% endif %} {% if bar.is_min %}chart-low{% endif %}"
+                                    class="chart-bar {% if bar.is_negative %}chart-negative{% endif %} {% if bar.is_max %}chart-peak{% endif %}"
                                     x="{{ bar.x }}"
                                     y="{{ bar.y }}"
                                     width="{{ bar.width }}"
                                     height="{{ bar.height }}"
-                                    rx="5"
+                                    rx="3"
                                 >
                                     <title>{{ bar.tooltip }}</title>
                                 </rect>
-                                <text x="{{ bar.x + (bar.width / 2) }}" y="{{ chart.base_y + 22 }}" text-anchor="middle" class="chart-label">{{ bar.label }}</text>
+                                <text x="{{ bar.x + (bar.width / 2) }}" y="{{ chart.height + 43 }}" text-anchor="middle" class="chart-label">
+                                    <tspan>{{ bar.label.split(' ')[0] }}</tspan>
+                                    {% if ' ' in bar.label %}<tspan x="{{ bar.x + (bar.width / 2) }}" dy="11" class="chart-year">{{ bar.label.split(' ')[1] }}</tspan>{% endif %}
+                                </text>
                             </g>
                         {% endfor %}
                     </svg>
                 </div>
                 <div class="reports-chart-caption">
-                    Le barre rosse indicano valori negativi. Passa sopra una barra per mese, documenti e top fornitore.
+                    <span class="chart-key"><i aria-hidden="true"></i> Spesa lorda</span>
+                    <span class="chart-key is-negative"><i aria-hidden="true"></i> Importi negativi</span>
                 </div>
+                <details class="monthly-data">
+                    <summary>Dettaglio mensile</summary>
+                    <div class="monthly-table-scroll">
+                        <table class="monthly-table">
+                            <caption class="visually-hidden">Importi lordi e numero di documenti per mese</caption>
+                            <thead><tr><th scope="col">Mese</th><th scope="col">Documenti</th><th scope="col">Importo</th></tr></thead>
+                            <tbody>
+                                {% for bar in chart.bars %}<tr><th scope="row">{{ bar.label }}</th><td>{{ bar.documents }}</td><td>&euro; {{ bar.value }}</td></tr>{% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </details>
             {% else %}
                 <div class="reports-empty">
                     <div class="empty-title">Nessun andamento mensile</div>
@@ -199,28 +236,6 @@
             {% endif %}
         </article>
 
-        <aside class="report-panel report-insights" aria-labelledby="insights-heading">
-            <header class="reports-card-header compact">
-                <h3 id="insights-heading">Lettura rapida</h3>
-            </header>
-            {% if report_insights %}
-                <ul class="insight-list">
-                    {% for insight in report_insights %}
-                        <li>
-                            <i class="bi {{ insight.icon }}" aria-hidden="true"></i>
-                            <span>{{ insight.text }}</span>
-                        </li>
-                    {% endfor %}
-                </ul>
-            {% else %}
-                <div class="reports-empty compact">
-                    <div class="empty-text">Non ci sono ancora dati sufficienti per generare insight.</div>
-                </div>
-            {% endif %}
-        </aside>
-    </section>
-
-    <section class="reports-layout">
         <article class="report-panel" aria-labelledby="category-heading">
             <header class="reports-card-header">
                 <div>
@@ -233,19 +248,19 @@
             </header>
 
             {% if category_donut.has_data %}
-                <div class="category-donut-layout">
-                    <div class="category-donut" style="background: conic-gradient({{ category_donut.gradient }});" role="img" aria-label="Grafico donut spesa per categoria">
-                        <div class="category-donut-hole">
-                            <span class="donut-total">&euro; {{ category_donut.total_label }}</span>
-                            <span class="donut-label">totale rappresentato</span>
-                        </div>
-                    </div>
-                    <ul class="category-legend" aria-label="Spesa per categoria">
+                <div class="category-overview">
+                    <div><span>Totale categorizzato</span><strong>&euro; {{ category_donut.total_label }}</strong></div>
+                    <div class="category-composition-bar" role="img" aria-label="Quote della spesa per categoria">
                         {% for row in category_donut.segments %}
-                            {{ category_card(row) }}
+                            <span style="width: {{ row.percent }}%; background: {{ row.color }}" title="{{ row.name }}: {{ row.percent_label }}"></span>
                         {% endfor %}
-                    </ul>
+                    </div>
                 </div>
+                <ul class="category-legend" aria-label="Spesa per categoria">
+                    {% for row in category_donut.segments %}
+                        {{ category_card(row) }}
+                    {% endfor %}
+                </ul>
                 {% if category_donut.other_rows %}
                     <details class="category-other-details">
                         <summary>
@@ -261,13 +276,15 @@
                 {% endif %}
             {% else %}
                 <div class="reports-empty">
-                    <div class="empty-title">Nessuna spesa categorizzata</div>
-                    <div class="empty-text">Le categorie non risultano assegnate o hanno totale pari a zero.</div>
-                    <a class="btn btn-sm btn-primary" href="{{ links.uncategorized }}">Assegna categorie</a>
+                    <div class="empty-title">Nessuna composizione disponibile</div>
+                    <div class="empty-text">Non ci sono importi positivi da rappresentare per i filtri selezionati.</div>
+                    {% if categories_empty %}<a class="btn btn-sm btn-primary" href="{{ links.uncategorized }}">Assegna categorie</a>{% endif %}
                 </div>
             {% endif %}
         </article>
+    </section>
 
+    <section class="reports-layout reports-secondary">
         <article class="report-panel" aria-labelledby="suppliers-heading">
             <header class="reports-card-header">
                 <div>
@@ -307,11 +324,31 @@
                 </div>
             {% endif %}
         </article>
+
+        <aside class="report-panel report-insights" aria-labelledby="insights-heading">
+            <header class="reports-card-header compact">
+                <h3 id="insights-heading">Lettura rapida</h3>
+            </header>
+            {% if report_insights %}
+                <ul class="insight-list">
+                    {% for insight in report_insights %}
+                        <li>
+                            <i class="bi {{ insight.icon }}" aria-hidden="true"></i>
+                            <span>{{ insight.text }}</span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <div class="reports-empty compact">
+                    <div class="empty-text">Non ci sono ancora dati sufficienti per generare insight.</div>
+                </div>
+            {% endif %}
+        </aside>
     </section>
 </div>
 {% endblock %}
 
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='js/reports.js', v='native-categories-1') }}"></script>
+<script src="{{ url_for('static', filename='js/reports.js', v='minimal-reports-1') }}"></script>
 {% endblock %}
