@@ -126,7 +126,18 @@
 .category-card-percent { color: var(--report-muted); text-align: right; font-size: 0.72rem; }
 .category-card-note { margin: 0.3rem 0 0 0.95rem; color: var(--report-muted); font-size: 0.64rem; }
 .category-entity-split { margin: 0.25rem 0 0 0.95rem; color: #698174; font-size: 0.66rem; }
-.category-entity-split > summary { width: fit-content; cursor: pointer; }
+.category-entity-split > summary {
+    width: fit-content;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid #174a37;
+    border-radius: 5px;
+    background: #174a37;
+    color: #fff;
+    font-weight: 650;
+    cursor: pointer;
+}
+.category-entity-split > summary:hover { background: #0e3326; border-color: #0e3326; }
+.report-panel .category-entity-split > summary:focus-visible { outline: 2px solid #174a37; outline-offset: 3px; }
 .entity-split-content { margin-top: 0.5rem; padding-left: 0.65rem; border-left: 2px solid #e1ebe5; color: var(--report-ink); font-size: 0.7rem; }
 .entity-split-content p { margin: 0 0 0.3rem; color: var(--report-muted); font-size: 0.65rem; }
 .entity-split-list { list-style: none; padding: 0; margin: 0; }
