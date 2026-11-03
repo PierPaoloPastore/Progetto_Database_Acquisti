@@ -123,7 +123,11 @@ def test_csv_route_preserves_all_filters_and_escapes_names(monkeypatch):
     assert filters["date_from"] == ["2025-12-31"]
     assert "year" not in filters
     assert 'class="category-picker"' in html
-    assert 'data-report-results' in html
+    assert 'data-report-refresh' in html
+    assert 'Seleziona i filtri, poi premi Aggiorna.' in html
+    assert 'class="category-summary-card"' in html
+    assert 'class="category-card-amount"' in html
+    assert 'class="category-card-percent"' in html
     assert 'data-category-id="7"' in html
     assert '30,0%' in html and '70,0%' in html
     assert entity_calls[-1] == (2026, "all", {

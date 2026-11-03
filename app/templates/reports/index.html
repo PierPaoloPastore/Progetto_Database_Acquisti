@@ -3,7 +3,7 @@
 {% block title %}Reportistica - Gestionale Acquisti{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/reports.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/reports.css', v='manual-categories-2') }}">
 {% endblock %}
 
 {% block content %}
@@ -28,11 +28,25 @@
         </details>
     {% endif %}
 {% endmacro %}
+{% macro category_card(row) %}
+    <li class="category-summary-card">
+        <div class="category-card-heading">
+            <span class="category-card-name">
+                <span class="legend-swatch" style="background-color: {{ row.color|default('#64748b') }};" aria-hidden="true"></span>
+                {% if row.url %}<a href="{{ row.url }}">{{ row.name }}</a>{% else %}<span>{{ row.name }}</span>{% endif %}
+            </span>
+            <strong class="category-card-amount">&euro; {{ row.total_label }}</strong>
+            <span class="category-card-percent">{{ row.percent_label }}</span>
+        </div>
+        {% if row.is_other and row.children_count %}<p class="category-card-note">{{ row.children_count }} categorie raggruppate, dettagli qui sotto.</p>{% endif %}
+        {{ entity_split(row) }}
+    </li>
+{% endmacro %}
 <div class="container-fluid reports-page">
     <h1 class="visually-hidden" data-nav-title>Reportistica</h1>
 
     <section class="reports-hero" aria-labelledby="reports-title">
-        <div class="reports-hero-copy" data-report-heading>
+        <div class="reports-hero-copy">
             <div class="reports-eyebrow">Reportistica</div>
             <h2 id="reports-title">Sintesi acquisti {{ period_label }}</h2>
             <p>
@@ -80,6 +94,7 @@
                         <span id="categories-summary">{% if category_ids %}{{ category_ids|length }} selezionate{% else %}Tutte le categorie{% endif %}</span>
                     </summary>
                     <div class="category-picker-menu">
+                        <p class="category-picker-heading">Scegli le categorie</p>
                         <label for="category-search" class="visually-hidden">Cerca categorie</label>
                         <input type="search" id="category-search" class="form-control form-control-sm" placeholder="Cerca categoria…" autocomplete="off">
                         <div class="category-picker-tools">
@@ -115,11 +130,10 @@
                     <i class="bi bi-download" aria-hidden="true"></i> Esporta CSV
                 </button>
             </div>
-            <p class="report-filter-status small mb-0" role="status" aria-live="polite" data-report-status></p>
+            <p class="report-filter-status small mb-0" role="status" aria-live="polite" data-report-status>Seleziona i filtri, poi premi Aggiorna.</p>
         </form>
     </section>
 
-    <div data-report-results>
     <section class="reports-kpi-grid" aria-label="Indicatori principali">
         <a class="report-kpi report-kpi-link" href="{{ links.total_net }}">
             <span class="kpi-label">Totale lordo</span>
@@ -223,7 +237,7 @@
             <header class="reports-card-header">
                 <div>
                     <h3 id="category-heading">Composizione per categoria</h3>
-                    <p>Distribuzione della spesa categorizzata.</p>
+                    <p>Importi e percentuali sul totale categorizzato.</p>
                 </div>
                 {% if category_donut.has_data %}
                     <span class="text-muted small">{{ category_donut.category_count|format_int }} categorie</span>
@@ -238,23 +252,9 @@
                             <span class="donut-label">totale rappresentato</span>
                         </div>
                     </div>
-                    <ul class="category-legend">
+                    <ul class="category-legend" aria-label="Spesa per categoria">
                         {% for row in category_donut.segments %}
-                            <li>
-                                <span class="legend-swatch" style="background-color: {{ row.color }};" aria-hidden="true"></span>
-                                <div class="legend-main">
-                                    {% if row.url %}
-                                        <a href="{{ row.url }}">{{ row.name }}</a>
-                                    {% else %}
-                                        <span>{{ row.name }}</span>
-                                    {% endif %}
-                                    <small>
-                                        &euro; {{ row.total_label }} - {{ row.percent_label }}
-                                        {% if row.is_other and row.children_count %} su {{ row.children_count }} categorie{% endif %}
-                                    </small>
-                                    {{ entity_split(row) }}
-                                </div>
-                            </li>
+                            {{ category_card(row) }}
                         {% endfor %}
                     </ul>
                 </div>
@@ -264,19 +264,11 @@
                             <span>Mostra categorie raggruppate</span>
                             <small>{{ category_donut.other_rows|length|format_int }} categorie in "Altre categorie"</small>
                         </summary>
-                        <div class="category-other-list">
+                        <ul class="category-legend category-other-list" aria-label="Altre categorie">
                             {% for row in category_donut.other_rows %}
-                                <div class="category-other-item">
-                                    <a class="category-other-row" href="{{ row.url }}">
-                                        <span class="category-other-name">{{ row.name }}</span>
-                                        <span class="category-other-values">
-                                            &euro; {{ row.total_label }} <span>{{ row.percent_label }}</span>
-                                        </span>
-                                    </a>
-                                    {{ entity_split(row) }}
-                                </div>
+                                {{ category_card(row) }}
                             {% endfor %}
-                        </div>
+                        </ul>
                     </details>
                 {% endif %}
             {% else %}
@@ -328,11 +320,10 @@
             {% endif %}
         </article>
     </section>
-    </div>
 </div>
 {% endblock %}
 
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='js/reports.js') }}"></script>
+<script src="{{ url_for('static', filename='js/reports.js', v='manual-categories-2') }}"></script>
 {% endblock %}
