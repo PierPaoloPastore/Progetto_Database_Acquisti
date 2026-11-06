@@ -53,7 +53,7 @@ def run_view():
                 last_batch = str(UUID(last_batch))
             except ValueError:
                 abort(400)
-        last_summary = batch_summary(last_batch) if last_batch else None
+        last_summary = _with_links(batch_summary(last_batch)) if last_batch else None
         last_folder = session.get("last_import_folder")
         return render_template(
             "import/import_run.html",
@@ -125,24 +125,27 @@ def status_view(batch_id):
 
 @import_bp.get("/history")
 def history_view():
-    from app.repositories.import_log_repo import import_history_page, read_payload
+    from datetime import date
+    from app.services.import_history_service import history_page
     before = request.args.get("before", type=int)
     file_name = request.args.get("file", "").strip()
-    rows = import_history_page(before, file_name)
-    entries = []
-    for row in rows[:50]:
-        payload = read_payload(row)
-        batch_id = None
-        try:
-            batch_id = str(UUID(payload.get("batch_id", "")))
-        except (ValueError, TypeError, AttributeError):
-            pass
-        entries.append({"log": row, "payload": payload, "batch_id": batch_id})
+    outcome = request.args.get("outcome", "")
+    if outcome not in {"", "problems", "warnings", "pending"}:
+        abort(400)
+    try:
+        since = date.fromisoformat(request.args["since"]) if request.args.get("since") else None
+        until = date.fromisoformat(request.args["until"]) if request.args.get("until") else None
+    except ValueError:
+        abort(400)
+    if since and until and since > until:
+        abort(400)
+    entries, next_id = history_page(before, file_name, outcome, since, until)
     return render_template("import/history.html", entries=entries, file_name=file_name,
-                           next_id=rows[49].id if len(rows) > 50 else None)
+                           outcome=outcome, since=since, until=until, next_id=next_id)
 
 def _with_links(summary):
+    from app.services.import_history_service import present_summary
     for detail in summary.get("details", []):
         if detail.get("invoice_id"):
             detail["document_url"] = url_for("documents.detail_view", document_id=detail["invoice_id"])
-    return summary
+    return present_summary(summary)

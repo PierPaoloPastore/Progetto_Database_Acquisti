@@ -28,7 +28,7 @@ class ImportReportTests(ImportTestCase):
             "year", 1, lambda value: int(value[:4]) if value else None)
         page = client.get("/import/history?file=history.xml")
         self.assertEqual(page.status_code, 200)
-        for label in ("Registrato", "Già presente", "Fallito", batch_id):
+        for label in ("registrate", "già presenti", "errori / conflitti", batch_id):
             self.assertIn(label, page.get_data(as_text=True))
         for url in ("/documents/review/list", f"/documents/{doc.id}"):
             page = client.get(url)
@@ -40,10 +40,10 @@ class ImportReportTests(ImportTestCase):
         first = client.get("/import/history?file=page_test.xml").get_data(as_text=True)
         self.assertIn("legacy-50", first)
         self.assertNotIn("legacy-0<", first)
-        from app.repositories.import_log_repo import import_history_page
-        rows = import_history_page(file_name="page_test.xml")
-        second = client.get(f"/import/history?file=page_test.xml&before={rows[49].id}").get_data(as_text=True)
-        self.assertIn("legacy-0", second)
+        from app.services.import_history_service import history_page
+        _, cursor = history_page(search="page_test.xml")
+        second = client.get(f"/import/history?file=page_test.xml&before={cursor}").get_data(as_text=True)
+        self.assertIn("legacy-25", second)
         self.assertNotIn("legacy-50", second)
         self.assertIn("Nessun import trovato", client.get("/import/history?file=nonexistent").get_data(as_text=True))
 

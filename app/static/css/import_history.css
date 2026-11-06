@@ -1,0 +1,8 @@
+.import-scroll { max-height: 65vh; overflow: auto; }
+.import-scroll thead th { position: sticky; top: 0; background: var(--bs-body-bg, #fff); z-index: 1; }
+.import-scroll td { vertical-align: top; }
+.import-filename { overflow-wrap: anywhere; min-width: 12rem; max-width: 26rem; }
+.import-scroll details { max-width: 42rem; }
+.import-scroll summary { cursor: pointer; }
+.import-scroll code { overflow-wrap: anywhere; }
+.import-counts { display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; padding-left: 0; list-style: none; }

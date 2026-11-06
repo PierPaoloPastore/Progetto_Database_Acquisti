@@ -1,0 +1,23 @@
+{% for group in summary.file_groups %}
+<tr data-category="{{ group.category }}">
+    <td class="import-filename">{{ group.file_name }}</td>
+    <td><span class="badge bg-{{ group.tone }} {{ 'text-dark' if group.tone == 'warning' }}">{{ group.label }}</span></td>
+    <td>
+        {% for d in group.details %}
+        {% if loop.index == 2 %}<details class="mb-2"><summary>Altri esiti nello stesso file ({{ group.details|length - 1 }})</summary>{% endif %}
+        <div class="mb-2">
+            {% if d.document_number %}<strong>{{ d.document_number }}</strong> · Emessa il {{ d.document_date or 'N/D' }}<div>{{ d.supplier_name or '' }}</div><div class="small text-muted">Intestazione: {{ d.legal_entity_name or 'N/D' }}</div>{% endif %}
+            <div>{{ d.message }}</div>
+            {% if d.status == 'skipped' %}<div class="small">Nessuna nuova fattura creata. Importazione precedente: <strong>{{ d.existing_imported_at or 'Data importazione non disponibile' }}</strong></div>{% endif %}
+            {% if d.invoice_id %}<a href="{{ d.document_url }}">Documento #{{ d.invoice_id }}</a>{% endif %}
+        </div>
+        {% if loop.last and group.details|length > 1 %}</details>{% endif %}
+        {% endfor %}
+        <details class="small text-muted"><summary>Dettagli tecnici e confronto file</summary>
+            {% for d in group.details %}<div>Esito: {{ d.status_label }} · Fase: {{ d.stage or 'N/D' }}{% if d.error_type %} · Codice: {{ d.error_type }}{% endif %}</div>
+            {% if d.existing_file_name %}<div>File già presente: {{ d.existing_file_name }} · Emissione: {{ d.existing_document_date or 'N/D' }}</div>{% endif %}
+            {% if d.attempt_id %}<div>Tentativo: <code>{{ d.attempt_id }}</code></div>{% endif %}{% endfor %}
+        </details>
+    </td>
+</tr>
+{% endfor %}

@@ -28,11 +28,11 @@ reports_bp = Blueprint("reports", __name__, url_prefix="/reports")
 
 _DONUT_COLORS = [
     "#28795e",
-    "#6c8ea5",
-    "#a8aa74",
-    "#9c8eae",
-    "#66a49a",
-    "#a0aaaf",
+    "#5d829f",
+    "#c0a35a",
+    "#a27898",
+    "#8bb8a1",
+    "#57697a",
 ]
 
 

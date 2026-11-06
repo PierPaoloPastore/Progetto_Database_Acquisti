@@ -1,47 +1,53 @@
 {% extends "base.html" %}
 {% block title %}Storico importazioni{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='css/import_history.css') }}">{% endblock %}
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex flex-wrap justify-content-between gap-2 mb-3">
-        <h1>Storico importazioni</h1>
-        <a class="btn btn-outline-secondary align-self-start" href="{{ url_for('import.run_view') }}">Torna all'importazione</a>
+        <div><h1>Storico importazioni</h1><p class="text-muted mb-0">Un caricamento per riga. Date e orari in UTC.</p></div>
+        <a class="btn btn-outline-secondary align-self-start" href="{{ url_for('import.run_view') }}">Nuova importazione</a>
     </div>
-    <p class="text-muted">Registro persistente, dal più recente. Sono presenti tentativi e registrazioni dei singoli documenti; gli import storici mostrano i dati disponibili. Date e orari in UTC.</p>
-    <form method="get" class="d-flex flex-wrap gap-2 mb-3">
-        <label for="history-file" class="align-self-center">Nome file</label>
-        <input id="history-file" name="file" value="{{ file_name }}" class="form-control w-auto">
-        <button class="btn btn-primary">Cerca</button>
-        <a class="btn btn-outline-secondary" href="{{ url_for('import.history_view') }}">Azzera</a>
+    <form method="get" class="card card-body mb-3">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-4"><label for="history-file" class="form-label">Nome file o numero fattura</label><input id="history-file" name="file" value="{{ file_name }}" class="form-control"></div>
+            <div class="col-md-2"><label for="history-outcome" class="form-label">Mostra</label><select id="history-outcome" name="outcome" class="form-select">
+                {% for value, label in [('', 'Tutti'), ('problems', 'Con errori o conflitti'), ('warnings', 'Con avvisi'), ('pending', 'Esito da verificare')] %}<option value="{{ value }}" {{ 'selected' if outcome == value }}>{{ label }}</option>{% endfor %}
+            </select></div>
+            <div class="col-md-2"><label for="history-since" class="form-label">Dal (UTC)</label><input id="history-since" type="date" name="since" value="{{ since or '' }}" class="form-control"></div>
+            <div class="col-md-2"><label for="history-until" class="form-label">Al (UTC)</label><input id="history-until" type="date" name="until" value="{{ until or '' }}" class="form-control"></div>
+            <div class="col-md-2 d-flex gap-2"><button class="btn btn-primary">Filtra</button><a class="btn btn-outline-secondary" href="{{ url_for('import.history_view') }}">Azzera</a></div>
+        </div>
     </form>
-    {% set labels = {'committed': 'Registrato', 'success': 'Registrato', 'duplicate': 'Già presente', 'skipped': 'Saltato', 'failed': 'Fallito', 'error': 'Errore', 'conflict': 'Conflitto', 'started': 'Avviato — esito non confermato', 'reconcile': 'Da verificare', 'warning': 'Avviso'} %}
-    <div class="table-responsive">
-        <table class="table table-striped table-sm">
-            <thead><tr><th>Data importazione (UTC)</th><th>File</th><th>Tipo</th><th>Esito</th><th>Dettaglio</th><th>Collegamenti</th></tr></thead>
+    <p class="small text-muted">I filtri selezionano i caricamenti; i conteggi comprendono tutti i loro file. Le registrazioni storiche senza caricamento identificabile restano separate. I file mai iniziati non sono conteggiati.</p>
+    <div class="table-responsive import-scroll">
+        <table class="table table-hover align-middle">
+            <thead><tr><th>Caricamento (UTC)</th><th>File con tentativo</th><th>Registrate</th><th>Già presenti</th><th>Da controllare</th><th>Dettaglio</th></tr></thead>
             <tbody>
             {% for entry in entries %}
-                {% set log = entry.log %}{% set p = entry.payload %}
-                {% set state = p.get('state', log.status) %}
                 <tr>
-                    <td class="text-nowrap">{{ log.created_at.strftime('%d/%m/%Y %H:%M:%S') if log.created_at else 'N/D' }}</td>
-                    <td>{{ log.file_name }}</td>
-                    <td>{{ 'Tentativo' if p.get('kind') == 'attempt' else ('Documento' if p.get('kind') == 'body' else 'Storico') }}</td>
-                    <td>{{ labels.get(state, state) }}</td>
+                    <td><strong>{{ entry.date.strftime('%d/%m/%Y %H:%M:%S') if entry.date else 'N/D' }}</strong><div class="small text-muted">{{ 'Registrazione storica' if entry.legacy else 'Caricamento' }}</div>
+                        <details class="small mt-1"><summary>Identificativo</summary><code>{{ entry.batch_id or entry.id }}</code></details>
+                    </td>
+                    <td>{{ entry.files }}</td>
+                    <td><span class="badge bg-success">{{ entry.imported }} registrate</span></td>
+                    <td><span class="badge bg-secondary">{{ entry.skipped }} già presenti</span></td>
                     <td>
-                        {{ p.get('message', '') if p else (log.message or '') }}
-                        {% for detail in p.get('details', []) %}<div>{{ detail.get('document_number', '') }} — {{ detail.get('message', '') }}</div>{% endfor %}
-                        {% for warning in p.get('warnings', []) %}<div class="text-warning">{{ warning }}</div>{% endfor %}
-                        {% if p.get('error_code') %}<div>Codice: {{ p.error_code }}</div>{% endif %}
-                        {% if p.get('attempt_id') %}<small class="text-muted">Tentativo: {{ p.attempt_id }}</small>{% endif %}
+                        {% if entry.errors %}<div class="text-danger fw-bold">{{ entry.errors }} errori / conflitti</div>{% endif %}
+                        {% if entry.warnings %}<div class="text-warning-emphasis">{{ entry.warnings }} avvisi</div>{% endif %}
+                        {% if entry.pending %}<div>{{ entry.pending }} esiti non confermati</div>{% endif %}
+                        {% if not (entry.errors or entry.warnings or entry.pending) %}<span class="text-success">Nessun problema segnalato</span>{% endif %}
                     </td>
                     <td>
-                        {% if entry.batch_id %}<a href="{{ url_for('import.run_view', batch_id=entry.batch_id) }}">Riepilogo import</a>{% endif %}
-                        {% if log.document_id %}<a href="{{ url_for('documents.detail_view', document_id=log.document_id) }}">Documento #{{ log.document_id }}</a>{% endif %}
+                        {% if entry.batch_id %}<a class="btn btn-sm btn-outline-{{ entry.tone }}" href="{{ url_for('import.run_view', batch_id=entry.batch_id, _anchor='import-summary-server') }}">Apri dettaglio</a>
+                        {% else %}<div class="import-filename">{{ entry.file_name }}</div><div class="small">{{ entry.message }}</div>
+                            {% if entry.document_id %}<a href="{{ url_for('documents.detail_view', document_id=entry.document_id) }}">Documento #{{ entry.document_id }}</a>{% endif %}
+                        {% endif %}
                     </td>
                 </tr>
-            {% else %}<tr><td colspan="6">Nessun import trovato.</td></tr>{% endfor %}
+            {% else %}<tr><td colspan="6" class="text-center py-5">Nessun import trovato con questi filtri.</td></tr>{% endfor %}
             </tbody>
         </table>
     </div>
-    {% if next_id %}<a class="btn btn-outline-primary" href="{{ url_for('import.history_view', before=next_id, file=file_name) }}">Import precedenti</a>{% endif %}
+    {% if next_id %}<a class="btn btn-outline-primary mt-3" href="{{ url_for('import.history_view', before=next_id, file=file_name, outcome=outcome, since=since or '', until=until or '') }}">Caricamenti precedenti</a>{% endif %}
 </div>
 {% endblock %}

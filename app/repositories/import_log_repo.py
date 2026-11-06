@@ -41,6 +41,23 @@ def import_history_page(before_id=None, file_name=""):
     return query.limit(51).all()
 
 
+def history_records():
+    """Solo colonne del registro, senza caricare le relazioni dei documenti."""
+    return db.session.query(
+        ImportLog.id, ImportLog.created_at, ImportLog.file_name,
+        ImportLog.status, ImportLog.message, ImportLog.document_id,
+        Document.document_number,
+    ).outerjoin(Document, Document.id == ImportLog.document_id).order_by(
+        ImportLog.id.desc()).yield_per(500)
+
+
+def document_import_dates(document_ids):
+    if not document_ids:
+        return {}
+    return dict(db.session.query(Document.id, Document.imported_at).filter(
+        Document.id.in_(document_ids)).all())
+
+
 def list_import_logs_by_file_name(file_name: str) -> List[ImportLog]:
     """Restituisce tutti i log relativi a un determinato file XML."""
     return (

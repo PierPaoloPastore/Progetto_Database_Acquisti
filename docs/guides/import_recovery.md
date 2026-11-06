@@ -96,9 +96,17 @@ non equivale a un'identità autenticata e viene indicato come tale.
 
 La pagina **Importazione** conserva il collegamento all'ultimo batch nel browser
 e offre **Storico importazioni**. Lo storico legge il registro persistente MySQL,
-dal più recente, con ricerca per nome file e pagine da 50 righe. Mostra data e
-ora in UTC, file, tipo di riga (tentativo o documento), esito, messaggio,
-identificativo del tentativo e collegamenti al riepilogo del batch o al documento.
+dal più recente, con una riga per caricamento e pagine da 25 caricamenti completi.
+I log dei singoli body non vengono contati nuovamente. Ricerca per nome file o
+numero fattura, date UTC ed esito selezionano i caricamenti sull'intero registro;
+i conteggi restano quelli completi, anche quando la ricerca trova un solo file.
+Sono distinti documenti registrati/già presenti, file in errore e avvisi/esiti
+non confermati. Il dettaglio mostra una riga per tentativo con i corpi XML insieme,
+filtri e ricerca nel caricamento; apre prima i problemi se presenti. I codici e
+gli identificativi tecnici sono espandibili. I duplicati distinguono emissione e
+data del precedente import (`documents.imported_at`, oppure non disponibile).
+La consultazione non esegue recuperi né modifica il registro. La scansione del
+JSON è lineare: per registri molto grandi servirà indicizzare i batch.
 I log antecedenti al protocollo v1 restano visibili con i dati disponibili, ma
 non possono mostrare dettagli che non furono salvati allora.
 

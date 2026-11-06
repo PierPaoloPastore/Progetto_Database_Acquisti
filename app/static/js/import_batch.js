@@ -213,38 +213,57 @@ document.addEventListener("DOMContentLoaded", () => {
             if (details.length > 0) {
                 summaryErrorsList.classList.remove("d-none");
                 summaryErrorsBody.innerHTML = "";
-                details.forEach((item) => {
+                (summary.file_groups || []).forEach(group => {
                     const row = document.createElement("tr");
+                    row.dataset.category = group.category;
                     const fileCell = document.createElement("td");
+                    fileCell.className = "import-filename";
+                    fileCell.textContent = group.file_name;
                     const statusCell = document.createElement("td");
-                    const stageCell = document.createElement("td");
-                    const msgCell = document.createElement("td");
-                    fileCell.textContent = item.file_name || "-";
-                    statusCell.textContent = item.status || "-";
-                    stageCell.textContent = item.stage || "-";
-                    msgCell.textContent = item.message || "Errore";
+                    const badge = document.createElement("span");
+                    badge.className = `badge bg-${group.tone}${group.tone === "warning" ? " text-dark" : ""}`;
+                    badge.textContent = group.label;
+                    statusCell.appendChild(badge);
+                    const info = document.createElement("td");
+                    const technical = document.createElement("details");
+                    technical.className = "small text-muted";
+                    const title = document.createElement("summary");
+                    title.textContent = "Dettagli tecnici e confronto file";
+                    technical.appendChild(title);
+                    const more = document.createElement("details");
+                    const moreTitle = document.createElement("summary");
+                    moreTitle.textContent = `Altri esiti nello stesso file (${group.details.length - 1})`;
+                    more.appendChild(moreTitle);
+                    group.details.forEach((item, index) => {
+                        const body = document.createElement("div");
+                        body.className = "mb-2";
+                        body.style.whiteSpace = "pre-line";
+                        body.textContent = (item.document_number
+                            ? `${item.document_number} · Emessa il ${item.document_date || "N/D"}\n${item.supplier_name || ""}\nIntestazione: ${item.legal_entity_name || "N/D"}\n` : "")
+                            + (item.message || "")
+                            + (item.status === "skipped" ? `\nNessuna nuova fattura creata. Importazione precedente: ${item.existing_imported_at || "Data importazione non disponibile"}` : "");
+                        if (item.document_url) {
+                            const link = document.createElement("a");
+                            link.href = item.document_url;
+                            link.textContent = ` Documento #${item.invoice_id}`;
+                            body.appendChild(link);
+                        }
+                        (index === 0 ? info : more).appendChild(body);
+                        const line = document.createElement("div");
+                        line.textContent = `Esito: ${item.status_label} · Fase: ${item.stage || "N/D"}`
+                            + (item.error_type ? ` · Codice: ${item.error_type}` : "")
+                            + (item.existing_file_name ? ` · File già presente: ${item.existing_file_name}` : "")
+                            + (item.attempt_id ? ` · Tentativo: ${item.attempt_id}` : "");
+                        technical.appendChild(line);
+                    });
+                    if (group.details.length > 1) info.appendChild(more);
+                    info.appendChild(technical);
                     row.appendChild(fileCell);
-                    const documentCell = document.createElement("td");
-                    const existingCell = document.createElement("td");
-                    documentCell.style.whiteSpace = "pre-line";
-                    existingCell.style.whiteSpace = "pre-line";
-                    documentCell.textContent = `${item.document_number || "-"} — ${item.document_date || "-"}\n${item.supplier_name || "-"}\nIntestazione: ${item.legal_entity_name || "-"}\n${item.document_data_source || "Dati non disponibili"}`;
-                    existingCell.textContent = item.existing_file_name
-                        ? `${item.existing_file_name}\n${item.existing_document_number || "-"} — ${item.existing_document_date || "-"}\nStesso nome file: ${item.same_file_name || "non verificato"}`
-                        : "-";
-                    if (item.document_url) {
-                        const link = document.createElement("a");
-                        link.href = item.document_url;
-                        link.textContent = " Apri documento";
-                        documentCell.appendChild(link);
-                    }
-                    row.appendChild(documentCell);
-                    row.appendChild(existingCell);
                     row.appendChild(statusCell);
-                    row.appendChild(stageCell);
-                    row.appendChild(msgCell);
+                    row.appendChild(info);
                     summaryErrorsBody.appendChild(row);
                 });
+                summaryErrorsList.dispatchEvent(new Event("import-details-updated"));
 
             } else {
                 summaryErrorsList.classList.add("d-none");
@@ -402,6 +421,7 @@ document.addEventListener("DOMContentLoaded", () => {
             warnings: 0,
             errors: 0,
             details: [],
+            file_groups: [],
             report_paths: [],
         };
 
@@ -413,6 +433,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 const data = await uploadBatch(batch, batchId);
 
                 aggregate.total_files += data.total_files || batch.length;
+                aggregate.file_groups.push(...(data.file_groups || []));
+                const priority = { problems: 0, warning: 1, success: 2, duplicate: 3 };
+                aggregate.file_groups.sort((a, b) => priority[a.category] - priority[b.category]);
                 aggregate.imported += data.imported || 0;
                 aggregate.skipped += data.skipped || 0;
                 aggregate.warnings += data.warnings || 0;
