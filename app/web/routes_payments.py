@@ -7,13 +7,15 @@ import io
 from math import ceil
 import os
 from pathlib import Path
-from flask import Blueprint, request, redirect, url_for, flash, render_template, jsonify, current_app, send_file
+from uuid import uuid4
+from flask import Blueprint, request, redirect, url_for, flash, render_template, jsonify, current_app, send_file, g, session
+from itsdangerous import BadSignature, URLSafeTimedSerializer
 from sqlalchemy.orm import joinedload
 
 from app.models import BankAccount, Document
 from app.services import payment_service, ocr_service, settings_service, list_all_bank_accounts
 from app.services.cbi_export_service import CbiExportError, generate_cbi_xml
-from app.services.document_service import mark_documents_as_programmed, unmark_documents_as_programmed
+from app.services import schedule_service
 from app.services.pdf_service import render_pdf_from_html
 from app.services.settings_service import get_setting
 from app.services.ocr_mapping_service import parse_payment_fields
@@ -38,6 +40,25 @@ payments_bp = Blueprint("payments", __name__)
 _ALLOWED_PAYMENT_EXTENSIONS = {".pdf"}
 _PAYMENT_HISTORY_PAGE_SIZE = 50
 _UNPAID_INVOICES_PAGE_SIZE = 100
+
+
+def _schedule_actor() -> dict:
+    if "schedule_session_id" not in session:
+        session["schedule_session_id"] = uuid4().hex
+    user = getattr(g, "current_user", None)
+    return {
+        "session_id": session["schedule_session_id"],
+        "path": request.path,
+        "remote_addr": request.remote_addr,
+        "user_agent": str(request.user_agent)[:300],
+        "user_id": getattr(user, "id", None),
+        "username": getattr(user, "username", None),
+        "identity_source": type(user).__name__ if user else "unavailable",
+    }
+
+
+def _schedule_signer():
+    return URLSafeTimedSerializer(current_app.secret_key, salt="schedule-confirm-v1")
 
 
 def _is_allowed_payment_file(filename: str) -> bool:
@@ -520,8 +541,11 @@ def schedule_cbi():
 def schedule_print():
     is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     raw_ids = (request.form.get("document_ids") or "").strip()
-    ids = [int(value) for value in raw_ids.split(",") if value.strip().isdigit()]
+    ids = _parse_document_ids_arg(raw_ids)
+    actor = _schedule_actor()
+    schedule_id = uuid4().hex
     if not ids:
+        schedule_service.record_failure(ids, actor, "empty_selection", schedule_id)
         if is_ajax:
             return jsonify({"ok": False, "message": "Seleziona almeno un documento."}), 400
         flash("Seleziona almeno un documento.", "warning")
@@ -548,10 +572,11 @@ def schedule_print():
             .all()
         )
 
-    if not documents:
+    if {doc.id for doc in documents} != set(ids):
+        schedule_service.record_failure(ids, actor, "unavailable_documents", schedule_id)
         if is_ajax:
-            return jsonify({"ok": False, "message": "Nessun documento valido da stampare."}), 400
-        flash("Nessun documento valido da stampare.", "warning")
+            return jsonify({"ok": False, "message": "Alcuni documenti non sono più disponibili o sono saldati. Ricarica lo scadenziario."}), 409
+        flash("Alcuni documenti non sono più disponibili o sono saldati. Ricarica lo scadenziario.", "warning")
         return redirect(request.referrer or url_for("payments.schedule_view"))
 
     payment_service.attach_payment_amounts(documents)
@@ -577,30 +602,68 @@ def schedule_print():
         today=today,
         updated_at=updated_at,
         soon_days=soon_days,
+        schedule_id=schedule_id,
     )
     base_dir = os.path.abspath(os.path.join(current_app.root_path, os.pardir))
-    pdf_bytes = render_pdf_from_html(
-        html_content,
-        base_dir,
-        current_app.logger,
-        orientation="Landscape",
-    )
+    try:
+        pdf_bytes = render_pdf_from_html(
+            html_content, base_dir, current_app.logger, orientation="Landscape",
+        )
+    except Exception:
+        schedule_service.record_failure(ids, actor, "pdf_render_error", schedule_id)
+        current_app.logger.exception("Generazione PDF scadenziario fallita", extra={"schedule_id": schedule_id})
+        return jsonify({"ok": False, "message": "Generazione PDF fallita. Nessuna fattura programmata."}), 500
     if not pdf_bytes:
+        schedule_service.record_failure(ids, actor, "pdf_unavailable", schedule_id)
         if is_ajax:
             return jsonify({"ok": False, "message": "Stampa PDF non disponibile: installa wkhtmltopdf o WeasyPrint."}), 501
         flash("Stampa PDF non disponibile: installa wkhtmltopdf o WeasyPrint.", "warning")
         return redirect(request.referrer or url_for("payments.schedule_view"))
 
-    doc_ids = [row["doc"].id for row in schedule_rows]
-    mark_documents_as_programmed(doc_ids)
+    generation_id = schedule_service.record_generation(schedule_rows, pdf_bytes, actor, schedule_id)
+    token = _schedule_signer().dumps({"generation_id": generation_id, "session_id": actor["session_id"]})
 
     download_name = f"scadenziario_{today.isoformat()}.pdf"
-    return send_file(
+    response = send_file(
         io.BytesIO(pdf_bytes),
         mimetype="application/pdf",
         as_attachment=True,
         download_name=download_name,
     )
+    response.headers["X-Schedule-Token"] = token
+    response.headers["X-Schedule-Id"] = schedule_id
+    response.headers["X-Schedule-Count"] = str(len(schedule_rows))
+    response.headers["X-Schedule-Total"] = f"{summary['total_amount']:.2f}"
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@payments_bp.route("/schedule/confirm", methods=["POST"], endpoint="schedule_confirm")
+@payments_bp.route("/schedule/cancel", methods=["POST"], endpoint="schedule_cancel")
+@payments_bp.route("/schedule/preview", methods=["POST"], endpoint="schedule_preview")
+def schedule_finish():
+    actor = _schedule_actor()
+    try:
+        max_age = None if request.endpoint == "payments.schedule_cancel" else 7200
+        data = _schedule_signer().loads(request.form.get("token", ""), max_age=max_age)
+        if data.get("session_id") != actor["session_id"]:
+            raise BadSignature("session mismatch")
+        if request.endpoint == "payments.schedule_preview":
+            result = schedule_service.preview_generation(int(data["generation_id"]), actor)
+        else:
+            result = schedule_service.finish_generation(
+                int(data["generation_id"]), actor, confirm=request.endpoint == "payments.schedule_confirm",
+            )
+    except (BadSignature, KeyError, TypeError, ValueError) as exc:
+        if isinstance(exc, schedule_service.ScheduleConflict):
+            message = str(exc)
+        else:
+            message = "Conferma non valida o scaduta. Genera nuovamente il PDF da questa sessione."
+        current_app.logger.warning("Richiesta scadenziario rifiutata", extra={
+            "schedule_event": "rejected", "source": request.endpoint, "actor": actor, "reason": message,
+        })
+        return jsonify({"ok": False, "message": message}), 409
+    return jsonify({"ok": True, **result})
 
 
 @payments_bp.route("/schedule/unprogram", methods=["POST"], endpoint="schedule_unprogram")
@@ -610,7 +673,7 @@ def schedule_unprogram():
     if not ids:
         return jsonify({"ok": False, "message": "Seleziona almeno un documento."}), 400
 
-    updated = unmark_documents_as_programmed(ids)
+    updated = schedule_service.unprogram_documents(ids, _schedule_actor())
     return jsonify(
         {
             "ok": True,

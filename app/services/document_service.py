@@ -374,37 +374,6 @@ def _validate_manual_document_form(form_data: dict, *, doc_type: str) -> Optiona
 
     return None
 
-def mark_documents_as_programmed(document_ids: List[int]) -> int:
-    if not document_ids:
-        return 0
-    ids = [int(doc_id) for doc_id in document_ids if doc_id]
-    if not ids:
-        return 0
-    with UnitOfWork() as uow:
-        updated = (
-            uow.session.query(Document)
-            .filter(Document.id.in_(ids))
-            .update({Document.print_status: "programmed"}, synchronize_session=False)
-        )
-        uow.commit()
-        return int(updated or 0)
-
-
-def unmark_documents_as_programmed(document_ids: List[int]) -> int:
-    if not document_ids:
-        return 0
-    ids = [int(doc_id) for doc_id in document_ids if doc_id]
-    if not ids:
-        return 0
-    with UnitOfWork() as uow:
-        updated = (
-            uow.session.query(Document)
-            .filter(Document.id.in_(ids))
-            .update({Document.print_status: "not_printed"}, synchronize_session=False)
-        )
-        uow.commit()
-        return int(updated or 0)
-
 def confirm_document(document_id: int):
     with UnitOfWork() as uow:
         doc = uow.documents.get_by_id(document_id)
@@ -525,15 +494,50 @@ def _build_audit_view(log: DocumentAuditLog) -> dict:
 
     before = payload.get("before") or {}
     after = payload.get("after") or {}
-    snapshot = before or payload
+    snapshot = before or payload.get("document") or payload
 
     document_number = snapshot.get("document_number") or payload.get("document_number")
     doc_id = log.document_id or payload.get("document_id") or snapshot.get("id")
 
-    action_label = "Modifica" if log.action == "update" else "Eliminazione"
-    action_class = "warning" if log.action == "update" else "danger"
+    schedule_labels = {
+        "schedule_gen": ("Estratto generato", "info"),
+        "schedule_item": ("Inclusa nell'estratto", "info"),
+        "schedule_confirm": ("Stampa confermata", "primary"),
+        "schedule_cancel": ("Estratto annullato", "secondary"),
+        "schedule_unmark": ("Programmazione rimossa", "warning"),
+        "schedule_failed": ("Generazione fallita", "danger"),
+    }
+    action_label, action_class = schedule_labels.get(
+        log.action, ("Modifica", "warning") if log.action == "update" else ("Eliminazione", "danger"),
+    )
 
     summary = _build_audit_summary(before, after, log.action)
+    if log.action in schedule_labels:
+        actor = payload.get("actor") or {}
+        identity = actor.get("username") or "non disponibile"
+        if actor.get("identity_source") == "CurrentUserStub":
+            identity += " (utente dimostrativo, operatore non autenticato)"
+        parts = [payload.get("source", ""), f"Utente: {identity}",
+                 f"Postazione: {actor.get('remote_addr') or '-'}",
+                 f"Sessione: {actor.get('session_id') or '-'}"]
+        if payload.get("schedule_id"):
+            parts.append(f"Estratto: {payload['schedule_id']}")
+        if log.action == "schedule_gen":
+            outcomes = {"pending": "in attesa di conferma", "confirmed": "confermato", "cancelled": "annullato"}
+            parts.append(f"{len(payload.get('document_audit_ids', []))} documenti; esito: {outcomes.get(payload.get('status'), '-')}")
+        if before or after:
+            parts.append(f"Programmazione: {before.get('print_status', '-')} → {after.get('print_status', '-')}")
+        if payload.get("reason"):
+            parts.append(f"Motivo: {payload['reason']}")
+        summary = " · ".join(parts)
+
+    schedule_documents = []
+    if log.action == "schedule_gen":
+        from app.services.schedule_service import generation_documents, ScheduleConflict
+        try:
+            schedule_documents = generation_documents(payload)
+        except ScheduleConflict:
+            summary += " · Snapshot fatture incompleto"
 
     return {
         "id": log.id,
@@ -544,6 +548,9 @@ def _build_audit_view(log: DocumentAuditLog) -> dict:
         "action_label": action_label,
         "action_class": action_class,
         "summary": summary,
+        "schedule_documents": schedule_documents,
+        "schedule_id": payload.get("schedule_id"),
+        "pdf_sha256": payload.get("pdf_sha256"),
     }
 
 
@@ -563,6 +570,7 @@ def _build_audit_summary(before: dict, after: dict, action: str) -> str:
         "total_gross_amount": "Totale",
         "doc_status": "Stato",
         "physical_copy_status": "Copia fisica",
+        "print_status": "Programmazione",
         "note": "Note",
         "file_name": "File XML",
     }

@@ -22,6 +22,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const toolbar = document.querySelector("[data-schedule-toolbar]");
     let schedulePrintInProgress = false;
     let scheduleCbiInProgress = false;
+    const previewModal = document.getElementById("schedule-preview-modal");
+    const previewFrame = previewModal?.querySelector("[data-preview-frame]");
+    const previewConfirm = previewModal?.querySelector("[data-preview-confirm]");
+    const previewChecked = document.getElementById("schedule-preview-checked");
+    const previewError = previewModal?.querySelector("[data-preview-error]");
+    const previewCancelButtons = previewModal?.querySelectorAll("[data-preview-cancel]") || [];
+    let pendingPreview = null;
+    let previewBusy = false;
 
     if (!rows.length || (!searchInput && !statusSelect)) return;
 
@@ -364,18 +372,48 @@ document.addEventListener("DOMContentLoaded", () => {
         if (bulkTotal) bulkTotal.textContent = formatAmount(total);
     };
 
-    const handleRowClick = (event) => {
-        const target = event.target;
-        const row = target.closest("[data-schedule-row]");
-        if (!row) return;
-        if (target.closest("a, button, input, label, select, textarea")) return;
-        const checkbox = row.querySelector(".schedule-select");
-        if (!checkbox || checkbox.disabled) return;
-        checkbox.checked = !checkbox.checked;
-        checkbox.dispatchEvent(new Event("change", { bubbles: true }));
+    const finishPreview = async (confirm) => {
+        if (!pendingPreview || previewBusy || (confirm && !previewChecked?.checked)) return;
+        previewBusy = true;
+        previewConfirm.disabled = true;
+        previewChecked.disabled = true;
+        previewCancelButtons.forEach((button) => { button.disabled = true; });
+        previewError.classList.add("d-none");
+        try {
+            const formData = new FormData();
+            formData.set("token", pendingPreview.token);
+            const response = await fetch(previewModal.getAttribute(confirm ? "data-confirm-url" : "data-cancel-url"), {
+                method: "POST",
+                headers: { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json" },
+                credentials: "same-origin",
+                body: formData,
+            });
+            const data = await response.json();
+            if (!response.ok || !data?.ok) throw new Error(data?.message || "Operazione non riuscita.");
+            if (confirm) {
+                window.location.reload();
+                return;
+            }
+            window.bootstrap.Modal.getOrCreateInstance(previewModal).hide();
+            previewFrame.src = "about:blank";
+            window.URL.revokeObjectURL(pendingPreview.url);
+            pendingPreview = null;
+        } catch (error) {
+            previewError.textContent = error?.message || "Operazione non riuscita. Riprova.";
+            previewError.classList.remove("d-none");
+        } finally {
+            previewBusy = false;
+            previewChecked.disabled = false;
+            previewConfirm.disabled = !previewChecked.checked;
+            previewCancelButtons.forEach((button) => { button.disabled = false; });
+        }
     };
 
-    document.addEventListener("click", handleRowClick);
+    previewChecked?.addEventListener("change", () => {
+        previewConfirm.disabled = previewBusy || !previewChecked.checked;
+    });
+    previewConfirm?.addEventListener("click", () => finishPreview(true));
+    previewCancelButtons.forEach((button) => button.addEventListener("click", () => finishPreview(false)));
 
     rowCheckboxes.forEach((checkbox) => {
         checkbox.addEventListener("change", () => {
@@ -422,11 +460,11 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         if (action === "print") {
-            if (schedulePrintInProgress || target.disabled) return;
+            if (schedulePrintInProgress || pendingPreview || target.disabled) return;
             const ids = selectedRows.map((row) => row.getAttribute("data-doc-id")).filter(Boolean);
             const form = document.getElementById("schedule-print-form");
             const input = document.getElementById("schedule-print-ids");
-            if (!form || !input) {
+            if (!form || !input || !previewModal || !window.bootstrap?.Modal) {
                 alert("Stampa PDF non ancora disponibile.");
                 return;
             }
@@ -461,20 +499,47 @@ document.addEventListener("DOMContentLoaded", () => {
                     }
 
                     const blob = await response.blob();
+                    const token = response.headers.get("X-Schedule-Token");
+                    if (!token) throw new Error("Conferma dell'estratto non disponibile. Nessuna fattura programmata.");
+                    const previewData = new FormData();
+                    previewData.set("token", token);
+                    const previewResponse = await fetch(previewModal.getAttribute("data-preview-url"), {
+                        method: "POST",
+                        headers: { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json" },
+                        credentials: "same-origin",
+                        body: previewData,
+                    });
+                    const preview = await previewResponse.json();
+                    if (!previewResponse.ok || !preview?.ok) throw new Error(preview?.message || "Anteprima non disponibile.");
                     const disposition = response.headers.get("content-disposition") || "";
                     const match = disposition.match(/filename="?([^"]+)"?/i);
                     const filename = match?.[1] || "scadenziario.pdf";
 
                     const url = window.URL.createObjectURL(blob);
-                    const link = document.createElement("a");
-                    link.href = url;
-                    link.download = filename;
-                    document.body.appendChild(link);
-                    link.click();
-                    link.remove();
-                    window.URL.revokeObjectURL(url);
-
-                    window.location.reload();
+                    pendingPreview = { token, url };
+                    previewFrame.src = url;
+                    const downloadLink = previewModal.querySelector("[data-preview-download]");
+                    downloadLink.href = url;
+                    downloadLink.download = filename;
+                    previewModal.querySelector("[data-preview-count]").textContent = response.headers.get("X-Schedule-Count") || "";
+                    previewModal.querySelector("[data-preview-total]").textContent = formatAmount(Number(response.headers.get("X-Schedule-Total")));
+                    previewModal.querySelector("[data-preview-id]").textContent = response.headers.get("X-Schedule-Id") || "";
+                    const previewRows = preview.documents.map((doc) => {
+                        const row = document.createElement("tr");
+                        [doc.legal_entity_name, doc.supplier_name, doc.document_number || "-", formatAmount(Number(doc.remaining_amount))].forEach((value, index) => {
+                            const cell = document.createElement("td");
+                            cell.textContent = value;
+                            if (index === 3) cell.className = "text-end";
+                            row.appendChild(cell);
+                        });
+                        return row;
+                    });
+                    previewModal.querySelector("[data-preview-documents]").replaceChildren(...previewRows);
+                    previewModal.querySelector("[data-preview-pdf-details]").open = false;
+                    previewChecked.checked = false;
+                    previewConfirm.disabled = true;
+                    previewError.classList.add("d-none");
+                    window.bootstrap.Modal.getOrCreateInstance(previewModal).show();
                 })
                 .catch((error) => {
                     alert(error?.message || "Errore durante la generazione del PDF.");
@@ -482,7 +547,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 .finally(() => {
                     schedulePrintInProgress = false;
                     target.disabled = false;
-                    target.innerHTML = target.dataset.originalHtml || '<i class="bi bi-printer"></i> Stampa come PDF';
+                    target.innerHTML = target.dataset.originalHtml || '<i class="bi bi-printer"></i> Genera estratto conto';
                 });
             return;
         }

@@ -10,7 +10,7 @@
 
     <div class="card shadow-sm">
         <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <h5 class="mb-0">Modifiche ed eliminazioni</h5>
+            <h5 class="mb-0">Modifiche, eliminazioni ed estratti conto</h5>
             <span class="badge bg-light text-dark">{{ audit_logs|length|format_int }} eventi</span>
         </div>
         <div class="card-body p-0">
@@ -18,7 +18,7 @@
                 <table class="table table-hover table-striped mb-0 align-middle">
                     <thead class="table-light">
                     <tr>
-                        <th>Data</th>
+                        <th>Data (UTC)</th>
                         <th>Azione</th>
                         <th>Documento</th>
                         <th>Dettagli</th>
@@ -38,10 +38,23 @@
                                     </a>
                                     <div class="text-muted small">ID {{ log.document_id }}</div>
                                 {% else %}
-                                    <span class="fw-semibold">{{ log.document_number or 'Documento eliminato' }}</span>
+                                    <span class="fw-semibold">{{ log.document_number or ('Estratto conto' if log.schedule_id else 'Documento eliminato') }}</span>
                                 {% endif %}
                             </td>
-                            <td class="text-muted small">{{ log.summary }}</td>
+                            <td class="text-muted small">
+                                {{ log.summary }}
+                                {% if log.schedule_documents %}
+                                <details class="mt-2">
+                                    <summary>Fatture incluse nel PDF</summary>
+                                    <ul class="mt-2">
+                                        {% for doc in log.schedule_documents %}
+                                        <li>ID {{ doc.id }} · {{ doc.legal_entity_name }} · {{ doc.supplier_name }} · {{ doc.document_number or '-' }} · residuo {{ doc.remaining_amount }} € · stato iniziale {{ doc.print_status }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                    <div class="text-break">Impronta PDF: {{ log.pdf_sha256 }}</div>
+                                </details>
+                                {% endif %}
+                            </td>
                         </tr>
                     {% else %}
                         <tr>

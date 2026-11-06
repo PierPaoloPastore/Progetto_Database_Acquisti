@@ -80,6 +80,7 @@
     <h1>Scadenziario Pagamenti</h1>
     <div class="meta">
         Generato il {{ updated_at.strftime('%d/%m/%Y %H:%M') }}
+        {% if schedule_id %}&middot; Estratto {{ schedule_id }}{% endif %}
         &middot; Finestra in scadenza: {{ soon_days }} giorni
     </div>
 

@@ -18,7 +18,7 @@
         {% set delta_days = none %}
     {% endif %}
     <tr
-        class="schedule-row schedule-row-clickable schedule-{{ row.due_status }}"
+        class="schedule-row schedule-{{ row.due_status }}"
         data-schedule-row
         data-status="{{ row.due_status }}"
         data-search="{{ row.supplier_name }} {{ row.legal_entity_name }} {{ doc.document_number or '' }}"
@@ -219,7 +219,7 @@
                         {% endfor %}
                     </select>
                     <button type="button" class="btn btn-sm btn-outline-secondary" data-bulk-action="print">
-                        <i class="bi bi-printer"></i> Stampa come PDF
+                        <i class="bi bi-printer"></i> Genera estratto conto
                     </button>
                     <button type="button" class="btn btn-sm btn-danger" data-bulk-action="unprogram" data-unprogram-url="{{ url_for('payments.schedule_unprogram') }}">
                         <i class="bi bi-arrow-counterclockwise"></i> Togli programmata
@@ -332,6 +332,49 @@
                 <input type="hidden" name="bank_account_iban" id="schedule-cbi-bank-account-hidden">
                 <input type="hidden" name="profile_code" value="generic_pain001">
             </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="schedule-preview-modal" tabindex="-1" aria-labelledby="schedule-preview-title"
+     data-bs-backdrop="static" data-bs-keyboard="false"
+     data-preview-url="{{ url_for('payments.schedule_preview') }}"
+     data-confirm-url="{{ url_for('payments.schedule_confirm') }}"
+     data-cancel-url="{{ url_for('payments.schedule_cancel') }}">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title fs-5" id="schedule-preview-title">Verifica l'estratto conto</h2>
+                <button type="button" class="btn-close" data-preview-cancel aria-label="Chiudi senza programmare"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <span class="fw-bold" data-preview-count></span> fatture · Totale residuo: <span class="fw-bold" data-preview-total></span>.
+                    Controlla tutte le fatture del PDF, anche quelle selezionate in altri intestatari.
+                    <div>La generazione e il download non cambiano lo stato. Le fatture saranno programmate solo dopo la tua conferma.</div>
+                </div>
+                <div class="small text-muted mb-2">Riferimento estratto: <span data-preview-id></span></div>
+                <div class="table-responsive border rounded" style="max-height: 35vh; overflow-y: auto">
+                    <table class="table table-sm mb-0">
+                        <thead class="table-light"><tr><th>Intestatario</th><th>Fornitore</th><th>Documento</th><th class="text-end">Residuo</th></tr></thead>
+                        <tbody data-preview-documents></tbody>
+                    </table>
+                </div>
+                <details class="mt-3" data-preview-pdf-details>
+                    <summary>Anteprima PDF (puoi anche scaricarlo per stamparlo)</summary>
+                    <iframe title="Anteprima estratto conto generato" data-preview-frame class="w-100 border rounded mt-2" style="height: 55vh"></iframe>
+                </details>
+                <div class="form-check mt-3">
+                    <input type="checkbox" class="form-check-input" id="schedule-preview-checked">
+                    <label class="form-check-label" for="schedule-preview-checked">Ho verificato le fatture e confermo che l'estratto conto è stato stampato per il pagamento.</label>
+                </div>
+                <div class="alert alert-danger mt-3 d-none" role="alert" data-preview-error></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-preview-cancel>Chiudi senza programmare</button>
+                <a class="btn btn-outline-primary" data-preview-download><i class="bi bi-download"></i> Scarica PDF</a>
+                <button type="button" class="btn btn-primary" data-preview-confirm disabled>Confermo la stampa e programma le fatture</button>
+            </div>
         </div>
     </div>
 </div>

@@ -11,9 +11,27 @@ class DocumentAuditLogRepository(SqlAlchemyRepository[DocumentAuditLog]):
     def __init__(self, session):
         super().__init__(session, DocumentAuditLog)
 
+    def get_for_update(self, audit_id: int) -> Optional[DocumentAuditLog]:
+        return (
+            self.session.query(DocumentAuditLog)
+            .filter(DocumentAuditLog.id == audit_id)
+            .populate_existing()
+            .with_for_update()
+            .one_or_none()
+        )
+
+    def get_by_ids(self, audit_ids: list[int]) -> list[DocumentAuditLog]:
+        return (
+            self.session.query(DocumentAuditLog)
+            .filter(DocumentAuditLog.id.in_(audit_ids))
+            .order_by(DocumentAuditLog.id.asc())
+            .all()
+        )
+
     def list_recent(self, limit: int = 200) -> List[DocumentAuditLog]:
         return (
             self.session.query(DocumentAuditLog)
+            .filter(DocumentAuditLog.action != "schedule_item")
             .order_by(DocumentAuditLog.created_at.desc(), DocumentAuditLog.id.desc())
             .limit(limit)
             .all()

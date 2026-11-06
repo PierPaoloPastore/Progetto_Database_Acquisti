@@ -42,6 +42,16 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
     def __init__(self, session):
         super().__init__(session, Document)
 
+    def get_by_ids_for_update(self, document_ids: list[int]) -> list[Document]:
+        return (
+            self.session.query(Document)
+            .filter(Document.id.in_(document_ids))
+            .order_by(Document.id.asc())
+            .populate_existing()
+            .with_for_update()
+            .all()
+        )
+
     def get_by_id(self, doc_id: int) -> Optional[Document]:
         """Restituisce un documento dato l'ID, includendo le relazioni principali."""
         if doc_id is None:
