@@ -56,7 +56,9 @@ def _add_event(uow, action: str, payload: dict, document_id=None):
 
 
 def _emit(action: str, payload: dict) -> None:
-    logger.info("Audit scadenziario", extra={"schedule_event": action, **payload})
+    logger.info("Audit scadenziario", extra={
+        "schedule_event": action, "request_id": payload.get("actor", {}).get("request_id"), **payload,
+    })
 
 
 def record_generation(rows: list[dict], pdf_bytes: bytes, actor: dict, schedule_id: str) -> int:

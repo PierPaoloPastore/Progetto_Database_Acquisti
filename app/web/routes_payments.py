@@ -40,13 +40,47 @@ payments_bp = Blueprint("payments", __name__)
 _ALLOWED_PAYMENT_EXTENSIONS = {".pdf"}
 _PAYMENT_HISTORY_PAGE_SIZE = 50
 _UNPAID_INVOICES_PAGE_SIZE = 100
+_SCHEDULE_UI_ACTIONS = {
+    "payments.schedule_print": "schedule.generate",
+    "payments.schedule_preview": "schedule.preview",
+    "payments.schedule_confirm": "schedule.confirm_print",
+    "payments.schedule_cancel": "schedule.cancel",
+    "payments.schedule_unprogram": "schedule.unprogram",
+}
+
+
+@payments_bp.before_request
+def _start_schedule_trace() -> None:
+    if request.method == "POST" and request.endpoint in _SCHEDULE_UI_ACTIONS:
+        # L'ID nasce sul server, indipendentemente dagli header del client.
+        g.schedule_request_id = uuid4().hex
+
+
+@payments_bp.after_request
+def _log_schedule_response(response):
+    if request.method == "POST" and request.endpoint in _SCHEDULE_UI_ACTIONS:
+        actor = _schedule_actor()
+        response.headers["X-Request-ID"] = actor["request_id"]
+        current_app.logger.info("Richiesta HTTP scadenziario", extra={
+            "schedule_event": "http_request", "request_id": actor["request_id"],
+            "status_code": response.status_code, "actor": actor,
+        })
+    return response
 
 
 def _schedule_actor() -> dict:
     if "schedule_session_id" not in session:
         session["schedule_session_id"] = uuid4().hex
     user = getattr(g, "current_user", None)
+    view = current_app.view_functions[request.endpoint]
+    ui_action = _SCHEDULE_UI_ACTIONS[request.endpoint]
     return {
+        "request_id": g.schedule_request_id,
+        "method": request.method,
+        "endpoint": request.endpoint,
+        "handler": f"{view.__module__}.{view.__name__}",
+        # Etichetta dichiarata dal browser, non prova dell'origine del clic.
+        "ui_action": ui_action if request.headers.get("X-Schedule-Action") == ui_action else None,
         "session_id": session["schedule_session_id"],
         "path": request.path,
         "remote_addr": request.remote_addr,
@@ -611,7 +645,9 @@ def schedule_print():
         )
     except Exception:
         schedule_service.record_failure(ids, actor, "pdf_render_error", schedule_id)
-        current_app.logger.exception("Generazione PDF scadenziario fallita", extra={"schedule_id": schedule_id})
+        current_app.logger.exception("Generazione PDF scadenziario fallita", extra={
+            "schedule_id": schedule_id, "request_id": actor["request_id"], "actor": actor,
+        })
         return jsonify({"ok": False, "message": "Generazione PDF fallita. Nessuna fattura programmata."}), 500
     if not pdf_bytes:
         schedule_service.record_failure(ids, actor, "pdf_unavailable", schedule_id)
@@ -660,7 +696,8 @@ def schedule_finish():
         else:
             message = "Conferma non valida o scaduta. Genera nuovamente il PDF da questa sessione."
         current_app.logger.warning("Richiesta scadenziario rifiutata", extra={
-            "schedule_event": "rejected", "source": request.endpoint, "actor": actor, "reason": message,
+            "schedule_event": "rejected", "source": request.endpoint,
+            "request_id": actor["request_id"], "actor": actor, "reason": message,
         })
         return jsonify({"ok": False, "message": message}), 409
     return jsonify({"ok": True, **result})

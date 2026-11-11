@@ -52,7 +52,7 @@ const context = {
     },
     alert: message => { throw Error(message); },
     fetch: async (url, options) => {
-        requests.push({ url, body: Object.fromEntries(options.body.items) });
+        requests.push({ url, headers: options.headers, body: Object.fromEntries(options.body.items) });
         if (url === "/print") return {
             ok: true,
             headers: { get: name => ({
@@ -88,6 +88,8 @@ const generate = async () => {
     assert.equal(visible, true);
     assert.equal(reloads, 0);
     assert.deepEqual(requests.map(item => item.url), ["/print", "/preview"]);
+    assert.equal(requests[0].headers["X-Schedule-Action"], "schedule.generate");
+    assert.equal(requests[1].headers["X-Schedule-Action"], "schedule.preview");
     assert.equal(frame.src, download.href);
     assert.equal(count.textContent, "1");
     assert.equal(id.textContent, "batch-test");
@@ -99,6 +101,7 @@ const generate = async () => {
     assert.equal(visible, false);
     assert.equal(context.pendingPreview, null);
     assert.equal(requests.at(-1).url, "/cancel");
+    assert.equal(requests.at(-1).headers["X-Schedule-Action"], "schedule.cancel");
     assert.equal(reloads, 0);
 
     await generate();
@@ -122,5 +125,15 @@ const generate = async () => {
     assert.equal(reloads, 1);
     assert.deepEqual(requests.at(-1).body, { token: "bound-to-generated-list" });
     assert.equal(requests.at(-1).url, "/confirm");
-    console.log("OK: preview/download without programming, cancellation, explicit confirmation, frozen token, retry and double click.");
+    assert.equal(requests.at(-1).headers["X-Schedule-Action"], "schedule.confirm_print");
+    const unprogramButton = {
+        getAttribute: name => name === "data-bulk-action" ? "unprogram" : "/unprogram",
+    };
+    context.bulkBar.click({ target: { closest: () => unprogramButton } });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(requests.at(-1).url, "/unprogram");
+    assert.equal(requests.at(-1).headers["X-Schedule-Action"], "schedule.unprogram");
+    assert.deepEqual(requests.at(-1).body, { document_ids: "3" });
+    assert.equal(reloads, 2);
+    console.log("OK: preview/download, cancellation, explicit confirmation, frozen token, retry, double click and HTTP action labels.");
 })().catch(error => { console.error(error); process.exitCode = 1; });

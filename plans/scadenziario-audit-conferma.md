@@ -107,3 +107,64 @@ esplicito dal modal registra invece un esito di annullamento.
 - Il motore PDF non è disponibile nell'ambiente locale: il collaudo UI usa un
   PDF di prova. Non verificati qui il rendering PDF effettivo e i lock MySQL.
 - Nessun accesso al database operativo; flag storici invariati.
+
+## Correlazione HTTP e audit — 2026-11-07
+
+Ogni POST a `schedule/print`, `schedule/preview`, `schedule/confirm`,
+`schedule/cancel` e `schedule/unprogram` riceve un nuovo `request_id` generato
+dal server. L'header di risposta `X-Request-ID` permette di ritrovarlo dagli
+strumenti di rete del browser. Un eventuale `X-Request-ID` del client non viene
+riutilizzato. L'ID identifica una singola richiesta, mentre `schedule_id`
+collega generazione e conferma dello stesso estratto.
+
+Il payload JSON esistente di `document_audit_logs` conserva in `actor`:
+`request_id`, `method`, `path`, `endpoint`, `handler` (funzione Flask),
+`ui_action`, oltre a sessione, IP, user agent e identità già presenti.
+La generazione conserva il proprio `actor`; `closed_by` identifica la richiesta
+di conferma o annullamento. Le righe `schedule_confirm` e `schedule_unmark`
+contengono direttamente la richiesta che ha cambiato il flag. Nessuna migrazione
+o modifica dello schema DB.
+
+Il JavaScript dichiara l'azione nell'header `X-Schedule-Action`:
+
+| Etichetta | Origine in `app/static/js/schedule.js` |
+| --- | --- |
+| `schedule.generate` | azione bulk `print`, form `schedule-print-form` |
+| `schedule.preview` | richiesta della lista del PDF appena generato |
+| `schedule.confirm_print` | `finishPreview(true)`, pulsante di conferma stampa |
+| `schedule.cancel` | `finishPreview(false)`, chiusura senza programmare |
+| `schedule.unprogram` | azione bulk `unprogram`, pulsante Togli programmata |
+
+`ui_action` è un'etichetta dichiarata dal client, non prova di un clic fisico.
+Viene salvata solo se corrisponde all'etichetta prevista per l'endpoint;
+altrimenti è `null`. I client senza l'header continuano a funzionare.
+Metodo, percorso, endpoint e handler sono ricavati dal server. Non si salvano
+body, query string, token, cookie o header di autorizzazione.
+
+I log JSON delle operazioni hanno lo stesso ID in `extra.request_id` e in
+`extra.actor.request_id`. Un evento `extra.schedule_event = http_request`
+registra anche lo stato HTTP della risposta, inclusi rifiuti e tentativi
+ripetuti che non generano una nuova modifica. Lo storico documenti mostra
+richiesta, metodo/percorso, endpoint, funzione e l'eventuale azione UI dichiarata;
+gli eventi precedenti senza questi campi restano leggibili.
+
+Per indagare un documento, leggere i payload dei suoi eventi:
+
+```sql
+SELECT id, document_id, action, created_at, payload
+FROM document_audit_logs
+WHERE document_id = 123
+  AND action IN ('schedule_confirm', 'schedule_unmark')
+ORDER BY id DESC;
+```
+
+Sostituire `123` con l'ID da verificare; cercare `actor.request_id` nei log
+applicativi. Nei binlog, l'inserimento audit e l'aggiornamento del flag
+appartengono alla stessa transazione. Il nuovo tracciamento vale dalle richieste
+gestite dalla versione aggiornata, senza ricostruire i dati HTTP storici.
+
+Validazione locale dell'estensione: 15 test backend con SQLite in memoria e
+test JavaScript superati; sintassi JavaScript e `git diff --check` verificati.
+Coperti correlazione audit/log/header, ID distinti, replay, rifiuti, errore PDF,
+azioni UI, esclusione dei segreti e compatibilità degli audit precedenti.
+Nessun accesso a MySQL operativo o lettura dei binlog durante la verifica.

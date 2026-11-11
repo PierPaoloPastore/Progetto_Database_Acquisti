@@ -11,7 +11,7 @@ from itsdangerous import SignatureExpired
 from jinja2 import ChoiceLoader, DictLoader, FileSystemLoader
 from sqlalchemy import text
 
-from app.extensions import db
+from app.extensions import JsonFormatter, db
 from app.middleware.auth_stub import init_auth_stub
 from app.models import Document, DocumentAuditLog, LegalEntity, Supplier
 from app.services import document_service, schedule_service
@@ -96,19 +96,106 @@ class ScheduleWorkflowTests(unittest.TestCase):
         self.assertEqual(self.flags(), ["programmed", "programmed", "not_printed"])
         self.assertEqual({row.document_id for row in self.events("schedule_confirm")}, {1, 2})
 
+    def test_http_trace_correlates_audit_logs_and_each_response(self):
+        with self.assertLogs(level="INFO") as captured:
+            generated = self.client.post("/payments/schedule/print", data={"document_ids": "1,2"},
+                                         headers={"X-Schedule-Action": "schedule.generate"})
+            token = generated.headers["X-Schedule-Token"]
+            confirmed = self.client.post("/payments/schedule/confirm?secret=query-secret",
+                                         data={"token": token, "password": "form-secret"}, headers={
+                                             "X-Schedule-Action": "schedule.confirm_print",
+                                             "X-Request-ID": "client-chosen-id",
+                                             "Authorization": "Bearer authorization-secret",
+                                             "User-Agent": "Schedule test browser",
+                                         })
+            unmarked = self.client.post("/payments/schedule/unprogram", data={"document_ids": "1,2"},
+                                        headers={"X-Schedule-Action": "schedule.unprogram"})
+        request_ids = [response.headers["X-Request-ID"] for response in (generated, confirmed, unmarked)]
+        self.assertEqual(len(set(request_ids)), 3)
+        entries = [json.loads(JsonFormatter().format(record))["extra"] for record in captured.records]
+        for response, action, endpoint, handler, ui_action, log_event in (
+            (generated, "schedule_gen", "schedule_print", "schedule_print", "schedule.generate", "generated"),
+            (confirmed, "schedule_confirm", "schedule_confirm", "schedule_finish", "schedule.confirm_print", "confirmed"),
+            (unmarked, "schedule_unmark", "schedule_unprogram", "schedule_unprogram", "schedule.unprogram", "unprogrammed"),
+        ):
+            with self.subTest(action=action):
+                self.assertEqual(response.status_code, 200)
+                request_id = response.headers["X-Request-ID"]
+                self.assertRegex(request_id, r"^[0-9a-f]{32}$")
+                events = self.events(action)
+                self.assertTrue(events)
+                for event in events:
+                    actor = json.loads(event.payload)["actor"]
+                    self.assertEqual(actor["request_id"], request_id)
+                    self.assertEqual(actor["method"], "POST")
+                    self.assertEqual(actor["endpoint"], f"payments.{endpoint}")
+                    self.assertEqual(actor["handler"], f"app.web.routes_payments.{handler}")
+                    self.assertEqual(actor["ui_action"], ui_action)
+                    if action == "schedule_confirm":
+                        self.assertEqual(actor["path"], "/payments/schedule/confirm")
+                        self.assertEqual(actor["user_agent"], "Schedule test browser")
+                matching_logs = [entry for entry in entries if entry.get("request_id") == request_id]
+                self.assertEqual({entry["schedule_event"] for entry in matching_logs}, {log_event, "http_request"})
+                for entry in matching_logs:
+                    self.assertEqual(entry["actor"]["request_id"], request_id)
+                http_log = next(entry for entry in matching_logs if entry["schedule_event"] == "http_request")
+                self.assertEqual(http_log["status_code"], response.status_code)
+        generation = json.loads(self.events("schedule_gen")[0].payload)
+        self.assertEqual(generation["closed_by"]["request_id"], confirmed.headers["X-Request-ID"])
+        stored = " ".join(event.payload for event in db.session.query(DocumentAuditLog))
+        logged = " ".join(JsonFormatter().format(record) for record in captured.records)
+        for secret in (token, "query-secret", "form-secret", "authorization-secret", "client-chosen-id"):
+            self.assertNotIn(secret, stored + logged)
+        self.assertEqual(self.flags(), ["not_printed"] * 3)
+
+    def test_http_trace_on_rejection_and_unknown_client_action(self):
+        with self.assertLogs(level="INFO") as captured:
+            rejected = self.client.post("/payments/schedule/confirm", data={"token": "invalid-secret"},
+                                        headers={"X-Schedule-Action": "unknown-client-action"})
+        self.assertEqual(rejected.status_code, 409)
+        request_id = rejected.headers["X-Request-ID"]
+        entries = [json.loads(JsonFormatter().format(record))["extra"] for record in captured.records]
+        self.assertEqual({entry["schedule_event"] for entry in entries}, {"rejected", "http_request"})
+        for entry in entries:
+            self.assertEqual(entry["request_id"], request_id)
+            self.assertEqual(entry["actor"]["endpoint"], "payments.schedule_confirm")
+            self.assertIsNone(entry["actor"]["ui_action"])
+        logged = " ".join(JsonFormatter().format(record) for record in captured.records)
+        self.assertNotIn("invalid-secret", logged)
+        self.assertNotIn("unknown-client-action", logged)
+        self.assertFalse(self.events("schedule_confirm"))
+        self.assertEqual(self.flags(), ["not_printed"] * 3)
+
+        token = self.generate("1")
+        response = self.client.post("/payments/schedule/confirm", data={"token": token},
+                                    headers={"X-Schedule-Action": "schedule.unprogram"})
+        self.assertEqual(response.status_code, 200)
+        actor = json.loads(self.events("schedule_confirm")[0].payload)["actor"]
+        self.assertEqual(actor["endpoint"], "payments.schedule_confirm")
+        self.assertIsNone(actor["ui_action"])
+
     def test_cancel_does_not_program_and_cannot_be_confirmed_later(self):
         token = self.generate()
-        self.assertEqual(self.client.post("/payments/schedule/cancel", data={"token": token}).status_code, 200)
+        response = self.client.post("/payments/schedule/cancel", data={"token": token},
+                                    headers={"X-Schedule-Action": "schedule.cancel"})
+        self.assertEqual(response.status_code, 200)
+        actor = json.loads(self.events("schedule_cancel")[0].payload)["actor"]
+        self.assertEqual(actor["request_id"], response.headers["X-Request-ID"])
+        self.assertEqual(actor["ui_action"], "schedule.cancel")
         self.assertEqual(self.client.post("/payments/schedule/confirm", data={"token": token}).status_code, 409)
         self.assertEqual(self.flags(), ["not_printed"] * 3)
         self.assertEqual(len(self.events("schedule_cancel")), 1)
 
     def test_replay_does_not_duplicate_audit_or_reprogram_after_unmark(self):
         token = self.generate()
-        self.client.post("/payments/schedule/confirm", data={"token": token})
+        confirmed = self.client.post("/payments/schedule/confirm", data={"token": token})
         self.client.post("/payments/schedule/unprogram", data={"document_ids": "1,2"})
-        response = self.client.post("/payments/schedule/confirm", data={"token": token})
+        with self.assertLogs(self.app.logger, level="INFO") as captured:
+            response = self.client.post("/payments/schedule/confirm", data={"token": token})
         self.assertTrue(response.json["already_done"])
+        self.assertNotEqual(response.headers["X-Request-ID"], confirmed.headers["X-Request-ID"])
+        self.assertEqual(captured.records[0].schedule_event, "http_request")
+        self.assertEqual(captured.records[0].request_id, response.headers["X-Request-ID"])
         self.assertEqual(self.flags(), ["not_printed"] * 3)
         self.assertEqual(len(self.events("schedule_confirm")), 2)
         self.assertEqual(len(self.events("schedule_unmark")), 2)
@@ -171,11 +258,14 @@ class ScheduleWorkflowTests(unittest.TestCase):
 
     def test_render_exception_is_audited_without_programming(self):
         self.renderer.side_effect = RuntimeError("renderer crashed")
-        with self.assertLogs(self.app.logger, level="ERROR"):
+        with self.assertLogs(self.app.logger, level="ERROR") as captured:
             response = self.client.post("/payments/schedule/print", data={"document_ids": "1"},
                                         headers={"X-Requested-With": "XMLHttpRequest"})
         self.assertEqual(response.status_code, 500)
         self.assertEqual(json.loads(self.events("schedule_failed")[0].payload)["reason"], "pdf_render_error")
+        actor = json.loads(self.events("schedule_failed")[0].payload)["actor"]
+        self.assertEqual(actor["request_id"], response.headers["X-Request-ID"])
+        self.assertEqual(captured.records[0].request_id, actor["request_id"])
         self.assertEqual(self.flags(), ["not_printed"] * 3)
 
     def test_supplier_iban_change_invalidates_printed_snapshot(self):
@@ -204,6 +294,16 @@ class ScheduleWorkflowTests(unittest.TestCase):
         self.assertEqual(len(generated["schedule_documents"]), 1)
         self.assertIn("operatore non autenticato", generated["summary"])
         self.assertIn("confermato", generated["summary"])
+        confirmed = next(event for event in events if event["action"] == "schedule_confirm")
+        actor = json.loads(self.events("schedule_confirm")[0].payload)["actor"]
+        self.assertIn(actor["request_id"], confirmed["summary"])
+        self.assertIn("POST /payments/schedule/confirm", confirmed["summary"])
+        self.assertIn("payments.schedule_confirm", confirmed["summary"])
+        legacy = DocumentAuditLog(action="schedule_unmark", payload=json.dumps({
+            "actor": {"session_id": "legacy-session"},
+            "before": {"print_status": "programmed"}, "after": {"print_status": "not_printed"},
+        }))
+        self.assertIn("legacy-session", document_service._build_audit_view(legacy)["summary"])
 
 
 if __name__ == "__main__":

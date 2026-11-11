@@ -520,6 +520,15 @@ def _build_audit_view(log: DocumentAuditLog) -> dict:
         parts = [payload.get("source", ""), f"Utente: {identity}",
                  f"Postazione: {actor.get('remote_addr') or '-'}",
                  f"Sessione: {actor.get('session_id') or '-'}"]
+        if actor.get("request_id"):
+            parts.extend([
+                f"Richiesta: {actor['request_id']}",
+                f"HTTP: {actor.get('method', '-')} {actor.get('path', '-')}",
+                f"Endpoint: {actor.get('endpoint', '-')}",
+                f"Funzione: {actor.get('handler', '-')}",
+            ])
+        if actor.get("ui_action"):
+            parts.append(f"Azione UI dichiarata: {actor['ui_action']}")
         if payload.get("schedule_id"):
             parts.append(f"Estratto: {payload['schedule_id']}")
         if log.action == "schedule_gen":

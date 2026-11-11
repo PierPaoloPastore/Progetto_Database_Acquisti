@@ -384,7 +384,10 @@ document.addEventListener("DOMContentLoaded", () => {
             formData.set("token", pendingPreview.token);
             const response = await fetch(previewModal.getAttribute(confirm ? "data-confirm-url" : "data-cancel-url"), {
                 method: "POST",
-                headers: { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json" },
+                headers: {
+                    "X-Requested-With": "XMLHttpRequest", "Accept": "application/json",
+                    "X-Schedule-Action": confirm ? "schedule.confirm_print" : "schedule.cancel",
+                },
                 credentials: "same-origin",
                 body: formData,
             });
@@ -480,6 +483,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 headers: {
                     "X-Requested-With": "XMLHttpRequest",
                     "Accept": "application/pdf, application/json",
+                    "X-Schedule-Action": "schedule.generate",
                 },
                 credentials: "same-origin",
                 body: formData,
@@ -505,7 +509,10 @@ document.addEventListener("DOMContentLoaded", () => {
                     previewData.set("token", token);
                     const previewResponse = await fetch(previewModal.getAttribute("data-preview-url"), {
                         method: "POST",
-                        headers: { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json" },
+                        headers: {
+                            "X-Requested-With": "XMLHttpRequest", "Accept": "application/json",
+                            "X-Schedule-Action": "schedule.preview",
+                        },
                         credentials: "same-origin",
                         body: previewData,
                     });
@@ -641,6 +648,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 headers: {
                     "X-Requested-With": "XMLHttpRequest",
                     "Accept": "application/json",
+                    "X-Schedule-Action": "schedule.unprogram",
                 },
                 credentials: "same-origin",
                 body: formData,
