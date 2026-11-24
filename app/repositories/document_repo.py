@@ -394,19 +394,31 @@ class DocumentRepository(SqlAlchemyRepository[Document]):
             query = query.limit(limit)
         return query.all()
 
-    def get_supplier_account_balance(self, supplier_id: int, legal_entity_id: Optional[int] = None) -> Dict:
-        """Calcola estratto conto fornitore."""
+    def get_account_balance(
+        self, supplier_id: Optional[int] = None, legal_entity_id: Optional[int] = None
+    ) -> Dict:
+        """Calcola il riepilogo contabile per fornitore e/o intestazione."""
+        # Una sola riga per documento evita di moltiplicare il totale per le rate.
+        payment_totals = (
+            self.session.query(
+                Payment.document_id,
+                func.sum(Payment.paid_amount).label("paid_total"),
+            )
+            .group_by(Payment.document_id)
+            .subquery()
+        )
         query = (
             self.session.query(
                 func.coalesce(func.sum(Document.total_gross_amount), 0),
-                func.coalesce(func.sum(Payment.paid_amount), 0),
+                func.coalesce(func.sum(payment_totals.c.paid_total), 0),
                 func.count(func.distinct(Document.id)),
             )
             .select_from(Document)
-            .outerjoin(Payment, Payment.document_id == Document.id)
-            .filter(Document.supplier_id == supplier_id)
+            .outerjoin(payment_totals, payment_totals.c.document_id == Document.id)
         )
 
+        if supplier_id is not None:
+            query = query.filter(Document.supplier_id == supplier_id)
         if legal_entity_id is not None:
             query = query.filter(Document.legal_entity_id == legal_entity_id)
 

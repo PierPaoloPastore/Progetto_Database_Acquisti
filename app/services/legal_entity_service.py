@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import or_
 
 from app.extensions import db
-from app.models import BankAccount, Document, LegalEntity, Payment, Supplier
+from app.models import BankAccount, Document, LegalEntity, Supplier
 from app.services.unit_of_work import UnitOfWork
 
 
@@ -72,8 +72,9 @@ def get_legal_entity_detail(
 
         documents = documents_query.all()
 
-        account_snapshot = _get_legal_entity_account_snapshot(
-            uow, legal_entity_id, supplier_id
+        account_snapshot = uow.documents.get_account_balance(
+            supplier_id=supplier_id,
+            legal_entity_id=legal_entity_id,
         )
 
         available_suppliers = (
@@ -160,30 +161,3 @@ def update_legal_entity(
 
 def _parse_bool(value: str) -> bool:
     return str(value).strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _get_legal_entity_account_snapshot(
-    uow: UnitOfWork, legal_entity_id: int, supplier_id: Optional[int]
-) -> Dict[str, Any]:
-    query = (
-        uow.session.query(
-            db.func.coalesce(db.func.sum(Document.total_gross_amount), 0),
-            db.func.coalesce(db.func.sum(Payment.paid_amount), 0),
-            db.func.count(db.func.distinct(Document.id)),
-        )
-        .select_from(Document)
-        .outerjoin(Payment, Payment.document_id == Document.id)
-        .filter(Document.legal_entity_id == legal_entity_id)
-    )
-    if supplier_id is not None:
-        query = query.filter(Document.supplier_id == supplier_id)
-
-    expected_total, paid_total, doc_count = query.one()
-    residual = expected_total - paid_total
-
-    return {
-        "expected_total": expected_total,
-        "paid_total": paid_total,
-        "residual": residual,
-        "document_count": doc_count,
-    }

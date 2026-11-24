@@ -223,7 +223,7 @@
 
     <div class="card shadow-sm">
         <div class="card-header">
-            <h5 class="mb-0">Storico Documenti ({{ invoices|length|format_int }})</h5>
+            <h5 class="mb-0">Storico Documenti ({{ documents|length|format_int }})</h5>
         </div>
         <div class="card-body p-0">
             <div class="table-responsive scrollable-list">
@@ -239,19 +239,19 @@
                     </tr>
                     </thead>
                     <tbody>
-                    {% for inv in invoices %}
+                    {% for doc in documents %}
                       <tr>
-                          <td><span class="text-muted">#{{ inv.id }}</span></td>
-                          <td>{{ inv.document_date.strftime('%d/%m/%Y') if inv.document_date else '-' }}</td>
-                          <td class="fw-bold">{{ inv.document_number }}</td>
+                          <td><span class="text-muted">#{{ doc.id }}</span></td>
+                          <td>{{ doc.document_date.strftime('%d/%m/%Y') if doc.document_date else '-' }}</td>
+                          <td class="fw-bold">{{ doc.document_number }}</td>
                           <td class="text-end font-monospace">
-                              {{ (inv.total_gross_amount or 0)|format_amount }} €
+                              {{ (doc.total_gross_amount or 0)|format_amount }} €
                           </td>
                           <td>
-                              <span class="badge bg-light text-dark border">{{ inv.doc_status }}</span>
+                              <span class="badge bg-light text-dark border">{{ doc.doc_status }}</span>
                           </td>
                           <td class="text-end">
-                              <a href="{{ url_for('documents.detail_view', document_id=inv.id) }}"
+                              <a href="{{ url_for('documents.detail_view', document_id=doc.id) }}"
                                  class="btn btn-sm btn-outline-secondary">
                                   <i class="bi bi-eye"></i> Visualizza
                               </a>

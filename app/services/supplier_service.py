@@ -61,26 +61,19 @@ def get_supplier_detail(
     supplier_id: int, legal_entity_id: int | None = None
 ) -> Optional[Dict[str, Any]]:
     """
-    Restituisce il dettaglio di un fornitore + fatture e snapshot.
+    Restituisce il dettaglio di un fornitore + documenti e snapshot.
     """
     with UnitOfWork() as uow:
         supplier = uow.suppliers.get_by_id(supplier_id)
         if supplier is None:
             return None
 
-        # Query Documenti (type=invoice)
-        invoices_query = uow.session.query(Document).filter(
-            Document.supplier_id == supplier_id,
-            Document.document_type == 'invoice'
-        ).order_by(Document.document_date.desc(), Document.id.desc())
-
-        if legal_entity_id is not None:
-            invoices_query = invoices_query.filter(Document.legal_entity_id == legal_entity_id)
-
-        invoices = invoices_query.all()
-
-        # FIX: Usa il metodo del repository Documents invece della funzione importata
-        account_snapshot = uow.documents.get_supplier_account_balance(
+        documents = uow.documents.search(
+            supplier_id=supplier_id,
+            legal_entity_id=legal_entity_id,
+            limit=None,
+        )
+        account_snapshot = uow.documents.get_account_balance(
             supplier_id=supplier_id,
             legal_entity_id=legal_entity_id,
         )
@@ -105,7 +98,7 @@ def get_supplier_detail(
 
         return {
             "supplier": supplier,
-            "invoices": invoices,
+            "documents": documents,
             "available_legal_entities": [
                 {
                     "id": le_id,
